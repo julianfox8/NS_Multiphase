@@ -1,13 +1,14 @@
 module NavierStokes_Parallel
 
-export run_solver
+export run_solver, parameters
 
 using MPI
 using UnPack
 using OffsetArrays
 using Plots
 
-include("Geometry.jl")
+include("Parameters.jl")
+include("Mesh.jl")
 include("Parallel.jl")
 include("Mask.jl")
 include("Tools.jl")
@@ -16,32 +17,13 @@ include("Pressure.jl")
 include("Poisson.jl")
 include("WriteData.jl")
 
-function run_solver(nprocx,nprocy)
-
-    # Constants
-    mu=0.1       # Dynamic viscosity
-    rho=1.0           # Density
-    Lx=3.0            # Domain size
-    Ly=1.0
-    tFinal=1.0      # Simulation time
-    u_lef=100.0
-    u_bot=100.0       # Boundary velocities
-    u_top=100.0
-    v_rig=0.0
-    v_lef=0.0
-
-    # Discretization inputs
-    Nx=5;           # Number of grid cells
-    Ny=3;
-    stepMax=1000;   # Maximum number of timesteps
-    CFL=0.5;         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_freq=200;    # Number of steps between when plots are updated
+function run_solver(param)
 
     # Create parallel environment
-    par_env = parallel_init(nprocx,nprocy)
+    par_env = parallel_init(param)
 
     # Create mesh
-    mesh = create_mesh(Lx,Ly,Nx,Ny,par_env)
+    mesh = create_mesh(param,par_env)
 
     # Create mask of object
     obj = mask_object(0.2,0.5,0.4,0.6)

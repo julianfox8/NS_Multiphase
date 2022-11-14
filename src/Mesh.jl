@@ -19,7 +19,8 @@ struct mesh_struct
     Gjmax_::Vector{Int};
 end
 
-function  create_mesh(Lx,Ly,Nx,Ny,par_env)
+function  create_mesh(param,par_env)
+    @unpack Nx,Ny,Lx,Ly = param
     # Index extents
     imin=2
     imax=Nx+1

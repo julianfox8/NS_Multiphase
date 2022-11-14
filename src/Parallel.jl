@@ -10,7 +10,9 @@ struct par_env_struct
     iranky :: Int;
 end
 
-function parallel_init(nprocx,nprocy)
+function parallel_init(param)
+
+    @unpack nprocx,nprocy = param
 
     # Start parallel environment
     if ~MPI.Initialized()
