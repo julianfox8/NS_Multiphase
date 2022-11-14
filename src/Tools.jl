@@ -1,6 +1,6 @@
 
-function initArrays(mesh_par)
-    @unpack imino_,imaxo_,jmino_,jmaxo_ = mesh_par
+function initArrays(mesh)
+    @unpack imino_,imaxo_,jmino_,jmaxo_ = mesh
 
     # Allocate memory
     P = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_)
@@ -15,9 +15,8 @@ function initArrays(mesh_par)
     return P,u,v
 end
 
-function plotArray(text,A,mesh,mesh_par,par_env)
-    @unpack x,y = mesh
-    @unpack imin_,imax_,jmin_,jmax_ = mesh_par
+function plotArray(text,A,mesh,par_env)
+    @unpack x,y,imin_,imax_,jmin_,jmax_ = mesh
     @unpack irank = par_env
 
     # Remove OffestArray
@@ -25,7 +24,7 @@ function plotArray(text,A,mesh,mesh_par,par_env)
     yl = parent(y[jmin_:jmax_])
     Al = parent(A[imin_:imax_,jmin_:jmax_])
 
-    printArray("Al",Al,mesh_par,par_env)
+    printArray("Al",Al,par_env)
 
     # Make contour plot of this processor's portion
     plt=contourf(xl,yl,Al')
@@ -37,7 +36,7 @@ end
 """
 Prints a parallel array
 """
-function printArray(text,A,mesh_par,par_env)
+function printArray(text,A,par_env)
     @unpack irankx,nprocx,nprocy,irank,iroot,comm = par_env
 
     nprocy > 1 && error("printArray only works with 1 proc in y")

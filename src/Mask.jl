@@ -2,7 +2,7 @@ struct mask_object
     xmin; xmax; ymin; ymax
 end
 
-function mask_create(obj::mask_object,mesh::mesh_struct,mesh_par::mesh_struct_par)
+function mask_create(obj,mesh)
     #CREATE_MASK tags cells as either 0 in fluid or 1 in solid object
     #   Inputs
     #     obj : Structure containing xmin,xmax,ymin,ymax of object
@@ -11,8 +11,7 @@ function mask_create(obj::mask_object,mesh::mesh_struct,mesh_par::mesh_struct_pa
     #   Outputs
     #     mask  : array with 0 in fluid cells and 1 in solid cells
 
-    @unpack xm,ym = mesh
-    @unpack imin_,imax_,jmin_,jmax_ = mesh_par
+    @unpack xm,ym,imin_,imax_,jmin_,jmax_ = mesh
 
     # Initialize mask array to 0 everywhere
     mask = OffsetArray{Float64}(undef, imin_:imax_+1,jmin_:jmax_+1)

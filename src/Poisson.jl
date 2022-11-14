@@ -1,14 +1,13 @@
-function poisson_solve!(P,RHS,mesh,mesh_par,par_env)
+function poisson_solve!(P,RHS,mesh,par_env)
 
-    GaussSeidel!(P,RHS,1000,mesh,mesh_par,par_env)
+    GaussSeidel!(P,RHS,1000,mesh,par_env)
 
     return nothing
 end
 
 # Serial GaussSeidel Poisson Solver
-function GaussSeidel!(P,RHS,niter,mesh,mesh_par,par_env)
-    @unpack dx,dy = mesh
-    @unpack imin_,imax_,jmin_,jmax_ = mesh_par
+function GaussSeidel!(P,RHS,niter,mesh,par_env)
+    @unpack dx,dy,imin_,imax_,jmin_,jmax_ = mesh
     @unpack irank,iroot = par_env
     for n=1:niter
         max_update=0.0
@@ -21,8 +20,8 @@ function GaussSeidel!(P,RHS,niter,mesh,mesh_par,par_env)
                 P[i,j] = Pnew
             end
         end
-        update_borders!(P,mesh_par,par_env)
-        BC_apply!(P,"Neuman",mesh_par,par_env)
+        update_borders!(P,mesh,par_env)
+        BC_apply!(P,"Neuman",mesh,par_env)
         max_update = parallel_max(max_update,par_env,recvProcs="all")
         # irank == iroot && println("Max update = ",max_update)
 
@@ -33,30 +32,29 @@ function GaussSeidel!(P,RHS,niter,mesh,mesh_par,par_env)
 end
 
 # Serial Multigrid solver
-function multigrid(P,RHS,level,nlevels,mesh,mesh_par)
+function multigrid(P,RHS,level,nlevels,mesh)
 
     # Pre-smoothing
-    P = GaussSeidel(P,RHS,10,mesh,mesh_par)
+    P = GaussSeidel(P,RHS,10,mesh)
 
     if level < nlevels
         # Restrict
-        Pn,RHSn,meshn,mesh_parn = multigrid_restrict(P,RHS,mesh,mesh_par)
+        Pn,RHSn,meshn = multigrid_restrict(P,RHS,mesh)
         # Call multigrid on restricted mesh
-        Pn,RHSn = multigrid(Pn,RHSn,level+1,nlevels,meshn,mesh_parn)
+        Pn,RHSn = multigrid(Pn,RHSn,level+1,nlevels,meshn)
         # Prolongate
-        P = multigrid_prolongate(Pn,RHSn,meshn,mesh_parn)
+        P = multigrid_prolongate(Pn,RHSn,meshn)
 
         # Post-smoothting
-        P = GaussSeidel(P,RHS,10,mesh,mesh_par)
+        P = GaussSeidel(P,RHS,10,mesh)
     end
 
     return P,RHS
 end
 
-function multigrid_restrict(P,RHS,mesh,mesh_par)
+function multigrid_restrict(P,RHS,mesh)
 
-    @unpack x,y,dx,dy = mesh
-    @unpack imin_,imax_,jmin_,jmax_,imino_,imaxo_,jmino_,jmaxo_ = mesh_par
+    @unpack x,y,dx,dy,imin_,imax_,jmin_,jmax_,imino_,imaxo_,jmino_,jmaxo_ = mesh
 
     # Compute restricted mesh
     xn=x[imin_:2:imax_]
@@ -75,10 +73,10 @@ function multigrid_restrict(P,RHS,mesh,mesh_par)
 
 
 
-    return Pn,RHSn,meshn,mesh_parn
+    return Pn,RHSn,meshn
 end
 
-function multigrid_prolongate(P,RHS,mesh,mesh_par)
+function multigrid_prolongate(P,RHS,mesh)
 
     return P
 end

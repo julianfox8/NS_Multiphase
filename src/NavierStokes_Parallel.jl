@@ -37,30 +37,28 @@ function run_solver(nprocx,nprocy)
     CFL=0.5;         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     out_freq=200;    # Number of steps between when plots are updated
 
-    # Create the mesh
-    mesh = create_mesh(Lx,Ly,Nx,Ny);
-
     # Create parallel environment
     par_env = parallel_init(nprocx,nprocy)
 
-    # Create parallel mesh (partition)
-    mesh_par = create_mesh_par(mesh,par_env)
+    # Create mesh
+    mesh = create_mesh(Lx,Ly,Nx,Ny,par_env)
 
     # Create mask of object
     obj = mask_object(0.2,0.5,0.4,0.6)
-    mask=mask_create(obj,mesh,mesh_par);
+    mask=mask_create(obj,mesh);
 
     # Create work arrays
-    P,u,v = initArrays(mesh_par)
+    P,u,v = initArrays(mesh)
 
     # Call pressure Solver 
-    pressure_solver!(P,mesh,mesh_par,par_env)
+    pressure_solver!(P,mesh,par_env)
 
     # Plot pressure field
-    plotArray("Pressure",P,mesh,mesh_par,par_env)
-    printArray("Pressure",P,mesh_par,par_env)
-    VTK(P,mesh,mesh_par,par_env)
-
+    plotArray("Pressure",P,mesh,par_env)
+    printArray("Pressure",P,par_env)
+    pvd = VTK_init()
+    VTK(0,0.0,P,mesh,par_env,pvd)
+    
 #     # Precommpute Laplacian operator
 #     L=Subfuns.lap_opp(mesh,mesh_par,mask);
 #     Li=inv(L);
@@ -121,6 +119,9 @@ function run_solver(nprocx,nprocy)
 #     Parallel.finalize()
 #
 # end
+
+# Finish VTK
+VTK_finalize(pvd)
 
 end # run_solver
 

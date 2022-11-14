@@ -1,9 +1,8 @@
 
 # Serial multigrid Poisson Solver
-function pressure_solver!(P,mesh,mesh_par,par_env)
+function pressure_solver!(P,mesh,par_env)
 
-    @unpack xm,ym = mesh
-    @unpack imin_,imax_,jmin_,jmax_,imino_,imaxo_,jmino_,jmaxo_ = mesh_par
+    @unpack xm,ym,imin_,imax_,jmin_,jmax_,imino_,imaxo_,jmino_,jmaxo_ = mesh
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_)
     sig=0.1
@@ -16,7 +15,7 @@ function pressure_solver!(P,mesh,mesh_par,par_env)
     end
 
 
-    poisson_solve!(P,RHS,mesh,mesh_par,par_env)
+    poisson_solve!(P,RHS,mesh,par_env)
 
     return nothing
 end

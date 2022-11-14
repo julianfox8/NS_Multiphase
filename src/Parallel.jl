@@ -10,15 +10,6 @@ struct par_env_struct
     iranky :: Int;
 end
 
-struct mesh_struct_par
-    imin_::Int; imax_::Int; 
-    jmin_::Int; jmax_::Int;
-    imino_::Int; imaxo_::Int; 
-    jmino_::Int; jmaxo_::Int;
-    Nx_::Int; Ny_::Int;
-    nghost::Int
-end
-
 function parallel_init(nprocx,nprocy)
 
     # Start parallel environment
@@ -57,7 +48,7 @@ end
 function create_mesh_par(mesh,par_env)
 
     @unpack imin,jmin,Nx,Ny = mesh 
-    @unpack nprocx,nprocy,irankx,iranky = par_env
+    @unpack nproc,nprocx,nprocy,irankx,iranky,comm = par_env
     
     # Distribute mesh amongst process
     Nx_=floor(Nx/nprocx)
@@ -87,7 +78,14 @@ function create_mesh_par(mesh,par_env)
     # Create parallel mesh structure
     mesh_par=mesh_struct_par(imin_,imax_,jmin_,jmax_,imino_,imaxo_,jmino_,jmaxo_,Nx_,Ny_,nghost)
 
-    return mesh_par::mesh_struct_par
+    # Create global extents for VTK output 
+    Gimin_ = MPI.Allgather(imin_,comm)
+    Gimax_ = MPI.Allgather(imax_,comm)
+    Gjmin_ = MPI.Allgather(jmin_,comm)
+    Gjmax_ = MPI.Allgather(jmax_,comm)
+    Gmesh_par = global_mesh_struct_par(Gimin_,Gimax_,Gjmin_,Gjmax_)
+
+    return mesh_par, Gmesh_par
 end
 
 function parallel_finalize()

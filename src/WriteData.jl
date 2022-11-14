@@ -1,11 +1,42 @@
 using WriteVTK
+using Printf
 
-function VTK(P,mesh,mesh_par,par_env)
-    @unpack x,y,xm,ym = mesh 
-    @unpack imin_,imax_,jmin_,jmax_ = mesh_par
+function VTK_init()
+    # Create PVD file to hold timestep info
+    pvd = paraview_collection("VTK")
+    return pvd
+end
+   
+function VTK_finalize(pvd)
+    vtk_save(pvd)
+    return nothing
+end
 
-    vtk_grid("fields", x[imin_:imax_+1], y[jmin_:jmax_+1]) do vtk
-        vtk["pressure"] = P[imin_:imax_,jmin_:jmax_]
+function format(iter)
+    return @sprintf("%05i",iter)
+end
+   
+
+
+function VTK(iter,time,P,mesh,par_env,pvd)
+    @unpack x,y,xm,ym,imin_,imax_,jmin_,jmax_,Gimin_,Gimax_,Gjmin_,Gjmax_ = mesh
+    @unpack irank,nproc = par_env
+    # Build extents array
+    p=1; extents=[(Gimin_[p]:Gimax_[p]+1,Gjmin_[p]:Gjmax_[p]+1), ]
+    for p in 2:nproc
+       push!(extents,(Gimin_[p]:Gimax_[p]+1,Gjmin_[p]:Gjmax_[p]+1))
     end
+    # Write data to VTK
+    pvtk_grid(
+        "VTK"*format(iter), 
+        x[imin_:imax_+1], 
+        y[jmin_:jmax_+1],
+        part = irank+1,
+        nparts = nproc,
+        extents = extents,
+        ) do pvtk
+            pvtk["pressure"] = P[imin_:imax_,jmin_:jmax_]
+            pvd[time] = pvtk
+        end
 
 end
