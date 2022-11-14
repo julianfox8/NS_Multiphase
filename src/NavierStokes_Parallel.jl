@@ -14,6 +14,7 @@ include("Tools.jl")
 include("BoundaryConditions.jl")
 include("Pressure.jl")
 include("Poisson.jl")
+include("WriteData.jl")
 
 function run_solver(nprocx,nprocy)
 
@@ -56,9 +57,9 @@ function run_solver(nprocx,nprocy)
     pressure_solver!(P,mesh,mesh_par,par_env)
 
     # Plot pressure field
-    plotArray(P,mesh,mesh_par,par_env)
-
+    plotArray("Pressure",P,mesh,mesh_par,par_env)
     printArray("Pressure",P,mesh_par,par_env)
+    VTK(P,mesh,mesh_par,par_env)
 
 #     # Precommpute Laplacian operator
 #     L=Subfuns.lap_opp(mesh,mesh_par,mask);

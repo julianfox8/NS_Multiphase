@@ -15,7 +15,7 @@ function initArrays(mesh_par)
     return P,u,v
 end
 
-function plotArray(A,mesh,mesh_par,par_env)
+function plotArray(text,A,mesh,mesh_par,par_env)
     @unpack x,y = mesh
     @unpack imin_,imax_,jmin_,jmax_ = mesh_par
     @unpack irank = par_env
@@ -28,7 +28,8 @@ function plotArray(A,mesh,mesh_par,par_env)
     printArray("Al",Al,mesh_par,par_env)
 
     # Make contour plot of this processor's portion
-    plt=contour(xl,yl,Al')
+    plt=contourf(xl,yl,Al')
+    plt=title!(text)
     savefig("plot_$irank.png")
     return nothing
 end
