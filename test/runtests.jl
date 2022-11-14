@@ -1,6 +1,13 @@
 using NavierStokes_Parallel
 using Test
+using MPI
 
 @testset "NavierStokes_Parallel.jl" begin
-    # Write your tests here.
+    #run_solver(1,1)
+
+    nprocs = 2; # number of processes
+    #mpiexec() do mpirun # MPI wrapper
+        run(`mpiexecjl --project=. -n $nprocs $(Base.julia_cmd()) examples/example1.jl`)
+        @test true
+    #end
 end
