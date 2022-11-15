@@ -18,7 +18,7 @@ end
    
 
 
-function VTK(iter,time,P,mesh,par_env,pvd)
+function VTK(iter,time,P,u,v,w,mesh,par_env,pvd)
     @unpack x,y,z,xm,ym,zm,
             imin_,imax_,jmin_,jmax_,kmin_,kmax_,
             Gimin_,Gimax_,Gjmin_,Gjmax_,Gkmin_,Gkmax_ = mesh
@@ -38,7 +38,14 @@ function VTK(iter,time,P,mesh,par_env,pvd)
         nparts = nproc,
         extents = extents,
         ) do pvtk
-            pvtk["pressure"] = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["Pressure"] = @views P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["Velocity"] = @views (
+                u[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
+                v[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
+                w[imin_:imax_,jmin_:jmax_,kmin_:kmax_] )
+            #pvtk["u"] = u[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            #pvtk["v"] = v[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            #pvtk["w"] = w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvd[time] = pvtk
         end
 

@@ -1,3 +1,4 @@
+using OffsetArrays
 
 struct par_env_struct
     nprocx :: Int; nprocy :: Int; nprocz :: Int;
@@ -69,15 +70,15 @@ function update_borders_x!(A,mesh_par,par_env)
     @unpack comm = par_env
     
     # Send to left neighbor 
-    sendbuf = parent(A[imin_:imin_+nghost-1,:,:])
-    recvbuf = similar(sendbuf)
+    sendbuf = OffsetArrays.no_offset_view(A[imin_:imin_+nghost-1,:,:])
+    recvbuf = OffsetArrays.no_offset_view(A[imax_+1:imaxo_,:,:])
     isource,idest = MPI.Cart_shift(comm,0,-1)
     data, status = MPI.Sendrecv!(sendbuf,recvbuf,comm,dest=idest,source=isource)
     A[imax_+1:imaxo_,:,:] = recvbuf
 
     # Send to right neighbor 
-    sendbuf = parent(A[imax_-nghost+1:imax_,:,:])
-    recvbuf = similar(sendbuf)
+    sendbuf = OffsetArrays.no_offset_view(A[imax_-nghost+1:imax_,:,:])
+    recvbuf = OffsetArrays.no_offset_view(A[imino_:imin_-1,:,:])
     isource,idest = MPI.Cart_shift(comm,0,+1)
     data, status = MPI.Sendrecv!(sendbuf,recvbuf,comm,dest=idest,source=isource)
     A[imino_:imin_-1,:,:] = recvbuf
@@ -89,15 +90,15 @@ function update_borders_y!(A,mesh_par,par_env)
     @unpack comm = par_env
     
     # Send to below neighbor 
-    sendbuf = parent(A[:,jmin_:jmin_+nghost-1,:])
-    recvbuf = similar(sendbuf)
+    sendbuf = OffsetArrays.no_offset_view(A[:,jmin_:jmin_+nghost-1,:])
+    recvbuf = OffsetArrays.no_offset_view(A[:,jmax_+1:jmaxo_,:])
     isource,idest = MPI.Cart_shift(comm,1,-1)
     data, status = MPI.Sendrecv!(sendbuf,recvbuf,comm,dest=idest,source=isource)
     A[:,jmax_+1:jmaxo_,:] = recvbuf
 
     # Send to above neighbor 
-    sendbuf = parent(A[:,jmax_-nghost+1:jmax_,:])
-    recvbuf = similar(sendbuf)
+    sendbuf = OffsetArrays.no_offset_view(A[:,jmax_-nghost+1:jmax_,:])
+    recvbuf = OffsetArrays.no_offset_view(A[:,jmino_:jmin_-1,:])
     isource,idest = MPI.Cart_shift(comm,1,+1)
     data, status = MPI.Sendrecv!(sendbuf,recvbuf,comm,dest=idest,source=isource)
     A[:,jmino_:jmin_-1,:] = recvbuf
@@ -109,15 +110,15 @@ function update_borders_z!(A,mesh_par,par_env)
     @unpack comm = par_env
     
     # Send to below neighbor 
-    sendbuf = parent(A[:,:,kmin_:kmin_+nghost-1])
-    recvbuf = similar(sendbuf)
+    sendbuf = OffsetArrays.no_offset_view(A[:,:,kmin_:kmin_+nghost-1])
+    recvbuf = OffsetArrays.no_offset_view(A[:,:,kmax_+1:kmaxo_])
     isource,idest = MPI.Cart_shift(comm,2,-1)
     data, status = MPI.Sendrecv!(sendbuf,recvbuf,comm,dest=idest,source=isource)
     A[:,:,kmax_+1:kmaxo_] = recvbuf
 
     # Send to above neighbor 
-    sendbuf = parent(A[:,:,kmax_-nghost+1:kmax_])
-    recvbuf = similar(sendbuf)
+    sendbuf = OffsetArrays.no_offset_view(A[:,:,kmax_-nghost+1:kmax_])
+    recvbuf = OffsetArrays.no_offset_view(A[:,:,kmino_:kmin_-1])
     isource,idest = MPI.Cart_shift(comm,2,+1)
     data, status = MPI.Sendrecv!(sendbuf,recvbuf,comm,dest=idest,source=isource)
     A[:,:,kmino_:kmin_-1] = recvbuf

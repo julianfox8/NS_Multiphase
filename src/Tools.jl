@@ -1,3 +1,4 @@
+using Printf
 
 function initArrays(mesh)
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -6,13 +7,9 @@ function initArrays(mesh)
     P = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     u = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     v = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    w = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
-    # Fill
-    fill!(P,0.0)
-    fill!(u,0.0)
-    fill!(v,0.0)
-
-    return P,u,v
+    return P,u,v,w
 end
 
 """
@@ -28,7 +25,9 @@ function printArray(text,A,par_env)
         for j in reverse(axes(A,2))
             for rankx in 0:nprocx-1
                 if rankx == irankx 
-                    print(A[:,j,k])
+                    for i in axes(A,1)
+                        @printf("%10.3g ",A[i,j,k])
+                    end
                 end
                 MPI.Barrier(comm)
             end

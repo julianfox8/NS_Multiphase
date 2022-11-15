@@ -3,18 +3,16 @@ struct mask_object
 end
 
 function mask_create(obj,mesh)
-    #CREATE_MASK tags cells as either 0 in fluid or 1 in solid object
-    #   Inputs
-    #     obj : Structure containing xmin,xmax,ymin,ymax of object
-    #     xm,ym :  Arrays of cell centers
-    #     imin,imax,jmin,jmax : index extents
-    #   Outputs
-    #     mask  : array with 0 in fluid cells and 1 in solid cells
-
     @unpack xm,ym,zm,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Initialize mask array to 0 everywhere
     mask = OffsetArray{Float64}(undef, imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1)
+
+    # Check if obj is defined
+    if obj === nothing 
+        fill!(mask,0)
+        return mask 
+    end
 
     # Loop over the domain
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_

@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters,mask_object
+export run_solver, parameters, mask_object, @unpack
 
 using MPI
 using UnPack
@@ -17,7 +17,7 @@ include("Pressure.jl")
 include("Poisson.jl")
 include("WriteData.jl")
 
-function run_solver(param,obj)
+function run_solver(param, IC!, BC!; mask_obj=nothing)
 
     # Create parallel environment
     par_env = parallel_init(param)
@@ -26,12 +26,23 @@ function run_solver(param,obj)
     mesh = create_mesh(param,par_env)
 
     # Create mask of object
-    mask=mask_create(obj,mesh);
+    mask=mask_create(mask_obj,mesh);
 
     # Create work arrays
-    P,u,v = initArrays(mesh)
+    P,u,v,w = initArrays(mesh)
+
+    # Create initial condition
+    IC!(P,u,v,w,mesh)
 
     # Apply boundary conditions
+    BC!(u,v,w,mesh,par_env)
+
+    # Update Processor boundaries
+    update_borders!(u,mesh,par_env)
+    update_borders!(v,mesh,par_env)
+    update_borders!(w,mesh,par_env)
+
+
 #    BC_apply!(u,"u",param,mesh,par_env)
 #
 #     # Loop over time
@@ -84,8 +95,11 @@ pressure_solver!(P,param,mesh,par_env)
 # Plot pressure field
 @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 printArray("Pressure",P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+printArray("Velocity-x",u,par_env)
+# printArray("Velocity-y",v,par_env)
+# printArray("Velocity-z",w,par_env)
 pvd = VTK_init()
-VTK(0,0.0,P,mesh,par_env,pvd)
+VTK(0,0.0,P,u,v,w,mesh,par_env,pvd)
 
 # Finish VTK
 VTK_finalize(pvd)
