@@ -4,4 +4,4 @@
 *.png
 
 # VTK
-*.vtr
+VTK*

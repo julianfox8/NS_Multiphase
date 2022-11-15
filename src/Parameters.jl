@@ -5,17 +5,18 @@ using Parameters
     rho
     Lx
     Ly
+    Lz
     tFinal
-    u_lef 
-    u_bot
-    u_top
-    u_rig
-    v_lef
     Nx
     Ny
+    Nz
     stepMax
     CFL
     out_freq
     nprocx
     nprocy
+    nprocz
+    xper
+    yper
+    zper
 end

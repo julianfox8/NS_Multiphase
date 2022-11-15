@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters
+export run_solver, parameters,mask_object
 
 using MPI
 using UnPack
@@ -17,7 +17,7 @@ include("Pressure.jl")
 include("Poisson.jl")
 include("WriteData.jl")
 
-function run_solver(param)
+function run_solver(param,obj)
 
     # Create parallel environment
     par_env = parallel_init(param)
@@ -26,37 +26,13 @@ function run_solver(param)
     mesh = create_mesh(param,par_env)
 
     # Create mask of object
-    obj = mask_object(0.2,0.5,0.4,0.6)
     mask=mask_create(obj,mesh);
 
     # Create work arrays
     P,u,v = initArrays(mesh)
 
-    # Call pressure Solver 
-    pressure_solver!(P,mesh,par_env)
-
-    # Plot pressure field
-    plotArray("Pressure",P,mesh,par_env)
-    printArray("Pressure",P,par_env)
-    pvd = VTK_init()
-    VTK(0,0.0,P,mesh,par_env,pvd)
-    
-#     # Precommpute Laplacian operator
-#     L=Subfuns.lap_opp(mesh,mesh_par,mask);
-#     Li=inv(L);
-#
-#     # Initial condition: t=0, u=0, v=0
-#     t=0;
-#     u=zeros(Nx+2,Ny+2); # 1 layer of ghost cells
-#     v=zeros(Nx+2,Ny+2);
-#
-#     # Apply boundary conditions
-#     Subfuns.applyBCs(u,v,u_bot,u_top,v_lef,v_rig,u_lef,mesh);
-#
-#     # Preallocate
-#     us=zeros(Nx+2,Ny+2)
-#     vs=zeros(Nx+2,Ny+2)
-#     P =zeros(Nx+2,Ny+2)
+    # Apply boundary conditions
+#    BC_apply!(u,"u",param,mesh,par_env)
 #
 #     # Loop over time
 #     for nstep=1:stepMax # nstep<stepMax && t<tFinal
@@ -101,6 +77,15 @@ function run_solver(param)
 #     Parallel.finalize()
 #
 # end
+
+# Call pressure Solver 
+pressure_solver!(P,param,mesh,par_env)
+
+# Plot pressure field
+@unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+printArray("Pressure",P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+pvd = VTK_init()
+VTK(0,0.0,P,mesh,par_env,pvd)
 
 # Finish VTK
 VTK_finalize(pvd)

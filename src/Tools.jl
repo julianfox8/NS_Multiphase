@@ -1,11 +1,11 @@
 
 function initArrays(mesh)
-    @unpack imino_,imaxo_,jmino_,jmaxo_ = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Allocate memory
-    P = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_)
-    u = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_)
-    v = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_)
+    P = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    u = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    v = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
     # Fill
     fill!(P,0.0)
@@ -15,41 +15,25 @@ function initArrays(mesh)
     return P,u,v
 end
 
-function plotArray(text,A,mesh,par_env)
-    @unpack x,y,imin_,imax_,jmin_,jmax_ = mesh
-    @unpack irank = par_env
-
-    # Remove OffestArray
-    xl = parent(x[imin_:imax_])
-    yl = parent(y[jmin_:jmax_])
-    Al = parent(A[imin_:imax_,jmin_:jmax_])
-
-    printArray("Al",Al,par_env)
-
-    # Make contour plot of this processor's portion
-    plt=contourf(xl,yl,Al')
-    plt=title!(text)
-    savefig("plot_$irank.png")
-    return nothing
-end
-
 """
 Prints a parallel array
 """
 function printArray(text,A,par_env)
-    @unpack irankx,nprocx,nprocy,irank,iroot,comm = par_env
+    @unpack irankx,nprocx,nprocy,nprocz,irank,isroot,comm = par_env
 
-    nprocy > 1 && error("printArray only works with 1 proc in y")
+    (nprocy > 1 || nprocz>1) && error("printArray only works with 1 proc in y and 1 proc in z")
 
-    irank == iroot && print("$text\n")
-    for j in reverse(axes(A,2))
-        for rankx in 0:nprocx-1
-            if rankx == irankx 
-                print(A[:,j])
+    for k in axes(A,3)
+        isroot && print("$text[:,:,$k]\n")
+        for j in reverse(axes(A,2))
+            for rankx in 0:nprocx-1
+                if rankx == irankx 
+                    print(A[:,j,k])
+                end
+                MPI.Barrier(comm)
             end
-            MPI.Barrier(comm)
+            isroot && print("\n")
         end
-        irank == iroot && print("\n")
     end
 
     return nothing

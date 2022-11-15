@@ -7,16 +7,13 @@ param = parameters(
     rho=1.0,           # Density
     Lx=3.0,            # Domain size
     Ly=1.0,
+    Lz=1.0,
     tFinal=1.0,      # Simulation time
-    u_lef=100.0,
-    u_bot=100.0,       # Boundary velocities
-    u_top=100.0,
-    u_rig=0.0,
-    v_lef=0.0,
-
+    
     # Discretization inputs
     Nx=5,           # Number of grid cells
     Ny=3,
+    Nz=3,
     stepMax=1000,   # Maximum number of timesteps
     CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     out_freq=200,    # Number of steps between when plots are updated
@@ -24,7 +21,15 @@ param = parameters(
     # Processors 
     nprocx = 2,
     nprocy = 1,
+    nprocz = 1,
+
+    # Periodicity
+    xper = false,
+    yper = false,
+    zper = false,
 )
 
+obj = mask_object(0.2,0.5,0.4,0.6,0.4,0.6)
+
 # Simply run solver on 1 processor
-run_solver(param)
+run_solver(param,obj)
