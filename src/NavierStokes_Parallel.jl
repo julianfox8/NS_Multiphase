@@ -50,9 +50,14 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
     update_borders!(v,mesh,par_env)
     update_borders!(w,mesh,par_env)
 
+    # Initialize VTK outputs
+    pvd = VTK_init()
+
     # Loop over time
     nstep = 0
     while nstep<stepMax && t<tFinal
+
+        println("================ $nstep ===============")
 
         # Update step counter
         nstep += 1
@@ -61,50 +66,47 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
         dt = compute_dt(u,v,w,param,mesh,par_env)
         t += dt;
 
+        @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+        printArray("u",u[:,:,kmin_:kmax_],par_env)
+        printArray("v",v[:,:,kmin_:kmax_],par_env)
+
         # Predictor step
         predictor!(us,vs,ws,P,u,v,w,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
 
         # Apply boundary conditions
         BC!(us,vs,ws,mesh,par_env)
 
+
+        printArray("us",us[:,:,kmin_:kmax_],par_env)
+        printArray("vs",vs[:,:,kmin_:kmax_],par_env)
+
         # Call pressure Solver 
-        pressure_solver!(P,us,vs,ws,param,mesh,par_env)
-#
-#         # Corrector step
-#         Subfuns.corrector(u,v,us,vs,P,rho,dt,mesh,mask);
-#
-#         # Outputs
-#         Subfuns.outputs(u,v,P,t,nstep,out_freq,mesh);
-#
-#         # Interpolate velocity to cell centers
-#         uI=zeros(mesh.imax,mesh.jmax)
-#         vI=zeros(mesh.imax,mesh.jmax)
-#         uM=zeros(mesh.imax,mesh.jmax)
-#         for j=mesh.jmin:mesh.jmax
-#             for i=mesh.imin:mesh.imax
-#                 uI[i,j]=0.5*(u[i,j]+u[i+1,j]);
-#                 vI[i,j]=0.5*(v[i,j]+v[i,j+1]);
-#                 uM[i,j]=sqrt(uI[i,j]^2+vI[i,j]^2)
-#             end
-#         end
-#
-#     end
-#
-#     Parallel.finalize()
-#
-end
+        pressure_solver!(P,us,vs,ws,dt,param,mesh,par_env)
 
-# Plot pressure field
-@unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-printArray("Pressure",P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-printArray("Velocity-x",us,par_env)
-printArray("Velocity-y",vs,par_env)
-# printArray("Velocity-z",w,par_env)
-pvd = VTK_init()
-VTK(0,0.0,P,u,v,w,mesh,par_env,pvd)
+        printArray("P",P[:,:,kmin_:kmax_],par_env)
 
-# Finish VTK
-VTK_finalize(pvd)
+        # Corrector step
+        corrector!(u,v,w,us,vs,ws,P,dt,param,mesh,mask)
+
+        # Check divergence
+        divg = divergence(u,v,w,mesh,par_env)
+        printArray("divg",divg[:,:,kmin_:kmax_],par_env)
+
+
+        # Apply boundary conditions
+        BC!(u,v,ws,mesh,par_env)
+
+        printArray("u",u[:,:,kmin_:kmax_],par_env)
+        printArray("v",v[:,:,kmin_:kmax_],par_env)
+
+        # Output
+        VTK(nstep,t,P,u,v,w,mesh,par_env,pvd)
+
+    end
+
+    # Finalize
+    VTK_finalize(pvd)
+    #parallel_finalize()
 
 end # run_solver
 

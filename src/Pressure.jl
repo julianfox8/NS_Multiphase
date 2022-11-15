@@ -1,15 +1,19 @@
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,us,vs,ws,param,mesh,par_env)
-
-    @unpack xm,ym,zm,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+function pressure_solver!(P,us,vs,ws,dt,param,mesh,par_env)
+    @unpack rho = param
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     sig=0.1
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        RHS[i,j,k]=(
-            +1.0/(sig*sqrt(2.0*pi))*exp(-((xm[i]-0.5)^2+(ym[j]-0.5)^2)/(2.0*sig^2))
-            -1.0/(sig*sqrt(2.0*pi))*exp(-((xm[i]-2.5)^2+(ym[j]-0.5)^2)/(2.0*sig^2)))
+        # Derivatives 
+        dus_dx   = ( us[i+1,j,k] - us[i-1,j,k] )/(2dx)
+        dvs_dy   = ( vs[i,j+1,k] - vs[i,j-1,k] )/(2dy)
+        dws_dz   = ( ws[i,j,k+1] - ws[i,j,k-1] )/(2dz)
+
+        # RHS
+        RHS[i,j,k]= rho/dt * ( dus_dx + dvs_dy + dws_dz )
     end
 
     poisson_solve!(P,RHS,param,mesh,par_env)

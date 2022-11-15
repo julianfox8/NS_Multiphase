@@ -20,7 +20,7 @@ param = parameters(
     Nx=10,           # Number of grid cells
     Ny=10,
     Nz=1,
-    stepMax=1000,   # Maximum number of timesteps
+    stepMax=10,   # Maximum number of timesteps
     CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     out_freq=200,    # Number of steps between when plots are updated
 
