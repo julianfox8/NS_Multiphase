@@ -1,6 +1,6 @@
 
-# Serial multigrid Poisson Solver
-function pressure_solver!(P,param,mesh,par_env)
+# Solve Poisson equation: δP form
+function pressure_solver!(P,us,vs,ws,param,mesh,par_env)
 
     @unpack xm,ym,zm,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 

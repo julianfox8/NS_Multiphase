@@ -148,3 +148,17 @@ function parallel_max(A,par_env; recvProcs="iroot")
         error("Unknown recvProcs of $recvProcs")
     end
 end
+
+""" 
+Parallel Min of A (by default output goes only to iroot)
+"""
+function parallel_min(A,par_env; recvProcs="iroot")
+    @unpack comm, iroot = par_env
+    if recvProcs == "iroot"
+        return MPI.Reduce(A,MPI.MIN,comm,root=iroot)
+    elseif recvProcs == "all"
+        return MPI.Allreduce(A,MPI.MIN,comm)
+    else
+        error("Unknown recvProcs of $recvProcs")
+    end
+end

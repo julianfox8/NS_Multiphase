@@ -12,7 +12,7 @@ param = parameters(
     mu=0.1,       # Dynamic viscosity
     rho=1.0,           # Density
     Lx=3.0,            # Domain size
-    Ly=1.0,
+    Ly=3.0,
     Lz=1.0,
     tFinal=1.0,      # Simulation time
     

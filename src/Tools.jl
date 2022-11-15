@@ -1,15 +1,39 @@
-using Printf
-
 function initArrays(mesh)
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Allocate memory
-    P = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    u = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    v = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    w = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    P  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    u  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    v  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    w  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    us = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    vs = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    ws = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    Fx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    Fy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    Fz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    return P,u,v,w,us,vs,ws,Fx,Fy,Fz
+end
 
-    return P,u,v,w
+"""
+Compute timestep 
+"""
+function compute_dt(u,v,w,param,mesh,par_env)
+    @unpack mu,CFL = param
+    @unpack dx,dy,dz = mesh
+
+    # Convective Δt
+    local_min_dx_vel = minimum([dx/maximum(u),dy/maximum(v),dz/maximum(w)])
+    min_dx_vel= parallel_min(local_min_dx_vel,par_env,recvProcs="all")
+    convec_dt = min_dx_vel
+
+    # Viscous Δt 
+    viscous_dt = minimum([dx,dy,dz])/mu
+    
+    # Timestep
+    dt=CFL*minimum([convec_dt,viscous_dt])
+
+    return dt
 end
 
 """
