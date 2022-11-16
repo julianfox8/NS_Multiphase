@@ -45,18 +45,24 @@ function printArray(text,A,par_env)
 
     (nprocy > 1 || nprocz>1) && error("printArray only works with 1 proc in y and 1 proc in z")
 
+    MPI.Barrier(comm)
     for k in axes(A,3)
         isroot && print("$text[:,:,$k]\n")
         for j in reverse(axes(A,2))
             for rankx in 0:nprocx-1
                 if rankx == irankx 
+                    @printf("|")
                     for i in axes(A,1)
                         @printf("%10.3g ",A[i,j,k])
                     end
                 end
+                flush(stdout)
                 MPI.Barrier(comm)
             end
-            isroot && print("\n")
+            flush(stdout)
+            MPI.Barrier(comm)
+            isroot && sleep(0.01)
+            isroot && @printf("\n")
         end
     end
 

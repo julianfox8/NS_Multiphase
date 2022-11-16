@@ -18,12 +18,12 @@ param = parameters(
     tFinal=100.0,      # Simulation time
 
     # Discretization inputs
-    Nx=50,           # Number of grid cells
-    Ny=50,
+    Nx=30,           # Number of grid cells
+    Ny=30,
     Nz=1,
-    stepMax=2000,   # Maximum number of timesteps
+    stepMax=200,   # Maximum number of timesteps
     CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_freq=1,     # Number of steps between when plots are updated
+    out_freq=10,     # Number of steps between when plots are updated
 
     # Processors 
     nprocx = 1,
@@ -69,12 +69,12 @@ function BC!(u,v,w,mesh,par_env)
         v[i,:,:] = -v[imin,:,:] # No slip
         w[i,:,:] = -w[imin,:,:] # No slip
     end
-    
     # Right
+    vright=1.0
     if irankx == nprocx-1
         i = imax+1
         u[i,:,:] = -u[imax,:,:] # No flux
-        v[i,:,:] = -v[imax,:,:] # No slip
+        v[i,:,:] = -v[imax,:,:] .+ 2vright # No slip
         w[i,:,:] = -w[imax,:,:] # No slip
     end
     # Bottom 
@@ -84,12 +84,11 @@ function BC!(u,v,w,mesh,par_env)
         v[:,j,:] = -v[:,jmin,:] # No flux
         w[:,j,:] = -w[:,jmin,:] # No slip
     end
-    
     # Top
-    utop=1.0
+    utop=0.0
     if iranky == nprocy-1
         j = jmax+1
-        u[:,j,:] = -u[:,jmax,:] .+ 2utop# No slip
+        u[:,j,:] = -u[:,jmax,:] .+ 2utop # No slip
         v[:,j,:] = -v[:,jmax,:] # No flux
         w[:,j,:] = -w[:,jmax,:] # No slip
     end
@@ -100,7 +99,6 @@ function BC!(u,v,w,mesh,par_env)
         v[:,:,k] = -v[:,:,kmin] # No slip
         w[:,:,k] = -w[:,:,kmin] # No flux
     end
-    
     # Front
     if irankz == nprocz-1
         k = kmax+1
@@ -111,9 +109,6 @@ function BC!(u,v,w,mesh,par_env)
 
     return nothing
 end
-
-
-
 
 # Simply run solver on 1 processor
 run_solver(param, IC!, BC!)

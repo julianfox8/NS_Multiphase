@@ -68,15 +68,17 @@ function corrector!(uf,vf,wf,P,dt,param,mesh,mask)
     @unpack rho = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
-    for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        # Derivatives 
+    # x-face
+    for i in imin_:imax_+1, j in jmin_:jmax_, k in kmin_:kmax_
         dp_dx = ( P[i,j,k] - P[i-1,j,k] )/(dx)
-        dp_dy = ( P[i,j,k] - P[i,j-1,k] )/(dy)
-        dp_dz = ( P[i,j,k] - P[i,j,k-1] )/(dz)
-                    
-        # Corrector step 
         uf[i,j,k] = uf[i,j,k] - dt/rho * dp_dx
+    end
+    for i in imin_:imax_, j in jmin_:jmax_+1, k in kmin_:kmax_
+        dp_dy = ( P[i,j,k] - P[i,j-1,k] )/(dy)
         vf[i,j,k] = vf[i,j,k] - dt/rho * dp_dy
+    end
+    for i in imin_:imax_, j in jmin_:jmax_, k in kmin_:kmax_+1
+        dp_dz = ( P[i,j,k] - P[i,j,k-1] )/(dz)
         wf[i,j,k] = wf[i,j,k] - dt/rho * dp_dz
     end
 

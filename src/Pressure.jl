@@ -28,7 +28,9 @@ function poisson_solve!(P,RHS,param,mesh,par_env)
     return nothing
 end
 
-# Serial GaussSeidel Poisson Solver
+"""
+Serial GaussSeidel Poisson Solver
+"""
 function GaussSeidel!(P,RHS,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack isroot = par_env
@@ -58,6 +60,8 @@ function GaussSeidel!(P,RHS,param,mesh,par_env)
         end
     end
 end
+
+
 
 """ 
 Apply BC's on pressure

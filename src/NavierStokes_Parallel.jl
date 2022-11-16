@@ -1,7 +1,3 @@
-"""
-Soler based on
-https://www.sciencedirect.com/science/article/pii/S0021999110001208?ref=cra_js_challenge&fr=RR-1
-"""
 module NavierStokes_Parallel
 
 export run_solver, parameters, mask_object, @unpack
@@ -17,7 +13,6 @@ include("Mesh.jl")
 include("Parallel.jl")
 include("Mask.jl")
 include("Tools.jl")
-include("BoundaryConditions.jl")
 include("Velocity.jl")
 include("Pressure.jl")
 include("WriteData.jl")
@@ -66,22 +61,14 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
         dt = compute_dt(u,v,w,param,mesh,par_env)
         t += dt;
 
-        #printArray("u1",u[:,:,kmin_:kmax_],par_env)
-
         # Predictor step
         predictor!(us,vs,ws,u,v,w,dt,param,mesh,par_env,mask)
-
-        #printArray("us1",us[:,:,kmin_:kmax_],par_env)
 
         # Apply boundary conditions
         BC!(us,vs,ws,mesh,par_env)
 
-        #printArray("us2",us[:,:,kmin_:kmax_],par_env)
-
         # Create face velocities
         interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-
-        #printArray("uf1",uf[imin_:imax_+1,jmin_:jmax_,kmin_:kmax_],par_env)
 
         # Call pressure Solver 
         pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
@@ -91,6 +78,11 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
 
         # Interpolate velocity to cell centers
         interpolateCenter!(u,v,w,uf,vf,wf,mesh)
+
+        # Update Processor boundaries
+        update_borders!(u,mesh,par_env)
+        update_borders!(v,mesh,par_env)
+        update_borders!(w,mesh,par_env)
         
         # Check divergence
         divg = divergence(uf,vf,wf,mesh,par_env)
@@ -102,7 +94,7 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
     end
 
     # Finalize
-    VTK_finalize(pvd)
+    #VTK_finalize(pvd) (called in VTK)
     #parallel_finalize()
 
 end # run_solver
