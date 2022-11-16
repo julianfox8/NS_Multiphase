@@ -15,15 +15,15 @@ param = parameters(
     Lx=3.0,            # Domain size
     Ly=3.0,
     Lz=1.0,
-    tFinal=1.0,      # Simulation time
+    tFinal=100.0,      # Simulation time
 
     # Discretization inputs
-    Nx=10,           # Number of grid cells
-    Ny=10,
+    Nx=50,           # Number of grid cells
+    Ny=50,
     Nz=1,
-    stepMax=10,   # Maximum number of timesteps
+    stepMax=2000,   # Maximum number of timesteps
     CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_freq=200,    # Number of steps between when plots are updated
+    out_freq=1,     # Number of steps between when plots are updated
 
     # Processors 
     nprocx = 1,
@@ -47,8 +47,8 @@ function IC!(P,u,v,w,mesh)
 
     # Velocity
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_ 
-        u[i,j,k] = -(ym[j] - Ly/2.0)
-        v[i,j,k] =  (xm[i] - Lx/2.0)
+        u[i,j,k] = 0.0 #-(ym[j] - Ly/2.0)
+        v[i,j,k] = 0.0 # (xm[i] - Lx/2.0)
         w[i,j,k] = 0.0
     end
 
@@ -56,52 +56,57 @@ function IC!(P,u,v,w,mesh)
 end
 
 """
-Boundary conditions for velocity on cell faces
+Boundary conditions for velocity
 """
-function BC!(uf,vf,wf,mesh,par_env)
+function BC!(u,v,w,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
     @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
     
-    # Left 
-    if irankx == 0 
-        uf[imin  ,:,:] .= 0.0 # No flux
-        vf[imin-1,:,:] = -vf[imin,:,:] # No slip
-        wf[imin-1,:,:] = -wf[imin,:,:] # No slip
+     # Left 
+     if irankx == 0 
+        i = imin-1
+        u[i,:,:] = -u[imin,:,:] # No flux
+        v[i,:,:] = -v[imin,:,:] # No slip
+        w[i,:,:] = -w[imin,:,:] # No slip
     end
     
     # Right
     if irankx == nprocx-1
-        uf[imax+1,:,:] .= 0.0 # No flux
-        vf[imax+1,:,:] = -vf[imax,:,:] # No slip
-        wf[imax+1,:,:] = -wf[imax,:,:] # No slip
+        i = imax+1
+        u[i,:,:] = -u[imax,:,:] # No flux
+        v[i,:,:] = -v[imax,:,:] # No slip
+        w[i,:,:] = -w[imax,:,:] # No slip
     end
-
     # Bottom 
     if iranky == 0 
-        uf[:,jmin-1,:] = -uf[:,jmin,:] # No slip
-        vf[:,jmin  ,:] .= 0.0 # No flux
-        wf[:,jmin-1,:] = -wf[:,jmin,:] # No slip
+        j = jmin-1
+        u[:,j,:] = -u[:,jmin,:] # No slip
+        v[:,j,:] = -v[:,jmin,:] # No flux
+        w[:,j,:] = -w[:,jmin,:] # No slip
     end
     
     # Top
+    utop=1.0
     if iranky == nprocy-1
-        uf[:,jmax+1,:] = -uf[:,jmax,:] # No slip
-        vf[:,jmax+1,:] .= 0.0 # No flux
-        wf[:,jmax+1,:] = -wf[:,jmax,:] # No slip
+        j = jmax+1
+        u[:,j,:] = -u[:,jmax,:] .+ 2utop# No slip
+        v[:,j,:] = -v[:,jmax,:] # No flux
+        w[:,j,:] = -w[:,jmax,:] # No slip
     end
-
     # Back 
     if irankz == 0 
-        uf[:,:,kmin-1] = -uf[:,:,kmin] # No slip
-        vf[:,:,kmin-1] = -vf[:,:,kmin] # No slip
-        wf[:,:,kmin  ] .= 0.0 # No flux
+        k = kmin-1
+        u[:,:,k] = -u[:,:,kmin] # No slip
+        v[:,:,k] = -v[:,:,kmin] # No slip
+        w[:,:,k] = -w[:,:,kmin] # No flux
     end
     
     # Front
     if irankz == nprocz-1
-        uf[:,:,kmax+1] = -uf[:,:,kmax] # No slip
-        vf[:,:,kmax+1] = -vf[:,:,kmax] # No slip
-        wf[:,:,kmax+1] .= 0.0 # No flux
+        k = kmax+1
+        u[:,:,k] = -u[:,:,kmax] # No slip
+        v[:,:,k] = -v[:,:,kmax] # No slip
+        w[:,:,k] = -w[:,:,kmax] # No flux
     end
 
     return nothing

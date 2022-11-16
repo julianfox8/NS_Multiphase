@@ -20,7 +20,6 @@ include("Tools.jl")
 include("BoundaryConditions.jl")
 include("Velocity.jl")
 include("Pressure.jl")
-include("Poisson.jl")
 include("WriteData.jl")
 
 function run_solver(param, IC!, BC!; mask_obj=nothing)
@@ -45,14 +44,8 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
     t = 0.0
     IC!(P,u,v,w,mesh)
 
-    # Interpolate velocity to cell faces
-    interpolateFace!(u,v,w,uf,vf,wf,mesh)
-
     # Apply boundary conditions
-    BC!(uf,vf,wf,mesh,par_env)
-
-    # Interpolate velocity to cell centers
-    interpolateCenter!(u,v,w,uf,vf,wf,mesh)
+    BC!(u,v,w,mesh,par_env)
 
     # Update Processor boundaries
     update_borders!(u,mesh,par_env)
@@ -70,17 +63,25 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
         nstep += 1
 
         # Compute timestep and update time
-        dt = compute_dt(uf,vf,wf,param,mesh,par_env)
+        dt = compute_dt(u,v,w,param,mesh,par_env)
         t += dt;
+
+        #printArray("u1",u[:,:,kmin_:kmax_],par_env)
 
         # Predictor step
         predictor!(us,vs,ws,u,v,w,dt,param,mesh,par_env,mask)
 
+        #printArray("us1",us[:,:,kmin_:kmax_],par_env)
+
+        # Apply boundary conditions
+        BC!(us,vs,ws,mesh,par_env)
+
+        #printArray("us2",us[:,:,kmin_:kmax_],par_env)
+
         # Create face velocities
         interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
-        # Apply boundary conditions to face velocities
-        BC!(uf,vf,wf,mesh,par_env)
+        #printArray("uf1",uf[imin_:imax_+1,jmin_:jmax_,kmin_:kmax_],par_env)
 
         # Call pressure Solver 
         pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
@@ -93,16 +94,10 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
         
         # Check divergence
         divg = divergence(uf,vf,wf,mesh,par_env)
-        max_divg = parallel_max(maximum(divg),par_env)
-
+        
         # Output
-        VTK(nstep,t,P,u,v,w,divg,mesh,par_env,pvd)
-
-        # Std-out 
-        if isroot 
-            rem(nstep,10)==1 && @printf(" Iteration  max(divg) \n")
-            @printf(" %9i   %8.3g \n",nstep,max_divg)
-        end
+        std_out(nstep,t,P,u,v,w,divg,par_env)
+        VTK(nstep,t,P,u,v,w,divg,param,mesh,par_env,pvd)
 
     end
 
