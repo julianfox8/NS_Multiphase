@@ -30,7 +30,7 @@ function GaussSeidel!(P,RHS,param,mesh,par_env)
         max_update < 1e-10 && return iter # Converged
         # Check if hit max iteration
         if iter == maxIter 
-            isroot && println("Failed to converged Poisson equation max_upate = $max_upate")
+            isroot && println("Failed to converged Poisson equation max_upate = $max_update")
             return nothing 
         end
     end

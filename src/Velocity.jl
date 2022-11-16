@@ -1,4 +1,4 @@
-function predictor!(us,vs,ws,P,u,v,w,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
+function predictor!(us,vs,ws,u,v,w,dt,param,mesh,par_env,mask)
     @unpack rho,mu = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
@@ -64,35 +64,65 @@ function predictor!(us,vs,ws,P,u,v,w,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
     return nothing
 end
 
-function corrector!(u,v,w,us,vs,ws,P,dt,param,mesh,mask)
+function corrector!(uf,vf,wf,P,dt,param,mesh,mask)
     @unpack rho = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
         # Derivatives 
-        dp_dx = ( P[i+1,j,k] - P[i-1,j,k] )/(2dx)
-        dp_dy = ( P[i,j+1,k] - P[i,j-1,k] )/(2dy)
-        dp_dz = ( P[i,j,k+1] - P[i,j,k-1] )/(2dz)
+        dp_dx = ( P[i,j,k] - P[i-1,j,k] )/(dx)
+        dp_dy = ( P[i,j,k] - P[i,j-1,k] )/(dy)
+        dp_dz = ( P[i,j,k] - P[i,j,k-1] )/(dz)
                     
         # Corrector step 
-        u[i,j,k] = us[i,j,k] - dt/rho * dp_dx
-        v[i,j,k] = vs[i,j,k] - dt/rho * dp_dy
-        w[i,j,k] = ws[i,j,k] - dt/rho * dp_dz
+        uf[i,j,k] = uf[i,j,k] - dt/rho * dp_dx
+        vf[i,j,k] = vf[i,j,k] - dt/rho * dp_dy
+        wf[i,j,k] = wf[i,j,k] - dt/rho * dp_dz
     end
 
     return nothing
 end
 
-function divergence(u,v,w,mesh,par_env)
+function interpolateFace!(u,v,w,uf,vf,wf,mesh)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+
+    for i in imin_:imax_+1, j in jmin_:jmax_, k in kmin_:kmax_
+        uf[i,j,k] = 0.5*(u[i-1,j,k] + u[i,j,k])
+    end
+    for i in imin_:imax_, j in jmin_:jmax_+1, k in kmin_:kmax_
+        vf[i,j,k] = 0.5*(v[i,j-1,k] + v[i,j,k])
+    end
+    for i in imin_:imax_, j in jmin_:jmax_, k in kmin_:kmax_+1
+        wf[i,j,k] = 0.5*(w[i,j,k-1] + w[i,j,k])
+    end
+    return nothing
+end
+
+function interpolateCenter!(u,v,w,uf,vf,wf,mesh)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+
+    for i in imin_:imax_, j in jmin_:jmax_, k in kmin_:kmax_
+        u[i,j,k] = 0.5*(uf[i,j,k] + uf[i+1,j,k])
+    end
+    for i in imin_:imax_, j in jmin_:jmax_, k in kmin_:kmax_
+        v[i,j,k] = 0.5*(vf[i,j,k] + vf[i,j+1,k])
+    end
+    for i in imin_:imax_, j in jmin_:jmax_, k in kmin_:kmax_
+        w[i,j,k] = 0.5*(wf[i,j,k] + wf[i,j,k+1])
+    end
+    return nothing
+end
+
+function divergence(uf,vf,wf,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     
     divg = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
 
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
         # Deritives 
-        du_dx = ( u[i+1,j,k] - u[i-1,j,k] )/(2dx)
-        dv_dy = ( v[i,j+1,k] - v[i,j-1,k] )/(2dy)
-        dw_dz = ( w[i,j,k+1] - w[i,j,k-1] )/(2dz)
+        du_dx = ( uf[i+1,j,k] - uf[i,j,k] )/(dx)
+        dv_dy = ( vf[i,j+1,k] - vf[i,j,k] )/(dy)
+        dw_dz = ( wf[i,j,k+1] - wf[i,j,k] )/(dz)
             
         # Divergence
         divg[i,j,k] = du_dx + dv_dy + dw_dz

@@ -25,25 +25,34 @@ include("WriteData.jl")
 
 function run_solver(param, IC!, BC!; mask_obj=nothing)
     @unpack stepMax,tFinal = param
+    
 
     # Create parallel environment
     par_env = parallel_init(param)
+    @unpack isroot = par_env
 
     # Create mesh
     mesh = create_mesh(param,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create mask of object
     mask=mask_create(mask_obj,mesh);
 
     # Create work arrays
-    P,u,v,w,us,vs,ws,Fx,Fy,Fz = initArrays(mesh)
+    P,u,v,w,us,vs,ws,uf,vf,wf = initArrays(mesh)
 
     # Create initial condition
     t = 0.0
     IC!(P,u,v,w,mesh)
 
+    # Interpolate velocity to cell faces
+    interpolateFace!(u,v,w,uf,vf,wf,mesh)
+
     # Apply boundary conditions
-    BC!(u,v,w,mesh,par_env)
+    BC!(uf,vf,wf,mesh,par_env)
+
+    # Interpolate velocity to cell centers
+    interpolateCenter!(u,v,w,uf,vf,wf,mesh)
 
     # Update Processor boundaries
     update_borders!(u,mesh,par_env)
@@ -57,50 +66,43 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
     nstep = 0
     while nstep<stepMax && t<tFinal
 
-        println("================ $nstep ===============")
-
         # Update step counter
         nstep += 1
 
         # Compute timestep and update time
-        dt = compute_dt(u,v,w,param,mesh,par_env)
+        dt = compute_dt(uf,vf,wf,param,mesh,par_env)
         t += dt;
 
-        @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-        printArray("u",u[:,:,kmin_:kmax_],par_env)
-        printArray("v",v[:,:,kmin_:kmax_],par_env)
-
         # Predictor step
-        predictor!(us,vs,ws,P,u,v,w,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
+        predictor!(us,vs,ws,u,v,w,dt,param,mesh,par_env,mask)
 
-        # Apply boundary conditions
-        BC!(us,vs,ws,mesh,par_env)
+        # Create face velocities
+        interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
-
-        printArray("us",us[:,:,kmin_:kmax_],par_env)
-        printArray("vs",vs[:,:,kmin_:kmax_],par_env)
+        # Apply boundary conditions to face velocities
+        BC!(uf,vf,wf,mesh,par_env)
 
         # Call pressure Solver 
-        pressure_solver!(P,us,vs,ws,dt,param,mesh,par_env)
+        pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
 
-        printArray("P",P[:,:,kmin_:kmax_],par_env)
+        # Corrector face velocities
+        corrector!(uf,vf,wf,P,dt,param,mesh,mask)
 
-        # Corrector step
-        corrector!(u,v,w,us,vs,ws,P,dt,param,mesh,mask)
-
+        # Interpolate velocity to cell centers
+        interpolateCenter!(u,v,w,uf,vf,wf,mesh)
+        
         # Check divergence
-        divg = divergence(u,v,w,mesh,par_env)
-        printArray("divg",divg[:,:,kmin_:kmax_],par_env)
-
-
-        # Apply boundary conditions
-        BC!(u,v,ws,mesh,par_env)
-
-        printArray("u",u[:,:,kmin_:kmax_],par_env)
-        printArray("v",v[:,:,kmin_:kmax_],par_env)
+        divg = divergence(uf,vf,wf,mesh,par_env)
+        max_divg = parallel_max(maximum(divg),par_env)
 
         # Output
-        VTK(nstep,t,P,u,v,w,mesh,par_env,pvd)
+        VTK(nstep,t,P,u,v,w,divg,mesh,par_env,pvd)
+
+        # Std-out 
+        if isroot 
+            rem(nstep,10)==1 && @printf(" Iteration  max(divg) \n")
+            @printf(" %9i   %8.3g \n",nstep,max_divg)
+        end
 
     end
 

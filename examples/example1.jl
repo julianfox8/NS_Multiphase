@@ -56,65 +56,52 @@ function IC!(P,u,v,w,mesh)
 end
 
 """
-Boundary conditions for velocity 
+Boundary conditions for velocity on cell faces
 """
-function BC!(u,v,w,mesh,par_env)
+function BC!(uf,vf,wf,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-    @unpack imin_,  imax_,  jmin_,  jmax_,  kmin_,  kmax_ = mesh
-    @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
-
+    @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
+    
     # Left 
     if irankx == 0 
-        for i in imino_:imin_-1 # Loop over ghost cells
-            u[i,:,:] = -u[imin_,:,:] # No flux
-            v[i,:,:] = -v[imin_,:,:] # No slip
-            w[i,:,:] = -w[imin_,:,:] # No slip
-        end
+        uf[imin  ,:,:] .= 0.0 # No flux
+        vf[imin-1,:,:] = -vf[imin,:,:] # No slip
+        wf[imin-1,:,:] = -wf[imin,:,:] # No slip
     end
     
     # Right
     if irankx == nprocx-1
-        for i in imax_+1:imaxo_ # Loop over ghost cells
-            u[i,:,:] = -u[imax_,:,:] # No flux
-            v[i,:,:] = -v[imax_,:,:] # No slip
-            w[i,:,:] = -w[imax_,:,:] # No slip
-        end
+        uf[imax+1,:,:] .= 0.0 # No flux
+        vf[imax+1,:,:] = -vf[imax,:,:] # No slip
+        wf[imax+1,:,:] = -wf[imax,:,:] # No slip
     end
 
     # Bottom 
     if iranky == 0 
-        for j in jmino_:jmin_-1 # Loop over ghost cells
-            u[:,j,:] = -u[:,jmin_,:] # No flux
-            v[:,j,:] = -v[:,jmin_,:] # No slip
-            w[:,j,:] = -w[:,jmin_,:] # No slip
-        end
+        uf[:,jmin-1,:] = -uf[:,jmin,:] # No slip
+        vf[:,jmin  ,:] .= 0.0 # No flux
+        wf[:,jmin-1,:] = -wf[:,jmin,:] # No slip
     end
     
     # Top
     if iranky == nprocy-1
-        for j in jmax_+1:jmaxo_ # Loop over ghost cells
-            u[:,j,:] = -u[:,jmax_,:] # No flux
-            v[:,j,:] = -v[:,jmax_,:] # No slip
-            w[:,j,:] = -w[:,jmax_,:] # No slip
-        end
+        uf[:,jmax+1,:] = -uf[:,jmax,:] # No slip
+        vf[:,jmax+1,:] .= 0.0 # No flux
+        wf[:,jmax+1,:] = -wf[:,jmax,:] # No slip
     end
 
     # Back 
     if irankz == 0 
-        for k in kmino_:kmin_-1 # Loop over ghost cells
-            u[:,:,k] = -u[:,:,kmin_] # No flux
-            v[:,:,k] = -v[:,:,kmin_] # No slip
-            w[:,:,k] = -w[:,:,kmin_] # No slip
-        end
+        uf[:,:,kmin-1] = -uf[:,:,kmin] # No slip
+        vf[:,:,kmin-1] = -vf[:,:,kmin] # No slip
+        wf[:,:,kmin  ] .= 0.0 # No flux
     end
     
     # Front
     if irankz == nprocz-1
-        for k in kmax_+1:kmaxo_ # Loop over ghost cells
-            u[:,:,k] = -u[:,:,kmax_] # No flux
-            v[:,:,k] = -v[:,:,kmax_] # No slip
-            w[:,:,k] = -w[:,:,kmax_] # No slip
-        end
+        uf[:,:,kmax+1] = -uf[:,:,kmax] # No slip
+        vf[:,:,kmax+1] = -vf[:,:,kmax] # No slip
+        wf[:,:,kmax+1] .= 0.0 # No flux
     end
 
     return nothing

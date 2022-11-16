@@ -18,7 +18,7 @@ end
    
 
 
-function VTK(iter,time,P,u,v,w,mesh,par_env,pvd)
+function VTK(iter,time,P,u,v,w,divg,mesh,par_env,pvd)
     @unpack x,y,z,xm,ym,zm,
             imin_,imax_,jmin_,jmax_,kmin_,kmax_,
             Gimin_,Gimax_,Gjmin_,Gjmax_,Gkmin_,Gkmax_ = mesh
@@ -43,9 +43,7 @@ function VTK(iter,time,P,u,v,w,mesh,par_env,pvd)
                 u[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
                 v[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
                 w[imin_:imax_,jmin_:jmax_,kmin_:kmax_] )
-            #pvtk["u"] = u[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            #pvtk["v"] = v[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            #pvtk["w"] = w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["Divergence"] = @views divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvd[time] = pvtk
         end
 
