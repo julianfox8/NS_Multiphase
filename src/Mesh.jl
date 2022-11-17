@@ -25,7 +25,7 @@ end
 
 function  create_mesh(param,par_env)
     @unpack Nx,Ny,Nz,Lx,Ly,Lz = param
-    # Index extents
+    # Index extents 
     imin=1
     imax=Nx
     jmin=1
@@ -61,7 +61,7 @@ function  create_mesh(param,par_env)
     dz=z[kmin+1]-z[kmin];
 
     # Fill in ghost x and y values
-    for n in 1:nghost
+    for n = 1:nghost
         x[imin-n]  =x[imin]  -n*dx;
         x[imax+1+n]=x[imax+1]+n*dx;
         y[jmin-n]  =y[jmin]  -n*dy;

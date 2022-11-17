@@ -49,7 +49,7 @@ function printArray(text,A,par_env)
     for k in axes(A,3)
         isroot && print("$text[:,:,$k]\n")
         for j in reverse(axes(A,2))
-            for rankx in 0:nprocx-1
+            for rankx = 0:nprocx-1
                 if rankx == irankx 
                     @printf("|")
                     for i in axes(A,1)

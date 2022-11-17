@@ -45,7 +45,7 @@ function VTK(iter,time,P,u,v,w,divg,param,mesh,par_env,pvd)
     @unpack irank,nproc = par_env
     # Build extents array
     p=1; extents=[(Gimin_[p]:Gimax_[p]+1,Gjmin_[p]:Gjmax_[p]+1,Gkmin_[p]:Gkmax_[p]+1), ]
-    for p in 2:nproc
+    for p = 2:nproc
        push!(extents,(Gimin_[p]:Gimax_[p]+1,Gjmin_[p]:Gjmax_[p]+1,Gkmin_[p]:Gkmax_[p]+1))
     end
     # Write data to VTK

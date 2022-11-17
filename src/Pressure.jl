@@ -39,7 +39,7 @@ function GaussSeidel!(P,RHS,param,mesh,par_env)
     while true
         iter += 1
         max_update=0.0
-        for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        for i=imin_:imax_, j=jmin_:jmax_, k=kmin_:kmax_
             Pnew = ( (RHS[i,j,k]
                     - (P[i-1,j,k]+P[i+1,j,k])/dx^2
                     - (P[i,j-1,k]+P[i,j+1,k])/dy^2 

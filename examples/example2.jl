@@ -45,7 +45,7 @@ function IC!(P,u,v,w,mesh)
     fill!(P,0.0)
 
     # Velocity
-    for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_ 
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
         u[i,j,k] = 0.0 #-(ym[j] - Ly/2.0)
         v[i,j,k] = 0.0 # (xm[i] - Lx/2.0)
         w[i,j,k] = 0.0
