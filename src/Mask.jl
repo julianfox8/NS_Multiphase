@@ -1,5 +1,10 @@
 struct mask_object
-    xmin; xmax; ymin; ymax; zmin; zmax;
+    xmin :: Int64; 
+    xmax :: Int64; 
+    ymin :: Int64; 
+    ymax :: Int64; 
+    zmin :: Int64; 
+    zmax :: Int64;
 end
 
 function mask_create(obj,mesh)

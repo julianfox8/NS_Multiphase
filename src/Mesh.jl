@@ -1,26 +1,49 @@
 struct mesh_struct
-    x; y; z;
-    xm; ym; zm;
-    dx; dy; dz;
-    imin; imax; jmin; jmax; kmin; kmax;
-    Nx; Ny; Nz;
-    Lx; Ly; Lz;
+    x :: OffsetArrays.OffsetVector{Float64}; 
+    y :: OffsetArrays.OffsetVector{Float64}; 
+    z :: OffsetArrays.OffsetVector{Float64};
+    xm :: OffsetArrays.OffsetVector{Float64}; 
+    ym :: OffsetArrays.OffsetVector{Float64}; 
+    zm :: OffsetArrays.OffsetVector{Float64};
+    dx :: Float64;
+    dy :: Float64;
+    dz :: Float64;
+    imin :: Int64; 
+    imax :: Int64; 
+    jmin :: Int64; 
+    jmax :: Int64; 
+    kmin :: Int64; 
+    kmax :: Int64;
+    Nx :: Int64; 
+    Ny :: Int64; 
+    Nz :: Int64;
+    Lx :: Float64; 
+    Ly :: Float64; 
+    Lz :: Float64;
     # Parallel
-    imin_; imax_; 
-    jmin_; jmax_;
-    kmin_; kmax_;
-    imino_; imaxo_; 
-    jmino_; jmaxo_;
-    kmino_; kmaxo_;
-    Nx_; Ny_; Nz_;
-    nghost
+    imin_ :: Int64; 
+    imax_ :: Int64; 
+    jmin_ :: Int64; 
+    jmax_ :: Int64;
+    kmin_ :: Int64; 
+    kmax_ :: Int64;
+    imino_ :: Int64; 
+    imaxo_ :: Int64; 
+    jmino_ :: Int64; 
+    jmaxo_ :: Int64;
+    kmino_ :: Int64; 
+    kmaxo_ :: Int64;
+    Nx_ :: Int64; 
+    Ny_ :: Int64; 
+    Nz_ :: Int64;
+    nghost :: Int64;
     # VTK
-    Gimin_;
-    Gimax_;
-    Gjmin_;
-    Gjmax_;
-    Gkmin_;
-    Gkmax_;
+    Gimin_ :: Vector{Int64};
+    Gimax_ :: Vector{Int64};
+    Gjmin_ :: Vector{Int64};
+    Gjmax_ :: Vector{Int64};
+    Gkmin_ :: Vector{Int64};
+    Gkmax_ :: Vector{Int64};
 end
 
 function  create_mesh(param,par_env)
