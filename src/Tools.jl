@@ -28,7 +28,7 @@ function compute_dt(u,v,w,param,mesh,par_env)
 
     # Convective Δt
     local_min_dx_vel = minimum([dx/maximum(u),dy/maximum(v),dz/maximum(w)])
-    min_dx_vel= parallel_min(local_min_dx_vel,par_env,recvProcs="all")
+    min_dx_vel= parallel_min_all(local_min_dx_vel,par_env)
     convec_dt = min_dx_vel
 
     # Viscous Δt 

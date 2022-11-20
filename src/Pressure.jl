@@ -74,7 +74,7 @@ Conjugate gradient
 """
 function lap!(L,P,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    for i=imin_:imax_, j=jmin_:jmax_, k=kmin_:kmax_
+    @inbounds for i=imin_:imax_, j=jmin_:jmax_, k=kmin_:kmax_
         L[i,j,k] = (
             (P[i-1,j,k] - 2P[i,j,k] + P[i+1,j,k]) / dx^2 +
             (P[i,j-1,k] - 2P[i,j,k] + P[i,j+1,k]) / dy^2 +
@@ -106,18 +106,21 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     update_borders!(r,mesh,par_env)
     pressure_BC!(r,mesh,par_env)
     p = copy(r)
-    rsold = parallel_sum(r[ix,iy,iz].^2,par_env,recvProcs="all")
+    rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
     rsnew = 0.0
     for iter = 1:length(RHS)
-        #println(" ===================== Iteration $i ===================")
-        #printArray("p",p[gx,gy,gz],par_env)
         lap!(Ap,p,mesh)
-        #printArray("Ap",Ap[ix,iy,iz],par_env)
-
-        alpha = rsold / parallel_sum(p[ix,iy,iz] .* Ap[ix,iy,iz],par_env,recvProcs="all")
-        P[:,:,:] += alpha * p
+        value = 0.0
+        @inbounds for i=imin_:imax_, j=jmin_:jmax_, k=kmin_:kmax_
+            value += p[i,j,k]*Ap[i,j,k]
+        end
+        sum = parallel_sum_all(value,par_env)
+        alpha = rsold / sum
+        @inbounds for i=imino_:imaxo_, j=jmino_:jmaxo_, k=kmino_:kmaxo_
+            P[i,j,k] += alpha * p[i,j,k]
+        end
         r -= alpha * Ap
-        rsnew = parallel_sum(r[ix,iy,iz].^2,par_env,recvProcs="all")
+        rsnew = parallel_sum_all(r[ix,iy,iz].^2,par_env)
         if sqrt(rsnew) < tol
             return iter
         end

@@ -129,36 +129,41 @@ end
 """
 Wrapper for MPI.Reduce and MPI.Allreduce
 """
-function callReduce(A,par_env,recvProcs,type)
+function callReduce(A,par_env,type)
     @unpack comm, iroot = par_env
-    if recvProcs == "iroot"
-        return MPI.Reduce(A,type,comm,root=iroot)
-    elseif recvProcs =="all"
-        return MPI.Allreduce(A,type,comm)
-    else
-        error("Unknown recvProcs of $recvProcs")
-    end
+    return MPI.Reduce(A,type,comm,root=iroot)
+end
+function callReduce_all(A,par_env,type)
+    @unpack comm, iroot = par_env
+    return MPI.Allreduce(A,type,comm)
 end
 
 """ 
 Parallel Sum of A (by default output goes only to iroot)
 """
-function parallel_sum(A,par_env; recvProcs="iroot")
-    return callReduce(sum(A),par_env,recvProcs,MPI.SUM)
+function parallel_sum(A,par_env)
+    return callReduce(sum(A),par_env,MPI.SUM)
+end
+function parallel_sum_all(A,par_env)
+    return callReduce_all(sum(A),par_env,MPI.SUM)
 end
 
 """ 
 Parallel Max of A (by default output goes only to iroot)
 """
-function parallel_max(A,par_env; recvProcs="iroot")
-    return callReduce(maximum(A),par_env,recvProcs,MPI.MAX)
-
+function parallel_max(A,par_env)
+    return callReduce(maximum(A),par_env,MPI.MAX)
+end
+function parallel_max_all(A,par_env)
+    return callReduce_all(maximum(A),par_env,MPI.MAX)
 end
 
 """ 
 Parallel Min of A (by default output goes only to iroot)
 """
-function parallel_min(A,par_env; recvProcs="iroot")
-    return callReduce(minimum(A),par_env,recvProcs,MPI.MIN)
-
+function parallel_min(A,par_env)
+    return callReduce(minimum(A),par_env,MPI.MIN)
+end
+function parallel_min_all(A,par_env)
+    return callReduce_all(minimum(A),par_env,MPI.MIN)
 end
