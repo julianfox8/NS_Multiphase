@@ -33,7 +33,7 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
     mask=mask_create(mask_obj,mesh);
 
     # Create work arrays
-    P,u,v,w,us,vs,ws,uf,vf,wf = initArrays(mesh)
+    P,u,v,w,us,vs,ws,uf,vf,wf,Fx,Fy,Fz = initArrays(mesh)
 
     # Create initial condition
     t = 0.0
@@ -65,7 +65,7 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
         t += dt;
 
         # Predictor step
-        predictor!(us,vs,ws,u,v,w,dt,param,mesh,par_env,mask)
+        predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
 
         # Apply boundary conditions
         BC!(us,vs,ws,mesh,par_env)

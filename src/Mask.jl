@@ -3,10 +3,10 @@ struct mask_object
 end
 
 function mask_create(obj,mesh)
-    @unpack xm,ym,zm,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack xm,ym,zm,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Initialize mask array to 0 everywhere
-    mask = OffsetArray{Bool}(undef, imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1)
+    mask = OffsetArray{Bool}(undef, imino_:imaxo_+1,jmino_:jmaxo_+1,kmino_:kmaxo_+1)
 
     # Check if obj is defined
     if obj === nothing 
@@ -15,7 +15,7 @@ function mask_create(obj,mesh)
     end
 
     # Loop over the domain
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+    for k=kmino_:kmaxo_, j=jmino_:jmaxo_, i=imino_:imaxo_
         # Check if within solid
         if  xm[i] > obj.xmin && xm[i] < obj.xmax &&
             ym[j] > obj.ymin && ym[j] < obj.ymax &&
