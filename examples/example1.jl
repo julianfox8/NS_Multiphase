@@ -14,16 +14,16 @@ param = parameters(
     rho=1.0,           # Density
     Lx=3.0,            # Domain size
     Ly=3.0,
-    Lz=1.0,
+    Lz=3.0,
     tFinal=100.0,      # Simulation time
 
     # Discretization inputs
     Nx=50,           # Number of grid cells
     Ny=50,
-    Nz=1,
-    stepMax=100,   # Maximum number of timesteps
-    CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_freq=100,     # Number of steps between when plots are updated
+    Nz=10,
+    stepMax=20,   # Maximum number of timesteps
+    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    out_freq=10,     # Number of steps between when plots are updated
     tol = 1e-3,
 
     # Processors 
