@@ -1,17 +1,17 @@
 using WriteVTK
 using Printf
 
-function std_out(nstep,t,P,u,v,w,divg,par_env)
+function std_out(nstep,t,P,u,v,w,divg,iter,par_env)
     @unpack isroot = par_env
 
-    max_u    = parallel_max(maximum(abs.(u)),   par_env)
-    max_v    = parallel_max(maximum(abs.(v)),   par_env)
-    max_w    = parallel_max(maximum(abs.(w)),   par_env)
-    max_divg = parallel_max(maximum(abs.(divg)),par_env)
+    max_u    = parallel_max(abs.(u),   par_env)
+    max_v    = parallel_max(abs.(v),   par_env)
+    max_w    = parallel_max(abs.(w),   par_env)
+    max_divg = parallel_max(abs.(divg),par_env)
     
     if isroot 
-        rem(nstep,10)==1 && @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg) \n")
-        @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg)
+        rem(nstep,10)==1 && @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)    Piters\n")
+        @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,iter)
     end
 
     return nothing

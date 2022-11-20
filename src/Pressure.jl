@@ -16,24 +16,32 @@ function pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
         RHS[i,j,k]= rho/dt * ( duf_dx + dvf_dy + dwf_dz )
     end
 
-    poisson_solve!(P,RHS,param,mesh,par_env)
+    iter = poisson_solve!(P,RHS,param,mesh,par_env)
 
-    return nothing
+    return iter
 end
 
 function poisson_solve!(P,RHS,param,mesh,par_env)
 
-    GaussSeidel!(P,RHS,param,mesh,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    # Interior indices
+    ix = imin_:imax_; iy = jmin_:jmax_;  iz = kmin_:kmax_
 
-    return nothing
+    iter = GaussSeidel!(P,RHS,param,mesh,par_env)
+    #printArray("P - Gauss Seidel",P[ix,iy,iz],par_env)
+    iter = conjgrad!(P,RHS,param,mesh,par_env)
+    #printArray("P - conjgrad",P[ix,iy,iz],par_env)
+
+    return iter
 end
 
 """
-Serial GaussSeidel Poisson Solver
+GaussSeidel Poisson Solver
 """
 function GaussSeidel!(P,RHS,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack isroot = par_env
+    @unpack tol = param
     maxIter=1000
     iter = 0
     while true
@@ -52,13 +60,75 @@ function GaussSeidel!(P,RHS,param,mesh,par_env)
         pressure_BC!(P,mesh,par_env)
         # Check if converged
         max_update = parallel_max(max_update,par_env,recvProcs="all")
-        max_update < 1e-10 && return iter # Converged
+        max_update < tol && return iter # Converged
         # Check if hit max iteration
         if iter == maxIter 
             isroot && println("Failed to converged Poisson equation max_upate = $max_update")
-            return nothing 
+            return iter 
         end
     end
+end
+
+"""
+Conjugate gradient
+"""
+function lap!(L,P,mesh)
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    for i=imin_:imax_, j=jmin_:jmax_, k=kmin_:kmax_
+        L[i,j,k] = (
+            (P[i-1,j,k] - 2P[i,j,k] + P[i+1,j,k]) / dx^2 +
+            (P[i,j-1,k] - 2P[i,j,k] + P[i,j+1,k]) / dy^2 +
+            (P[i,j,k-1] - 2P[i,j,k] + P[i,j,k+1]) / dz^2 )
+    end
+    return nothing
+end
+
+function conjgrad!(P,RHS,param,mesh,par_env)
+    @unpack dx,dy,dz = mesh
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack tol = param
+    @unpack irank,isroot = par_env
+
+    # Interior indices
+    ix = imin_:imax_; iy = jmin_:jmax_;  iz = kmin_:kmax_
+    # Ghost cell indices
+    gx = imino_:imaxo_; gy = jmino_:jmaxo_; gz = kmino_:kmaxo_
+    
+    # Allocat work arrays (with ghost cells for comm)
+    r  = OffsetArray{Float64}(undef, gx,gy,gz)
+    p  = OffsetArray{Float64}(undef, gx,gy,gz)
+    Ap = OffsetArray{Float64}(undef, gx,gy,gz)
+
+
+    lap!(r,P,mesh)
+    r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
+    update_borders!(r,mesh,par_env)
+    pressure_BC!(r,mesh,par_env)
+    p = copy(r)
+    rsold = parallel_sum(r[ix,iy,iz].^2,par_env,recvProcs="all")
+    rsnew = 0.0
+    for iter = 1:length(RHS)
+        #println(" ===================== Iteration $i ===================")
+        #printArray("p",p[gx,gy,gz],par_env)
+        lap!(Ap,p,mesh)
+        #printArray("Ap",Ap[ix,iy,iz],par_env)
+
+        alpha = rsold / parallel_sum(p[ix,iy,iz] .* Ap[ix,iy,iz],par_env,recvProcs="all")
+        P[:,:,:] += alpha * p
+        r -= alpha * Ap
+        rsnew = parallel_sum(r[ix,iy,iz].^2,par_env,recvProcs="all")
+        if sqrt(rsnew) < tol
+            return iter
+        end
+        p = r + (rsnew / rsold) * p
+        update_borders!(p,mesh,par_env)
+        pressure_BC!(p,mesh,par_env)   
+        rsold = rsnew
+    end
+    isroot && println("Failed to converged Poisson equation rsnew = $rsnew")
+
+    return nothing
 end
 
 

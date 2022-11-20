@@ -13,6 +13,7 @@ using Parameters
     stepMax
     CFL
     out_freq
+    tol
     nprocx
     nprocy
     nprocz

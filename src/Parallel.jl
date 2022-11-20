@@ -126,39 +126,39 @@ function update_borders_z!(A,mesh_par,par_env)
     return nothing
 end
 
+"""
+Wrapper for MPI.Reduce and MPI.Allreduce
+"""
+function callReduce(A,par_env,recvProcs,type)
+    @unpack comm, iroot = par_env
+    if recvProcs == "iroot"
+        return MPI.Reduce(A,type,comm,root=iroot)
+    elseif recvProcs =="all"
+        return MPI.Allreduce(A,type,comm)
+    else
+        error("Unknown recvProcs of $recvProcs")
+    end
+end
 
 """ 
-Parallel Sum of A (output goes to iroot)
+Parallel Sum of A (by default output goes only to iroot)
 """
-function parallel_sum(A,par_env)
-    @unpack comm, iroot = par_env
-    return MPI.Reduce(A,MPI.SUM,comm,root=iroot)
+function parallel_sum(A,par_env; recvProcs="iroot")
+    return callReduce(sum(A),par_env,recvProcs,MPI.SUM)
 end
 
 """ 
 Parallel Max of A (by default output goes only to iroot)
 """
 function parallel_max(A,par_env; recvProcs="iroot")
-    @unpack comm, iroot = par_env
-    if recvProcs == "iroot"
-        return MPI.Reduce(A,MPI.MAX,comm,root=iroot)
-    elseif recvProcs == "all"
-        return MPI.Allreduce(A,MPI.MAX,comm)
-    else
-        error("Unknown recvProcs of $recvProcs")
-    end
+    return callReduce(maximum(A),par_env,recvProcs,MPI.MAX)
+
 end
 
 """ 
 Parallel Min of A (by default output goes only to iroot)
 """
 function parallel_min(A,par_env; recvProcs="iroot")
-    @unpack comm, iroot = par_env
-    if recvProcs == "iroot"
-        return MPI.Reduce(A,MPI.MIN,comm,root=iroot)
-    elseif recvProcs == "all"
-        return MPI.Allreduce(A,MPI.MIN,comm)
-    else
-        error("Unknown recvProcs of $recvProcs")
-    end
+    return callReduce(minimum(A),par_env,recvProcs,MPI.MIN)
+
 end

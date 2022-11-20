@@ -9,7 +9,7 @@ using NavierStokes_Parallel
 # Define parameters 
 param = parameters(
     # Constants
-    mu=0.1,       # Dynamic viscosity
+    mu=0.01,       # Dynamic viscosity
     rho=1.0,           # Density
     Lx=3.0,            # Domain size
     Ly=3.0,
@@ -17,16 +17,17 @@ param = parameters(
     tFinal=100.0,      # Simulation time
     
     # Discretization inputs
-    Nx=30,           # Number of grid cells
-    Ny=30,
+    Nx=50,           # Number of grid cells
+    Ny=50,
     Nz=1,
-    stepMax=200,   # Maximum number of timesteps
+    stepMax=2000,   # Maximum number of timesteps
     CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_freq=10,    # Number of steps between when plots are updated
+    out_freq=100,    # Number of steps between when plots are updated
+    tol = 1e-3,
 
     # Processors 
     nprocx = 2,
-    nprocy = 1,
+    nprocy = 2,
     nprocz = 1,
 
     # Periodicity

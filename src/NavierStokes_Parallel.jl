@@ -47,6 +47,9 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
     update_borders!(v,mesh,par_env)
     update_borders!(w,mesh,par_env)
 
+    # Create face velocities
+    interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
+
     # Initialize VTK outputs
     pvd = VTK_init()
 
@@ -71,7 +74,7 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
         interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
         # Call pressure Solver 
-        pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
+        iter = pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
 
         # Corrector face velocities
         corrector!(uf,vf,wf,P,dt,param,mesh,mask)
@@ -88,7 +91,7 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
         divg = divergence(uf,vf,wf,mesh,par_env)
         
         # Output
-        std_out(nstep,t,P,u,v,w,divg,par_env)
+        std_out(nstep,t,P,u,v,w,divg,iter,par_env)
         VTK(nstep,t,P,u,v,w,divg,param,mesh,par_env,pvd)
 
     end
