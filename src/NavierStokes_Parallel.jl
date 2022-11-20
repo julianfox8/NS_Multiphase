@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, mask_object, @unpack
+export run_solver, parameters, @unpack
 
 using MPI
 using UnPack
@@ -11,13 +11,12 @@ using Printf
 include("Parameters.jl")
 include("Mesh.jl")
 include("Parallel.jl")
-include("Mask.jl")
 include("Tools.jl")
 include("Velocity.jl")
 include("Pressure.jl")
 include("WriteData.jl")
 
-function run_solver(param, IC!, BC!; mask_obj=nothing)
+function run_solver(param, IC!, BC!)
     @unpack stepMax,tFinal = param
     
 
@@ -29,11 +28,11 @@ function run_solver(param, IC!, BC!; mask_obj=nothing)
     mesh = create_mesh(param,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
-    # Create mask of object
-    mask=mask_create(mask_obj,mesh);
-
     # Create work arrays
-    P,u,v,w,us,vs,ws,uf,vf,wf,Fx,Fy,Fz = initArrays(mesh)
+    P,u,v,w,us,vs,ws,uf,vf,wf,Fx,Fy,Fz,mask = initArrays(mesh)
+
+    # Create mask
+    # mask!(mask,mesh)
 
     # Create initial condition
     t = 0.0

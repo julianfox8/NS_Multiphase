@@ -15,8 +15,9 @@ function initArrays(mesh)
     Fy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(vf,0.0)
     Fz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(wf,0.0)
     P  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(P ,0.0)
+    mask  = OffsetArray{Bool}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(mask,false)
     
-    return P,u,v,w,us,vs,ws,uf,vf,wf,Fx,Fy,Fz
+    return P,u,v,w,us,vs,ws,uf,vf,wf,Fx,Fy,Fz,mask
 end
 
 """
