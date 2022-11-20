@@ -27,7 +27,7 @@ function poisson_solve!(P,RHS,param,mesh,par_env)
     # Interior indices
     ix = imin_:imax_; iy = jmin_:jmax_;  iz = kmin_:kmax_
 
-    iter = GaussSeidel!(P,RHS,param,mesh,par_env)
+    #iter = GaussSeidel!(P,RHS,param,mesh,par_env)
     #printArray("P - Gauss Seidel",P[ix,iy,iz],par_env)
     iter = conjgrad!(P,RHS,param,mesh,par_env)
     #printArray("P - conjgrad",P[ix,iy,iz],par_env)
