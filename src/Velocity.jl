@@ -1,31 +1,25 @@
-function predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
+function predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env)
     @unpack rho,mu = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # u: x-velocity
     fill!(Fx,0.0)
     for i = imin_:imax_+1, j = jmin_:jmax_, k = kmin_:kmax_ # Loop over faces 
-        if mask[i-1,j,k] == false && mask[i,j,k] == false
-            uface = 0.5*(u[i-1,j,k] + u[i,j,k])
-            dudx = (u[i,j,k] - u[i-1,j,k])/dx
-            Fx[i,j,k] = dy*dz*( - uf[i,j,k]*uface + mu/rho*dudx ) # uf*uf or uf*uface ???
-        end
+        uface = 0.5*(u[i-1,j,k] + u[i,j,k])
+        dudx = (u[i,j,k] - u[i-1,j,k])/dx
+        Fx[i,j,k] = dy*dz*( - uf[i,j,k]*uface + mu/rho*dudx ) # uf*uf or uf*uface ???
     end
     fill!(Fy,0.0)
     for i = imin_:imax_, j = jmin_:jmax_+1, k = kmin_:kmax_ # Loop over faces 
-        if mask[i,j-1,k] == false && mask[i,j,k] == false
-            uface = 0.5*(u[i,j-1,k] + u[i,j,k])
-            dudy = (u[i,j,k] - u[i,j-1,k])/dy
-            Fy[i,j,k] = dx*dz*( - vf[i,j,k]*uface + mu/rho*dudy )
-        end
+        uface = 0.5*(u[i,j-1,k] + u[i,j,k])
+        dudy = (u[i,j,k] - u[i,j-1,k])/dy
+        Fy[i,j,k] = dx*dz*( - vf[i,j,k]*uface + mu/rho*dudy )
     end
     fill!(Fz,0.0)
     for i = imin_:imax_, j = jmin_:jmax_, k = kmin_:kmax_+1 # Loop over faces 
-        if mask[i,j,k-1] == false && mask[i,j,k] == false
-            uface = 0.5*(u[i,j,k-1] + u[i,j,k])
-            dudz = (u[i,j,k] - u[i,j,k-1])/dz
-            Fz[i,j,k] = dx*dy*( - wf[i,j,k]*uface + mu/rho*dudz )
-        end
+        uface = 0.5*(u[i,j,k-1] + u[i,j,k])
+        dudz = (u[i,j,k] - u[i,j,k-1])/dz
+        Fz[i,j,k] = dx*dy*( - wf[i,j,k]*uface + mu/rho*dudz )
     end
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
         us[i,j,k] = u[i,j,k] + dt/(dx*dy*dz) * (
@@ -38,27 +32,21 @@ function predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
     # v: y-velocity
     fill!(Fx,0.0)
     for i = imin_:imax_+1, j = jmin_:jmax_, k = kmin_:kmax_ # Loop over faces 
-        if mask[i-1,j,k] == false && mask[i,j,k] == false
-            vface = 0.5*(v[i-1,j,k] + v[i,j,k])
-            dvdx = (v[i,j,k] - v[i-1,j,k])/dx
-            Fx[i,j,k] = dy*dz*( - uf[i,j,k]*vface + mu/rho*dvdx) # uf*uf or uf*uface ???
-        end
+        vface = 0.5*(v[i-1,j,k] + v[i,j,k])
+        dvdx = (v[i,j,k] - v[i-1,j,k])/dx
+        Fx[i,j,k] = dy*dz*( - uf[i,j,k]*vface + mu/rho*dvdx) # uf*uf or uf*uface ???
     end
     fill!(Fy,0.0)
     for i = imin_:imax_, j = jmin_:jmax_+1, k = kmin_:kmax_ # Loop over faces 
-        if mask[i,j-1,k] == false && mask[i,j,k] == false
-            vface = 0.5*(v[i,j-1,k] + v[i,j,k])
-            dvdy = (v[i,j,k] - v[i,j-1,k])/dy
-            Fy[i,j,k] = dx*dz*( - vf[i,j,k]*vface + mu/rho*dvdy )
-        end
+        vface = 0.5*(v[i,j-1,k] + v[i,j,k])
+        dvdy = (v[i,j,k] - v[i,j-1,k])/dy
+        Fy[i,j,k] = dx*dz*( - vf[i,j,k]*vface + mu/rho*dvdy )
     end
     fill!(Fz,0.0)
     for i = imin_:imax_, j = jmin_:jmax_, k = kmin_:kmax_+1 # Loop over faces 
-        if mask[i,j,k-1] == false && mask[i,j,k] == false
-            vface = 0.5*(v[i,j,k-1] + v[i,j,k])
-            dvdz = (v[i,j,k] - v[i,j,k-1])/dz
-            Fz[i,j,k] = dx*dy*( - wf[i,j,k]*vface + mu/rho*dvdz )
-        end
+        vface = 0.5*(v[i,j,k-1] + v[i,j,k])
+        dvdz = (v[i,j,k] - v[i,j,k-1])/dz
+        Fz[i,j,k] = dx*dy*( - wf[i,j,k]*vface + mu/rho*dvdz )
     end
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
         vs[i,j,k] = v[i,j,k] + dt/(dx*dy*dz) * (
@@ -72,27 +60,21 @@ function predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
     # w: z-velocity
     fill!(Fx,0.0)
     for i = imin_:imax_+1, j = jmin_:jmax_, k = kmin_:kmax_ # Loop over faces 
-        if mask[i-1,j,k] == false && mask[i,j,k] == false
-            wface = 0.5*(w[i-1,j,k] + w[i,j,k])
-            dwdx = (w[i,j,k] - w[i-1,j,k])/dx
-            Fx[i,j,k] = dy*dz*( - uf[i,j,k]*wface + mu/rho*dwdx ) # uf*uf or uf*uface ???
-        end
+        wface = 0.5*(w[i-1,j,k] + w[i,j,k])
+        dwdx = (w[i,j,k] - w[i-1,j,k])/dx
+        Fx[i,j,k] = dy*dz*( - uf[i,j,k]*wface + mu/rho*dwdx ) # uf*uf or uf*uface ???
     end
     fill!(Fy,0.0)
     for i = imin_:imax_, j = jmin_:jmax_+1, k = kmin_:kmax_ # Loop over faces 
-        if mask[i,j-1,k] == false && mask[i,j,k] == false
-            wface = 0.5*(w[i,j-1,k] + w[i,j,k])
-            dwdy = (w[i,j,k] - w[i,j-1,k])/dy
-            Fy[i,j,k] = dx*dz*( - vf[i,j,k]*wface + mu/rho*dwdy )
-        end
+        wface = 0.5*(w[i,j-1,k] + w[i,j,k])
+        dwdy = (w[i,j,k] - w[i,j-1,k])/dy
+        Fy[i,j,k] = dx*dz*( - vf[i,j,k]*wface + mu/rho*dwdy )
     end
     fill!(Fz,0.0)
     for i = imin_:imax_, j = jmin_:jmax_, k = kmin_:kmax_+1 # Loop over faces 
-        if mask[i,j,k-1] == false && mask[i,j,k] == false
-            wface = 0.5*(w[i,j,k-1] + w[i,j,k])
-            dwdz = (w[i,j,k] - w[i,j,k-1])/dz
-            Fz[i,j,k] = dx*dy*( - wf[i,j,k]*wface + mu/rho*dwdz )
-        end
+        wface = 0.5*(w[i,j,k-1] + w[i,j,k])
+        dwdz = (w[i,j,k] - w[i,j,k-1])/dz
+        Fz[i,j,k] = dx*dy*( - wf[i,j,k]*wface + mu/rho*dwdz )
     end
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
         ws[i,j,k] = w[i,j,k] + dt/(dx*dy*dz) * (
@@ -104,7 +86,6 @@ function predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
 
     # # Predictor step for u
     # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-    #     if !mask[i,j,k]
     #         # Derivatives 
     #         du_dx   = ( u[i+1,j,k] - u[i-1,j,k] )/(2dx)
     #         du_dy   = ( u[i,j+1,k] - u[i,j-1,k] )/(2dy)
@@ -142,7 +123,6 @@ function predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
     #             - ( u[i,j,k]*dw_dx + v[i,j,k]*dw_dy + w[i,j,k]*dw_dz )
     #             + mu/rho * ( d²w_dx² + d²w_dy² + d²w_dz²)
     #         )
-    #     end
     # end
 
     # Update Processor boundaries
@@ -153,7 +133,7 @@ function predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
     return nothing
 end
 
-function corrector!(uf,vf,wf,P,dt,param,mesh,mask)
+function corrector!(uf,vf,wf,P,dt,param,mesh)
     @unpack rho = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 

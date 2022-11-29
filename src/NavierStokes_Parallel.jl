@@ -18,7 +18,6 @@ include("WriteData.jl")
 
 function run_solver(param, IC!, BC!)
     @unpack stepMax,tFinal = param
-    
 
     # Create parallel environment
     par_env = parallel_init(param)
@@ -29,10 +28,7 @@ function run_solver(param, IC!, BC!)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,us,vs,ws,uf,vf,wf,Fx,Fy,Fz,mask = initArrays(mesh)
-
-    # Create mask
-    # mask!(mask,mesh)
+    P,u,v,w,us,vs,ws,uf,vf,wf,Fx,Fy,Fz = initArrays(mesh)
 
     # Create initial condition
     t = 0.0
@@ -64,7 +60,7 @@ function run_solver(param, IC!, BC!)
         t += dt;
 
         # Predictor step
-        predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env,mask)
+        predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env)
 
         # Apply boundary conditions
         BC!(us,vs,ws,mesh,par_env)
@@ -76,7 +72,7 @@ function run_solver(param, IC!, BC!)
         iter = pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
 
         # Corrector face velocities
-        corrector!(uf,vf,wf,P,dt,param,mesh,mask)
+        corrector!(uf,vf,wf,P,dt,param,mesh)
 
         # Interpolate velocity to cell centers
         interpolateCenter!(u,v,w,uf,vf,wf,mesh)

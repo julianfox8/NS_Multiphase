@@ -111,13 +111,5 @@ function BC!(u,v,w,mesh,par_env)
     return nothing
 end
 
-"""
-Define mask: solid = true, fluid = false
-Note mask defined as false (fluid) by default
-"""
-function mask!(mask,mesh)
-    return nothing
-end
-
 # Simply run solver on 1 processor
 run_solver(param, IC!, BC!)

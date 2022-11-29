@@ -59,7 +59,7 @@ function GaussSeidel!(P,RHS,param,mesh,par_env)
         update_borders!(P,mesh,par_env)
         pressure_BC!(P,mesh,par_env)
         # Check if converged
-        max_update = parallel_max(max_update,par_env,recvProcs="all")
+        max_update = parallel_max_all(max_update,par_env)
         max_update < tol && return iter # Converged
         # Check if hit max iteration
         if iter == maxIter 
