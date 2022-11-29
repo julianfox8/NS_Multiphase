@@ -169,9 +169,15 @@ function interpolateFace!(u,v,w,uf,vf,wf,mesh)
     return nothing
 end
 
-function interpolateCenter!(u,v,w,uf,vf,wf,mesh)
+function interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
+    # Copy BCs
+    u[:,:,:]=us[:,:,:]
+    v[:,:,:]=vs[:,:,:]
+    w[:,:,:]=ws[:,:,:]
+
+    # Perform interpolation
     for i = imin_:imax_, j = jmin_:jmax_, k = kmin_:kmax_
         u[i,j,k] = 0.5*(uf[i,j,k] + uf[i+1,j,k])
     end

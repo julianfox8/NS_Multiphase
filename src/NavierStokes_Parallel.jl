@@ -59,11 +59,16 @@ function run_solver(param, IC!, BC!)
         dt = compute_dt(u,v,w,param,mesh,par_env)
         t += dt;
 
+
+        println("before predictor = $(u[25,jmax_-1:jmax_+1,kmin_])")
+
         # Predictor step
         predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env)
 
         # Apply boundary conditions
         BC!(us,vs,ws,mesh,par_env)
+
+        println("BCs = $(us[25,jmax_-1:jmax_+1,kmin_])")
 
         # Create face velocities
         interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
@@ -74,8 +79,8 @@ function run_solver(param, IC!, BC!)
         # Corrector face velocities
         corrector!(uf,vf,wf,P,dt,param,mesh)
 
-        # Interpolate velocity to cell centers
-        interpolateCenter!(u,v,w,uf,vf,wf,mesh)
+        # Interpolate velocity to cell centers (keeping BCs from predictor)
+        interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
 
         # Update Processor boundaries
         update_borders!(u,mesh,par_env)
