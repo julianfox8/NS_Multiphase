@@ -81,6 +81,11 @@ function run_solver(param, IC!, BC!)
 
         # Interpolate velocity to cell centers (keeping BCs from predictor)
         interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
+
+        # Update Processor boundaries
+        update_borders!(u,mesh,par_env)
+        update_borders!(v,mesh,par_env)
+        update_borders!(w,mesh,par_env)
         
         # Check divergence
         divg = divergence(uf,vf,wf,mesh,par_env)
