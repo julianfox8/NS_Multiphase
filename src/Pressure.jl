@@ -100,11 +100,10 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     p  = OffsetArray{Float64}(undef, gx,gy,gz)
     Ap = OffsetArray{Float64}(undef, gx,gy,gz)
 
-
     lap!(r,P,mesh)
     r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
-    update_borders!(r,mesh,par_env)
     pressure_BC!(r,mesh,par_env)
+    update_borders!(r,mesh,par_env) # (overwrites BCs if periodic)
     p = copy(r)
     rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
     rsnew = 0.0
@@ -125,8 +124,8 @@ function conjgrad!(P,RHS,param,mesh,par_env)
             return iter
         end
         p = r + (rsnew / rsold) * p
-        update_borders!(p,mesh,par_env)
         pressure_BC!(p,mesh,par_env)   
+        update_borders!(p,mesh,par_env) # (overwrites BCs if periodic)
         rsold = rsnew
     end
     isroot && println("Failed to converged Poisson equation rsnew = $rsnew")

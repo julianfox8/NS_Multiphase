@@ -125,11 +125,6 @@ function predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env)
     #         )
     # end
 
-    # Update Processor boundaries
-    update_borders!(us,mesh,par_env)
-    update_borders!(vs,mesh,par_env)
-    update_borders!(ws,mesh,par_env)
-
     return nothing
 end
 
