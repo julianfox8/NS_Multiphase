@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, VFcircle, @unpack
+export run_solver, parameters, VFcircle, VFsphere, @unpack
 
 using MPI
 using UnPack
