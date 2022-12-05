@@ -58,11 +58,6 @@ function ELVIRA_calc!(nx,ny,nz,VF,i,j,k,param,mesh)
             ny_ = VF[i,j+1,k] > VF[i,j-1,k] ? -1.0 : 1.0
             nz_ = -( sum(VF[i,j-1:j+1,kk[2]]*dy) - sum(VF[i,j-1:j+1,kk[1]]*dy) ) / (zm[kk[2]] - zm[kk[1]])
             check_normal!(err,nx_,ny_,nz_,nx,ny,nz,VF,i,j,k,param,mesh)
-            if debug
-                println("kk=$kk, ii=$ii")
-                println("X-Z: nx_,ny_,nz_,err = $nx_, $ny_, $nz_, $err,$i,$j,$k")
-                println("VF's = $(sum(VF[ii[2],j-1:j+1,k])), $(sum(VF[ii[1],j-1:j+1,k]))")
-            end
         end
     end
 
@@ -73,9 +68,6 @@ function ELVIRA_calc!(nx,ny,nz,VF,i,j,k,param,mesh)
             ny_ = -( sum(VF[i-1:i+1,jj[2],k]*dx) - sum(VF[i-1:i+1,jj[1],k]*dx) ) / (ym[jj[2]] - ym[jj[1]])
             nz_ = -( sum(VF[i-1:i+1,j,kk[2]]*dx) - sum(VF[i-1:i+1,j,kk[1]]*dx) ) / (zm[kk[2]] - zm[kk[1]])
             check_normal!(err,nx_,ny_,nz_,nx,ny,nz,VF,i,j,k,param,mesh)
-            if debug
-                println("Y-Z: nx_,ny_,nz_,err = $nx_, $ny_, $nz_, $err")
-            end
         end
     end
     return nothing 
