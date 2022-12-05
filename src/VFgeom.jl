@@ -1,4 +1,53 @@
 """ 
+Look-up tables for cutting triangles
+"""
+
+# Number of new vertices on cut plane
+const cutTri_nvert = [0, 2, 2, 2, 2, 2, 2, 0]
+
+# Number of resulting tris on positive side
+const cutTri_np = [0, 1, 1, 2, 1, 2, 2, 1]
+ 
+# Number of resulting tris on negative side
+const cutTri_nn  = [1, 2, 2, 1, 2, 1, 1, 0]
+
+# First point on intersection
+const cutTri_v1 = reshape([
+ -1 -1
+  1  1
+  2  2
+  3  3
+  3  3
+  2  2
+  1  1
+ -1 -1
+]',(2,8))
+
+# Second point on intersection
+const cutTri_v2 = reshape([
+  -1 -1
+   2  3
+   1  3
+   1  2
+   1  2
+   1  3
+   2  3
+  -1 -1
+]',(2,8))
+
+# Vertices in each tri
+const cutTri_v = reshape([
+  1  2  3  -1 -1 -1  -1 -1 -1
+  1  4  5   2  5  4   2  3  5
+  2  5  4   1  4  5   1  5  3
+  1  2  5   1  5  4   3  4  5
+  3  4  5   1  2  5   1  5  4
+  1  4  5   1  5  3   2  5  4
+  2  3  5   2  5  4   1  4  5
+  1  2  3  -1 -1 -1  -1 -1 -1
+]',(3,3,8))
+
+""" 
 Look-up tables for cutting tetrahedra
 """
   
@@ -14,42 +63,42 @@ const cut_nntet = [ 1, 2, 2, 4, 2, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 2]
 
 # First point on intersection: cut_v1[4,16]
 const cut_v1 = reshape([
-    -1 -1 -1 -1
-     1  1  1 -1
-     2  2  2 -1
-     1  2  1  2
-     3  3  3 -1
-     1  3  1  3
-     2  3  2  3
-     4  4  4 -1
-     4  4  4 -1
-     1  4  1  4
-     2  4  2  4
-     3  3  3 -1
-     3  4  3  4
-     2  2  2 -1
-     1  1  1 -1
-    -1 -1 -1 -1
+  -1 -1 -1 -1
+    1  1  1 -1
+    2  2  2 -1
+    1  2  1  2
+    3  3  3 -1
+    1  3  1  3
+    2  3  2  3
+    4  4  4 -1
+    4  4  4 -1
+    1  4  1  4
+    2  4  2  4
+    3  3  3 -1
+    3  4  3  4
+    2  2  2 -1
+    1  1  1 -1
+  -1 -1 -1 -1
 ]',(4,16))
 
 # Second point on intersection: cut_v2[4,16]
 const cut_v2 = reshape([
-    -1 -1 -1 -1
-     2  3  4 -1
-     3  4  1 -1
-     4  4  3  3
-     4  1  2 -1
-     4  4  2  2
-     4  4  1  1
-     1  2  3 -1
-     1  2  3 -1
-     3  3  2  2
-     3  3  1  1
-     4  1  2 -1
-     2  2  1  1
-     3  4  1 -1
-     2  3  4 -1
-    -1 -1 -1 -1
+  -1 -1 -1 -1
+    2  3  4 -1
+    3  4  1 -1
+    4  4  3  3
+    4  1  2 -1
+    4  4  2  2
+    4  4  1  1
+    1  2  3 -1
+    1  2  3 -1
+    3  3  2  2
+    3  3  1  1
+    4  1  2 -1
+    2  2  1  1
+    3  4  1 -1
+    2  3  4 -1
+  -1 -1 -1 -1
 ]',(4,16))
 
 # Vertices in each tet: cut_vtet[4,6,16]
