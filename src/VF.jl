@@ -89,7 +89,7 @@ Compute interface reconstruction (PLIC)
 function computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh 
     
-    for i = imin_:imax_, j = jmin_:jmax_, k = kmin_:kmax_
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
         D[i,j,k]=computeDist(i,j,k,nx[i,j,k],ny[i,j,k],nz[i,j,k],VF[i,j,k],param,mesh)
     end
     update_borders!(D,mesh,par_env)
