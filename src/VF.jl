@@ -44,17 +44,17 @@ function VF_transport!(VF,nx,ny,nz,D,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par
     
     # # Compute fluxes
     # fill!(Fx,0.0)
-    # for i = imin_:imax_+1, j = jmin_:jmax_, k = kmin_:kmax_ # Loop over faces 
+    # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
     #     VFface = 0.5*(VF[i-1,j,k] + VF[i,j,k])
     #     Fx[i,j,k] = dy*dz*( - uf[i,j,k]*VFface )
     # end
     # fill!(Fy,0.0)
-    # for i = imin_:imax_, j = jmin_:jmax_+1, k = kmin_:kmax_ # Loop over faces 
+    # for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_ # Loop over faces 
     #     VFface = 0.5*(VF[i,j-1,k] + VF[i,j,k])
     #     Fy[i,j,k] = dx*dz*( - vf[i,j,k]*VFface )
     # end
     # fill!(Fz,0.0)
-    # for i = imin_:imax_, j = jmin_:jmax_, k = kmin_:kmax_+1 # Loop over faces 
+    # for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_ # Loop over faces 
     #     VFface = 0.5*(VF[i,j,k-1] + VF[i,j,k])
     #     Fz[i,j,k] = dx*dy*( - wf[i,j,k]*VFface )
     # end
