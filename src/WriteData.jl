@@ -90,25 +90,37 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,divg,tmp,param,mesh,par_env,pvd,pvd
         end
 
     # Write PLIC as unstructured mesh 
-    points = [
-        0.0 0.0 0.0
-        1.0 0.0 0.0
-        1.0 1.0 0.0
-        2.0 1.0 0.0
-        ]'
-    cells = [
-        MeshCell(VTKCellTypes.VTK_TRIANGLE, [1, 2, 3]),
-        MeshCell(VTKCellTypes.VTK_TRIANGLE, [2, 3, 4]),
-            ]
-    pvtk_grid(
-        joinpath(pwd(),VTK_dir,"PLIC_"*format(iter)), 
-        points, 
-        cells,
-        part = irank+1,
-        nparts = nproc,
-        ) do pvtk
-            pvtk["testData"] = [1.234, 5.678]
-            pvd_PLIC[time] = pvtk
+    pts, tris = PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
+
+    # Put pts into VTK format 
+    npts = length(pts)
+    points = Matrix{Float64}(undef,3,npts)
+    for n = eachindex(pts)
+        points[:,n]=pts[n].pt
+    end
+
+    # Put tris into VTK format
+    ncells = length(tris)
+    cells  = Vector{WriteVTK.MeshCell{WriteVTK.VTKCellTypes.VTKCellType, Vector{Int64}}}(undef,ncells)
+    ID  = Vector{Float64}(undef,ncells)
+    for n = eachindex(tris)
+        cells[n]=MeshCell(VTKCellTypes.VTK_TRIANGLE, tris[n].tri)
+        ID[n] = n
+    end
+        
+    # Write data
+    if ncells > 0    
+        pvtk_grid(
+            joinpath(pwd(),VTK_dir,"PLIC_"*format(iter)), 
+            points, 
+            cells,
+            part = irank+1,
+            nparts = nproc,
+            extents = [1,length(tris)],
+            ) do pvtk
+                pvtk["Tri ID"] = ID
+                pvd_PLIC[time] = pvtk
+        end
     end
 
     # Write pvd file to read even if simulation stops (or is stoped)
@@ -116,7 +128,6 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,divg,tmp,param,mesh,par_env,pvd,pvd
         # if pvd.appended
         #     save_with_appended_data(pvd)
         # else
-        println("pvd.path=",pvd.path)
         WriteVTK.save_file(pvd.xdoc, pvd.path)
         # end
     end

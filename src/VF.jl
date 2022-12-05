@@ -1,3 +1,12 @@
+# Structs to hold interface PLIC 
+struct Point
+    pt :: Vector{Float64}
+end
+
+struct Tri
+    tri :: Vector{Int64}
+end
+
 function VF_transport!(VF,nx,ny,nz,D,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par_env)
     @unpack solveNS, VFVelocity = param
     @unpack dx,dy,dz = mesh 
@@ -207,27 +216,12 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
     @unpack dx,dy,dz = mesh
 
     # Allocate work arrays 
-    tets = Array{Float64}(undef,3,4,5)
     vert = Array{Float64}(undef,3,8)
     d = Array{Float64}(undef,4)
 
     # Compute VF in this cell 
     VF=0.0
-    # Cell vertices 
-    p1=[x[i  ],y[j  ],z[k  ]]
-    p2=[x[i+1],y[j  ],z[k  ]]
-    p3=[x[i  ],y[j+1],z[k  ]]
-    p4=[x[i+1],y[j+1],z[k  ]]
-    p5=[x[i  ],y[j  ],z[k+1]]
-    p6=[x[i+1],y[j  ],z[k+1]]
-    p7=[x[i  ],y[j+1],z[k+1]]
-    p8=[x[i+1],y[j+1],z[k+1]]
-    # Make five tets 
-    tets[:,1,1]=p1; tets[:,2,1]=p2; tets[:,3,1]=p4; tets[:,4,1]=p6
-    tets[:,1,2]=p1; tets[:,2,2]=p4; tets[:,3,2]=p3; tets[:,4,2]=p7
-    tets[:,1,3]=p1; tets[:,2,3]=p5; tets[:,3,3]=p6; tets[:,4,3]=p7
-    tets[:,1,4]=p4; tets[:,2,4]=p7; tets[:,3,4]=p6; tets[:,4,4]=p8
-    tets[:,1,5]=p1; tets[:,2,5]=p4; tets[:,3,5]=p7; tets[:,4,5]=p6
+    tets=cell2tets(i,j,k,mesh)
     for tet=1:5
         # Copy verts
         for n=1:4
@@ -268,4 +262,73 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
         end
     end
     return VF
+end
+
+""" 
+Compute unstructured mesh representing PLIC 
+- points - vertices of each triangle 
+- tris - [ntri,3] array of points that make up each triangle 
+"""
+function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
+    @unpack x,y,z = mesh
+    @unpack VFlo, VFhi = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh 
+
+
+    # Initialize output with nodata 
+    pts  = Vector{Point}(undef,0)
+    tris = Vector{Tri}(undef,0)
+
+    # Allocate work arrays 
+    vert  = Array{Float64}(undef,3,6)
+    vert2 = Array{Float64}(undef,3,6)
+    inter = Array{Float64}(undef,3,4)
+    d = Array{Float64}(undef,4)
+
+    # Loop over domain
+    npts = 0
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
+        # Check for interface
+        if VF[i,j,k] >= VFlo && VF[i,j,k] <= VFhi
+            # Construct tets in cell 
+            tets = cell2tets(i,j,k,mesh)
+            for tet=1:5
+                # Copy verts
+                for n=1:4
+                    vert[:,n] = tets[:,n,tet]
+                end
+                # Calculate distance to PLIC reconstruction
+                for n=1:4
+                    d[n] = nx[i,j,k]*vert[1,n]+ny[i,j,k]*vert[2,n]+nz[i,j,k]*vert[3,n]-D[i,j,k]
+                end
+                # Handle zero distances
+                npos = length(d[d.>0.0])
+                nneg = length(d[d.<0.0])
+                d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
+                # Determine case
+                case=(
+                    1+Int(0.5+0.5*sign(d[1]))+
+                    2*Int(0.5+0.5*sign(d[2]))+
+                    4*Int(0.5+0.5*sign(d[3]))+
+                    8*Int(0.5+0.5*sign(d[4])))
+        
+                # Create interpolated vertices on cut plane
+                for n=1:cut_nvert[case]
+                    v1 = cut_v1[n,case]; v2 = cut_v2[n,case]
+                    mu=min(1.0,max(0.0, -d[v1] /̂ (d[v2]-d[v1])))
+                    inter[:,n]=(1.0-mu)*vert[:,v1]+mu*vert[:,v2]
+                    # Store interpolated vertices to points output 
+                    npts += 1
+                    push!(pts,Point(inter[:,n]))
+                end
+
+                # Create node list of tris on interface 
+                for n=1:cut_ntris[case]
+                    tri = Tri(npts.-cut_nvert[case].+(cut_vtri[:,n,case].-4))
+                    push!(tris,tri)
+                end
+            end
+        end
+    end
+    return pts, tris
 end
