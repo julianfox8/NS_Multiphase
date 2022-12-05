@@ -26,6 +26,7 @@ using Parameters
 
     # Number of iterations between writing output files
     out_period :: Int64
+    VTK_dir = "VTK" :: String
    
     # Procs
     nprocx :: Int64

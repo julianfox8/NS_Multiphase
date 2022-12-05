@@ -17,14 +17,23 @@ function std_out(nstep,t,P,u,v,w,divg,iter,par_env)
     return nothing
 end
 
-function VTK_init()
+function VTK_init(param,par_env)
+    @unpack isroot = par_env 
+    @unpack VTK_dir = param
     # Create PVD file to hold timestep info
-    pvd = paraview_collection("VTK")
-    return pvd
+    dir=joinpath(pwd(),VTK_dir)
+    if isroot 
+        isdir(dir) && rm(dir, recursive=true)
+        mkdir(dir)
+    end
+    pvd      = paraview_collection(joinpath(dir,"Solver"))
+    pvd_PLIC = paraview_collection(joinpath(dir,"PLIC"))
+    return pvd,pvd_PLIC
 end
    
-function VTK_finalize(pvd)
+function VTK_finalize(pvd,pvd_PLIC)
     vtk_save(pvd)
+    vtk_save(pvd_PLIC)
     return nothing
 end
 
@@ -32,7 +41,8 @@ function format(iter)
     return @sprintf("%05i",iter)
 end
 
-function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,divg,tmp,param,mesh,par_env,pvd)
+function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,divg,tmp,param,mesh,par_env,pvd,pvd_PLIC)
+    @unpack VTK_dir = param
     
     # Check if should write output
     if rem(iter-1,param.out_period)!==0
@@ -50,7 +60,7 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,divg,tmp,param,mesh,par_env,pvd)
     end
     # Write data to VTK
     pvtk_grid(
-        "VTK"*format(iter), 
+        joinpath(pwd(),VTK_dir,"Solver_"*format(iter)), 
         x[imin_:imax_+1], 
         y[jmin_:jmax_+1],
         z[kmin_:kmax_+1],
@@ -79,13 +89,39 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,divg,tmp,param,mesh,par_env,pvd)
             pvd[time] = pvtk
         end
 
+    # Write PLIC as unstructured mesh 
+    points = [
+        0.0 0.0 0.0
+        1.0 0.0 0.0
+        1.0 1.0 0.0
+        2.0 1.0 0.0
+        ]'
+    cells = [
+        MeshCell(VTKCellTypes.VTK_TRIANGLE, [1, 2, 3]),
+        MeshCell(VTKCellTypes.VTK_TRIANGLE, [2, 3, 4]),
+            ]
+    pvtk_grid(
+        joinpath(pwd(),VTK_dir,"PLIC_"*format(iter)), 
+        points, 
+        cells,
+        part = irank+1,
+        nparts = nproc,
+        ) do pvtk
+            pvtk["testData"] = [1.234, 5.678]
+            pvd_PLIC[time] = pvtk
+    end
+
     # Write pvd file to read even if simulation stops (or is stoped)
     if isopen(pvd)
         # if pvd.appended
         #     save_with_appended_data(pvd)
         # else
-            WriteVTK.save_file(pvd.xdoc, pvd.path)
+        println("pvd.path=",pvd.path)
+        WriteVTK.save_file(pvd.xdoc, pvd.path)
         # end
+    end
+    if isopen(pvd_PLIC)
+        WriteVTK.save_file(pvd_PLIC.xdoc, pvd_PLIC.path)
     end
 
     return nothing

@@ -33,7 +33,7 @@ function run_solver(param, IC!, BC!)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,VF,nx,ny,nz,us,vs,ws,uf,vf,wf,Fx,Fy,Fz,tmp = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3 = initArrays(mesh)
 
     # Create initial condition
     t = 0.0
@@ -53,7 +53,7 @@ function run_solver(param, IC!, BC!)
     interpolateFace!(u,v,w,uf,vf,wf,mesh)
     
     # Initialize VTK outputs
-    pvd = VTK_init()
+    pvd,pvd_PLIC = VTK_init(param,par_env)
 
     # Loop over time
     nstep = 0
@@ -70,7 +70,7 @@ function run_solver(param, IC!, BC!)
         if solveNS
 
             # Predictor step
-            predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env)
+            predictor!(us,vs,ws,u,v,w,uf,vf,wf,tmp1,tmp2,tmp3,dt,param,mesh,par_env)
             
             # Apply boundary conditions
             BC!(us,vs,ws,mesh,par_env)
@@ -100,14 +100,14 @@ function run_solver(param, IC!, BC!)
         end
 
         # Transport VF
-        VF_transport!(VF,nx,ny,nz,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par_env)
+        VF_transport!(VF,nx,ny,nz,D,u,v,w,uf,vf,wf,tmp1,tmp2,tmp3,t,dt,param,mesh,par_env)
         
         # Check divergence
         divg = divergence(uf,vf,wf,mesh,par_env)
         
         # Output
         std_out(nstep,t,P,u,v,w,divg,iter,par_env)
-        VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,divg,tmp,param,mesh,par_env,pvd)
+        VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,divg,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
 
     end
 

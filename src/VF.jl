@@ -1,4 +1,4 @@
-function VF_transport!(VF,nx,ny,nz,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par_env)
+function VF_transport!(VF,nx,ny,nz,D,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par_env)
     @unpack solveNS, VFVelocity = param
     @unpack dx,dy,dz = mesh 
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
@@ -28,6 +28,10 @@ function VF_transport!(VF,nx,ny,nz,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par_e
 
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
+
+    # Compute PLIC reconstruction 
+    computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+
 
     # # Compute fluxes
     # fill!(Fx,0.0)
@@ -66,6 +70,20 @@ function computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
     else
         error("Unknown method to copute interface normal: normalMethod = $normalMethod")
     end
+
+    return nothing
+end
+
+"""
+Compute interface reconstruction (PLIC)
+"""
+function computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh 
+
+    for i = imin_:imax_, j = jmin_:jmax_, k = kmin_:kmax_
+        D[i,j,k]=computeDist(i,j,k,nx[i,j,k],ny[i,j,k],nz[i,j,k],VF[i,j,k],param,mesh)
+    end
+    update_borders!(D,mesh,par_env)
 
     return nothing
 end
@@ -126,6 +144,7 @@ end
 """
 Compute alpha for plane given volume of fluid
 m1*x1+m2*x2+m3*x3=alpha and VF=V            
+assumes cubic cell, positive normal, and VF<0.5
 Scardovelli & Zaleski, JCP 164,228-247 (2000)
 """
 function computeAlpha(m,VF)    
