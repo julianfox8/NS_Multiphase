@@ -22,15 +22,19 @@ function pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
 end
 
 function poisson_solve!(P,RHS,param,mesh,par_env)
-
+    @unpack pressureSolver = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+
     # Interior indices
     ix = imin_:imax_; iy = jmin_:jmax_;  iz = kmin_:kmax_
 
-    #iter = GaussSeidel!(P,RHS,param,mesh,par_env)
-    #printArray("P - Gauss Seidel",P[ix,iy,iz],par_env)
-    iter = conjgrad!(P,RHS,param,mesh,par_env)
-    #printArray("P - conjgrad",P[ix,iy,iz],par_env)
+    if pressureSolver == "GaussSeidel"
+        iter = GaussSeidel!(P,RHS,param,mesh,par_env)
+    elseif pressureSolver == "ConjugateGradient"
+        iter = conjgrad!(P,RHS,param,mesh,par_env)
+    else
+        error("Unknown pressure solver $pressureSolver")
+    end
 
     return iter
 end

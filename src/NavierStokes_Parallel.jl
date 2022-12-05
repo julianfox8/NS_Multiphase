@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, @unpack
+export run_solver, parameters, VFcircle, @unpack
 
 using MPI
 using UnPack
@@ -14,10 +14,15 @@ include("Parallel.jl")
 include("Tools.jl")
 include("Velocity.jl")
 include("Pressure.jl")
+include("VF.jl")
+include("VFgeom.jl")
+include("ELVIRA.jl")
 include("WriteData.jl")
 
 function run_solver(param, IC!, BC!)
-    @unpack stepMax,tFinal = param
+    @unpack stepMax,tFinal,solveNS = param
+
+    println("Starting solver...")
 
     # Create parallel environment
     par_env = parallel_init(param)
@@ -28,11 +33,12 @@ function run_solver(param, IC!, BC!)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,us,vs,ws,uf,vf,wf,Fx,Fy,Fz = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,us,vs,ws,uf,vf,wf,Fx,Fy,Fz,tmp = initArrays(mesh)
 
     # Create initial condition
     t = 0.0
-    IC!(P,u,v,w,mesh)
+    IC!(P,u,v,w,VF,mesh)
+    #printArray("VF",VF,par_env)
 
     # Apply boundary conditions
     BC!(u,v,w,mesh,par_env)
@@ -41,6 +47,7 @@ function run_solver(param, IC!, BC!)
     update_borders!(u,mesh,par_env)
     update_borders!(v,mesh,par_env)
     update_borders!(w,mesh,par_env)
+    update_borders!(VF,mesh,par_env)
 
     # Create face velocities
     interpolateFace!(u,v,w,uf,vf,wf,mesh)
@@ -50,6 +57,7 @@ function run_solver(param, IC!, BC!)
 
     # Loop over time
     nstep = 0
+    iter = 0
     while nstep<stepMax && t<tFinal
 
         # Update step counter
@@ -59,40 +67,47 @@ function run_solver(param, IC!, BC!)
         dt = compute_dt(u,v,w,param,mesh,par_env)
         t += dt;
 
-        # Predictor step
-        predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env)
-        
-        # Apply boundary conditions
-        BC!(us,vs,ws,mesh,par_env)
+        if solveNS
 
-        # Update Processor boundaries (overwrites BCs if periodic)
-        update_borders!(us,mesh,par_env)
-        update_borders!(vs,mesh,par_env)
-        update_borders!(ws,mesh,par_env)
-        
-        # Create face velocities
-        interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-        
-        # Call pressure Solver (handles processor boundaries for P)
-        iter = pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
+            # Predictor step
+            predictor!(us,vs,ws,u,v,w,uf,vf,wf,Fx,Fy,Fz,dt,param,mesh,par_env)
+            
+            # Apply boundary conditions
+            BC!(us,vs,ws,mesh,par_env)
 
-        # Corrector face velocities
-        corrector!(uf,vf,wf,P,dt,param,mesh)
+            # Update Processor boundaries (overwrites BCs if periodic)
+            update_borders!(us,mesh,par_env)
+            update_borders!(vs,mesh,par_env)
+            update_borders!(ws,mesh,par_env)
+            
+            # Create face velocities
+            interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
+            
+            # Call pressure Solver (handles processor boundaries for P)
+            iter = pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
 
-        # Interpolate velocity to cell centers (keeping BCs from predictor)
-        interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
+            # Corrector face velocities
+            corrector!(uf,vf,wf,P,dt,param,mesh)
 
-        # Update Processor boundaries
-        update_borders!(u,mesh,par_env)
-        update_borders!(v,mesh,par_env)
-        update_borders!(w,mesh,par_env)
+            # Interpolate velocity to cell centers (keeping BCs from predictor)
+            interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
+
+            # Update Processor boundaries
+            update_borders!(u,mesh,par_env)
+            update_borders!(v,mesh,par_env)
+            update_borders!(w,mesh,par_env)
+
+        end
+
+        # Transport VF
+        VF_transport!(VF,nx,ny,nz,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par_env)
         
         # Check divergence
         divg = divergence(uf,vf,wf,mesh,par_env)
         
         # Output
         std_out(nstep,t,P,u,v,w,divg,iter,par_env)
-        VTK(nstep,t,P,u,v,w,divg,param,mesh,par_env,pvd)
+        VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,divg,tmp,param,mesh,par_env,pvd)
 
     end
 

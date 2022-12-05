@@ -32,10 +32,10 @@ function format(iter)
     return @sprintf("%05i",iter)
 end
 
-function VTK(iter,time,P,u,v,w,divg,param,mesh,par_env,pvd)
+function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,divg,tmp,param,mesh,par_env,pvd)
     
     # Check if should write output
-    if rem(iter-1,param.out_freq)!==0
+    if rem(iter-1,param.out_period)!==0
         return nothing
     end
 
@@ -63,7 +63,19 @@ function VTK(iter,time,P,u,v,w,divg,param,mesh,par_env,pvd)
                 u[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
                 v[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
                 w[imin_:imax_,jmin_:jmax_,kmin_:kmax_] )
+            pvtk["VF"] = @views VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["Divergence"] = @views divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["Normal"] = @views (
+                nx[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
+                ny[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
+                nz[imin_:imax_,jmin_:jmax_,kmin_:kmax_] )
+            # Indices for debugging
+            for i=imin_:imax_; tmp[i,:,:] .= i; end
+            pvtk["i_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            for j=jmin_:jmax_; tmp[:,j,:] .= j; end
+            pvtk["j_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            for k=kmin_:kmax_; tmp[:,:,k] .= k; end
+            pvtk["k_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvd[time] = pvtk
         end
 

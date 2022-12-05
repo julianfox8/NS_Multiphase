@@ -20,7 +20,7 @@ param = parameters(
     Nz=1,
     stepMax=1, #00,   # Maximum number of timesteps
     CFL=0.01,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_freq=1,     # Number of steps between when plots are updated
+    out_period=1,     # Number of steps between when plots are updated
     tol = 1e-3,
 
     # Processors 
@@ -37,7 +37,7 @@ param = parameters(
 """
 Initial conditions for pressure and velocity
 """
-function IC!(P,u,v,w,mesh)
+function IC!(P,u,v,w,VF,mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,
                 xm,ym,zm,Lx,Ly,Lz = mesh
     # Pressure
@@ -49,6 +49,9 @@ function IC!(P,u,v,w,mesh)
         v[i,j,k] = 0.0 # (xm[i] - Lx/2.0)
         w[i,j,k] = 0.0
     end
+
+    # Volume Fraction
+    fill!(VF,0.0)
 
     return nothing    
 end
