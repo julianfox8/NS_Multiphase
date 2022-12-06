@@ -47,29 +47,22 @@ function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,p
     # Transport VF with semi-Lagrangian cells
     fill!(VFnew,0.0)
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
-
-        if i==-30 && j==36 && k==1
-            debug = true 
+        # Semi-Lagrangian near interface 
+        if abs(band[i,j,k]) <= 1
+            # From projected cell and break into tets 
+            tets,inds = cell2tets_withProject(i,j,k,u,v,w,dt,mesh)
+            # Compute VF in semi-Lagrangian cell 
+            vol  = 0.0
+            vLiq = 0.0
+            for tet=1:5
+                tetVol, tetVLiq = cutTet(tets[:,:,tet],inds[:,:,tet],nx,ny,nz,D,mesh)
+                vol += tetVol
+                vLiq += tetVLiq
+            end
+            VFnew[i,j,k] = vLiq/vol
         else
-            debug = false
+            VFnew[i,j,k] = VF[i,j,k]
         end
-
-        # From projected cell and break into tets 
-        tets,inds = cell2tets_withProject(i,j,k,u,v,w,dt,mesh)
-        # Compute VF in semi-Lagrangian cell 
-        vol  = 0.0
-        vLiq = 0.0
-        for tet=1:5
-            tetVol, tetVLiq = cutTet(tets[:,:,tet],inds[:,:,tet],nx,ny,nz,D,mesh,debug)
-            vol += tetVol
-            vLiq += tetVLiq
-        end
-        VFnew[i,j,k] = vLiq/vol
-
-        if debug 
-            tets2VTK(tets,"debugCell")
-        end
-
     end
     VF[:,:,:] .= VFnew[:,:,:]
     
