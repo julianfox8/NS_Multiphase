@@ -39,8 +39,6 @@ function ELVIRA_calc!(nx,ny,nz,VF,i,j,k,param,mesh)
     # Set initial error to huge
     err=[Inf,]
 
-    debug = i==29 && j==13 && k==1
-
     # X-Y Stencils 
     if Nz > 1 
         for jj=[[j-1,j],[j-1,j+1],[j,j+1]], ii=[[i-1,i],[i-1,i+1],[i,i+1]]
@@ -78,8 +76,6 @@ Checks if [nx_,ny_,nz_] is a better normal.
 If it is then update [nx,ny,nz] and err
 """
 function check_normal!(err,nx_,ny_,nz_,nx,ny,nz,VF,i,j,k,param,mesh)
-
-    debug = i==29 && j==13 && k==1
 
     #Initialize error for this normal
     err_=0.0

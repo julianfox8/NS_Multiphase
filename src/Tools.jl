@@ -10,6 +10,7 @@ function initArrays(mesh)
     ny = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(ny,0.0)
     nz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(nz,0.0)
     D  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(D ,0.0)
+    band = OffsetArray{Int16}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(band,0)
     us = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(us,0.0)
     vs = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(vs,0.0)
     ws = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(ws,0.0)
@@ -21,8 +22,7 @@ function initArrays(mesh)
     tmp2 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp2,0.0)
     tmp3 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp3,0.0)
 
-
-    return P,u,v,w,VF,nx,ny,nz,D,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3
+    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3
 end
 
 """
@@ -84,6 +84,84 @@ Safe Divide (avoids division by zero)
 function /̂(a,b)
     return abs(b)<=eps() ? typemax(Float64) : a/b
 end
+
+
+""" 
+Determine which cell (index) a point 
+lies within 
+"""
+function pt2index(pt,i,j,k,mesh)
+    @unpack x,y,z = mesh
+    I=[i,j,k]
+    while pt[1] > x[I[1]+1]+eps(); I[1]=I[1]+1; end
+    while pt[1] < x[I[1]  ]-eps(); I[1]=I[1]-1; end
+    while pt[2] > y[I[2]+1]+eps(); I[2]=I[2]+1; end
+    while pt[2] < y[I[2]  ]-eps(); I[2]=I[2]-1; end
+    while pt[3] > z[I[3]+1]+eps(); I[3]=I[3]+1; end
+    while pt[3] < z[I[3]  ]-eps(); I[3]=I[3]-1; end
+    return I
+end
+
+""" 
+Interpolate cell centered velocity to location of pt 
+"""
+function get_velocity(pt,i,j,k,u,v,w,mesh)
+    @unpack xm,ym,zm = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    # Find right i index
+    while pt[1]-xm[i  ] <  0.0 && i   > imino_
+       i=i-1
+    end
+    while pt[1]-xm[i+1] >= 0.0 && i+1 < imaxo_
+       i=i+1
+    end
+    # Find right j index
+    while pt[2]-ym[j  ] <  0.0 && j   > jmino_
+       j=j-1
+    end
+    while pt[2]-ym[j+1] >= 0.0 && j+1 < jmaxo_
+       j=j+1
+    end
+    # Find right k index
+    while pt[3]-zm[k  ] <  0.0 && k   > kmino_
+       k=k-1
+    end
+    while pt[3]-zm[k+1] >= 0.0 && k+1 < kmaxo_
+       k=k+1
+    end
+    # Prepare tri-linear interpolation coefficients
+    wx1=(pt[1]-xm[i])/(xm[i+1]-xm[i]); wx2=1.0-wx1
+    wy1=(pt[2]-ym[j])/(ym[j+1]-ym[j]); wy2=1.0-wy1
+    wz1=(pt[3]-zm[k])/(zm[k+1]-zm[k]); wz2=1.0-wz1
+    # Tri-linear interpolation
+    u_pt=( wz1*(wy1*(wx1*u[i+1,j+1,k+1]  +
+                     wx2*u[i  ,j+1,k+1]) +
+                wy2*(wx1*u[i+1,j  ,k+1]  +
+                     wx2*u[i  ,j  ,k+1]))+
+           wz2*(wy1*(wx1*u[i+1,j+1,k  ]  +
+                     wx2*u[i  ,j+1,k  ]) +
+                wy2*(wx1*u[i+1,j  ,k  ]  +
+                     wx2*u[i  ,j  ,k  ])))
+    v_pt=( wz1*(wy1*(wx1*v[i+1,j+1,k+1]  +
+                     wx2*v[i  ,j+1,k+1]) +
+                wy2*(wx1*v[i+1,j  ,k+1]  +
+                     wx2*v[i  ,j  ,k+1]))+
+           wz2*(wy1*(wx1*v[i+1,j+1,k  ]  +
+                     wx2*v[i  ,j+1,k  ]) +
+                wy2*(wx1*v[i+1,j  ,k  ]  +
+                     wx2*v[i  ,j  ,k  ])))
+    w_pt=( wz1*(wy1*(wx1*w[i+1,j+1,k+1]  +
+                     wx2*w[i  ,j+1,k+1]) +
+                wy2*(wx1*w[i+1,j  ,k+1]  +
+                     wx2*w[i  ,j  ,k+1]))+
+           wz2*(wy1*(wx1*w[i+1,j+1,k  ]  +
+                     wx2*w[i  ,j+1,k  ]) +
+                wy2*(wx1*w[i+1,j  ,k  ]  +
+                     wx2*w[i  ,j  ,k  ])))
+    return [u_pt,v_pt,w_pt]
+
+end
+
 
 """
 Exact VF values for 2D circle

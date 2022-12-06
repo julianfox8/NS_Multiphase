@@ -7,7 +7,7 @@ struct Tri
     tri :: Vector{Int64}
 end
 
-function VF_transport!(VF,nx,ny,nz,D,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par_env)
+function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,par_env)
     @unpack solveNS, VFVelocity = param
     @unpack dx,dy,dz = mesh 
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
@@ -34,12 +34,45 @@ function VF_transport!(VF,nx,ny,nz,D,u,v,w,uf,vf,wf,Fx,Fy,Fz,t,dt,param,mesh,par
             error("Unknown VFVelocity = $VFVelocity")
         end
     end
+
+    # Create band around interface 
+
     
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
     
     # Compute PLIC reconstruction 
     computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+
+    # Transport VF with semi-Lagrangian cells
+    fill!(VFnew,0.0)
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
+        # TODO: Introduce a band!
+
+        if i==-30 && j==36 && k==1
+            debug = true 
+        else
+            debug = false
+        end
+
+        # From projected cell and break into tets 
+        tets,inds = cell2tets_withProject(i,j,k,u,v,w,dt,mesh)
+        # Compute VF in semi-Lagrangian cell 
+        vol  = 0.0
+        vLiq = 0.0
+        for tet=1:5
+            tetVol, tetVLiq = cutTet(tets[:,:,tet],inds[:,:,tet],nx,ny,nz,D,mesh,debug)
+            vol += tetVol
+            vLiq += tetVLiq
+        end
+        VFnew[i,j,k] = vLiq/vol
+
+        if debug 
+            tets2VTK(tets,"debugCell")
+        end
+
+    end
+    VF[:,:,:] .= VFnew[:,:,:]
     
     
     # # Compute fluxes
@@ -87,9 +120,9 @@ end
 Compute interface reconstruction (PLIC)
 """
 function computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh 
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh 
     
-    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
+    for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         D[i,j,k]=computeDist(i,j,k,nx[i,j,k],ny[i,j,k],nz[i,j,k],VF[i,j,k],param,mesh)
     end
     update_borders!(D,mesh,par_env)
@@ -109,9 +142,9 @@ function computeDist(i,j,k,nx,ny,nz,VF,param,mesh)
     
     # Cells without interface 
     if VF < VFlo 
-        return dist =  (Lx+Ly+Lz)
-    elseif VF > VFhi
         return dist = -(Lx+Ly+Lz)
+    elseif VF > VFhi
+        return dist = +(Lx+Ly+Lz)
     end
     
     # Form plane equation variables, dealing with non-cubic cells
@@ -251,17 +284,30 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
         # Create new tets on liquid side
         for n=cut_ntets[case]:-1:cut_nntet[case]
             # Compute volume
-            a=vert[:,cut_vtet[1,n,case]] - vert[:,cut_vtet[4,n,case]]
-            b=vert[:,cut_vtet[2,n,case]] - vert[:,cut_vtet[4,n,case]]
-            c=vert[:,cut_vtet[3,n,case]] - vert[:,cut_vtet[4,n,case]]
-            vol=abs(a[1]*(b[2]*c[3]-c[2]*b[3]) 
-            -   a[2]*(b[1]*c[3]-c[1]*b[3]) 
-            +   a[3]*(b[1]*c[2]-c[1]*b[2]))/6.0
+            VF += tet_vol(vert[:,cut_vtet[:,n,case]])/(dx*dy*dz)
+            # a=vert[:,cut_vtet[1,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # b=vert[:,cut_vtet[2,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # c=vert[:,cut_vtet[3,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # vol=abs(a[1]*(b[2]*c[3]-c[2]*b[3]) 
+            # -   a[2]*(b[1]*c[3]-c[1]*b[3]) 
+            # +   a[3]*(b[1]*c[2]-c[1]*b[2]))/6.0
             # Update VF in this cell
-            VF += vol/(dx*dy*dz)
+            #VF += vol/(dx*dy*dz)
         end
     end
     return VF
+end
+
+""" 
+Semi-Lagrangian projection of point back in time 
+""" 
+function project(pt,i,j,k,u,v,w,dt,mesh)
+    v1=get_velocity(pt         ,i,j,k,u,v,w,mesh)
+    v2=get_velocity(pt+0.5dt*v1,i,j,k,u,v,w,mesh)
+    v3=get_velocity(pt+0.5dt*v2,i,j,k,u,v,w,mesh)
+    v4=get_velocity(pt+   dt*v3,i,j,k,u,v,w,mesh)
+    pt+=dt/6.0*(v1+2.0v2+2.0v3+v4)
+    return pt 
 end
 
 """ 

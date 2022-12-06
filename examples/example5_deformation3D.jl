@@ -20,7 +20,7 @@ param = parameters(
     Nz=10,
     stepMax=1, #0000,   # Maximum number of timesteps
     CFL=1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_period=100,     # Number of steps between when plots are updated
+    out_period=1,     # Number of steps between when plots are updated
     tol = 1e-3,
 
     # Processors 
@@ -46,12 +46,12 @@ function IC!(P,u,v,w,VF,mesh)
     @unpack x,y,z = mesh
 
     # Volume Fraction
-    D=0.25
+    rad=0.25
     xo=0.5
     yo=0.5
     zo=0.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        VF[i,j,k]=VFsphere(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],D,xo,yo,zo)
+        VF[i,j,k]=VFsphere(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
     end
 
     return nothing    

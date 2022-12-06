@@ -33,7 +33,7 @@ function run_solver(param, IC!, BC!)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,VF,nx,ny,nz,D,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3 = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3 = initArrays(mesh)
 
     # Create initial condition
     t = 0.0
@@ -51,9 +51,22 @@ function run_solver(param, IC!, BC!)
 
     # Create face velocities
     interpolateFace!(u,v,w,uf,vf,wf,mesh)
+
+    # Compute interface normal 
+    computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
+
+    # Compute PLIC reconstruction 
+    computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+
+    # Check divergence
+    divg = divergence(uf,vf,wf,mesh,par_env)
     
     # Initialize VTK outputs
     pvd,pvd_PLIC = VTK_init(param,par_env)
+
+    # Output IC
+    std_out(0,t,P,u,v,w,divg,0,par_env)
+    VTK(0,t,P,u,v,w,VF,nx,ny,nz,D,divg,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
 
     # Loop over time
     nstep = 0
@@ -100,7 +113,11 @@ function run_solver(param, IC!, BC!)
         end
 
         # Transport VF
-        VF_transport!(VF,nx,ny,nz,D,u,v,w,uf,vf,wf,tmp1,tmp2,tmp3,t,dt,param,mesh,par_env)
+        VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,tmp1,t,dt,param,mesh,par_env)
+
+        # Update processor boundaries
+        update_borders!(VF,mesh,par_env)
+
         
         # Check divergence
         divg = divergence(uf,vf,wf,mesh,par_env)

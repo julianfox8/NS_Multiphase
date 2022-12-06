@@ -126,23 +126,43 @@ const cut_ntris = [0, 1, 1, 2, 1, 2, 2, 1, 1, 2, 2, 1, 2, 1, 1, 0]
 
 # Vertices in each tri on cut plane 
 cut_vtri = reshape([
--1 -1 -1   -1 -1 -1 
- 5  7  6   -1 -1 -1 
- 5  6  7   -1 -1 -1 
- 5  8  6    5  7  8 
- 5  7  6   -1 -1 -1 
- 5  6  8    5  8  7 
- 5  8  6    5  7  8 
- 5  7  6   -1 -1 -1 
- 5  6  7   -1 -1 -1 
- 5  8  6    5  7  8 
- 5  6  8    5  8  7 
- 5  6  7   -1 -1 -1 
- 5  8  6    5  7  8 
- 5  7  6   -1 -1 -1 
- 5  6  7   -1 -1 -1 
--1 -1 -1   -1 -1 -1
+  -1 -1 -1   -1 -1 -1 
+  5  7  6   -1 -1 -1 
+  5  6  7   -1 -1 -1 
+  5  8  6    5  7  8 
+  5  7  6   -1 -1 -1 
+  5  6  8    5  8  7 
+  5  8  6    5  7  8 
+  5  7  6   -1 -1 -1 
+  5  6  7   -1 -1 -1 
+  5  8  6    5  7  8 
+  5  6  8    5  8  7 
+  5  6  7   -1 -1 -1 
+  5  8  6    5  7  8 
+  5  7  6   -1 -1 -1 
+  5  6  7   -1 -1 -1 
+  -1 -1 -1   -1 -1 -1
 ]',(3,2,16)) 
+
+# Side of cut plane (used to update i,j,k)
+const cut_side = reshape([
+  1 -1 -1 -1 -1 -1 
+  2  1  1  1 -1 -1 
+  2  1  1  1 -1 -1 
+  2  2  2  1  1  1 
+  2  1  1  1 -1 -1 
+  2  2  2  1  1  1 
+  2  2  2  1  1  1 
+  2  2  2  1 -1 -1 
+  2  1  1  1 -1 -1 
+  2  2  2  1  1  1 
+  2  2  2  1  1  1 
+  2  2  2  1 -1 -1 
+  2  2  2  1  1  1 
+  2  2  2  1 -1 -1 
+  2  2  2  1 -1 -1 
+  2 -1 -1 -1 -1 -1 
+]',(6,  16))
 
 function cell2tets(i,j,k,mesh)
   @unpack x,y,z = mesh
@@ -164,3 +184,219 @@ function cell2tets(i,j,k,mesh)
     tets[:,1,5]=p1; tets[:,2,5]=p4; tets[:,3,5]=p7; tets[:,4,5]=p6
     return tets 
 end
+
+
+function cell2tets_withProject(i,j,k,u,v,w,dt,mesh)
+  @unpack x,y,z = mesh
+    # Cell vertices 
+    p=Matrix{Float64}(undef,(3,8))
+    p[:,1]=[x[i  ],y[j  ],z[k  ]]
+    p[:,2]=[x[i+1],y[j  ],z[k  ]]
+    p[:,3]=[x[i  ],y[j+1],z[k  ]]
+    p[:,4]=[x[i+1],y[j+1],z[k  ]]
+    p[:,5]=[x[i  ],y[j  ],z[k+1]]
+    p[:,6]=[x[i+1],y[j  ],z[k+1]]
+    p[:,7]=[x[i  ],y[j+1],z[k+1]]
+    p[:,8]=[x[i+1],y[j+1],z[k+1]]
+    # For each vertex
+    I = Matrix{Int64}(undef,(3,8))
+    for n=1:8
+      # Perform semi-Lagrangian projection
+      p[:,n] = project(p[:,n],i,j,k,u,v,w,dt,mesh)
+      # Get cell index of projected vertex
+      I[:,n] = pt2index(p[:,n],i,j,k,mesh)  
+    end
+    # Make five tets 
+    tets = Array{Float64}(undef,3,4,5)
+    tets[:,1,1]=p[:,1]; tets[:,2,1]=p[:,2]; tets[:,3,1]=p[:,4]; tets[:,4,1]=p[:,6]
+    tets[:,1,2]=p[:,1]; tets[:,2,2]=p[:,4]; tets[:,3,2]=p[:,3]; tets[:,4,2]=p[:,7]
+    tets[:,1,3]=p[:,1]; tets[:,2,3]=p[:,5]; tets[:,3,3]=p[:,6]; tets[:,4,3]=p[:,7]
+    tets[:,1,4]=p[:,4]; tets[:,2,4]=p[:,7]; tets[:,3,4]=p[:,6]; tets[:,4,4]=p[:,8]
+    tets[:,1,5]=p[:,1]; tets[:,2,5]=p[:,4]; tets[:,3,5]=p[:,7]; tets[:,4,5]=p[:,6]
+
+    # Make five tets 
+    inds = Array{Int64}(undef,3,4,5)
+    inds[:,1,1]=I[:,1]; inds[:,2,1]=I[:,2]; inds[:,3,1]=I[:,4]; inds[:,4,1]=I[:,6]
+    inds[:,1,2]=I[:,1]; inds[:,2,2]=I[:,4]; inds[:,3,2]=I[:,3]; inds[:,4,2]=I[:,7]
+    inds[:,1,3]=I[:,1]; inds[:,2,3]=I[:,5]; inds[:,3,3]=I[:,6]; inds[:,4,3]=I[:,7]
+    inds[:,1,4]=I[:,4]; inds[:,2,4]=I[:,7]; inds[:,3,4]=I[:,6]; inds[:,4,4]=I[:,8]
+    inds[:,1,5]=I[:,1]; inds[:,2,5]=I[:,4]; inds[:,3,5]=I[:,7]; inds[:,4,5]=I[:,6]
+
+    return tets, inds
+end
+
+
+"""
+Computes volume of tet !
+"""
+function tet_vol(verts) 
+  f1_6=0.16666666666666667
+  a=verts[:,1]-verts[:,4]
+  b=verts[:,2]-verts[:,4]
+  c=verts[:,3]-verts[:,4]
+  tet_vol = -f1_6 * 
+       ( a[1] * ( b[2]*c[3] - c[2]*b[3] ) 
+       - a[2] * ( b[1]*c[3] - c[1]*b[3] ) 
+       + a[3] * ( b[1]*c[2] - c[1]*b[2] ) )
+  return tet_vol
+end
+
+
+""" 
+Cut tet by mesh then PLIC and return VF
+"""
+function cutTet(tet,ind,nx,ny,nz,D,mesh,debug)
+    @unpack x,y,z = mesh
+
+    # Determine max/min of indices
+    maxi = maximum(ind[1,:]); mini = minimum(ind[1,:]) 
+    maxj = maximum(ind[2,:]); minj = minimum(ind[2,:]) 
+    maxk = maximum(ind[3,:]); mink = minimum(ind[3,:]) 
+
+    # Allocate work arrays 
+    vert     = Array{Float64}(undef,3,8)
+    vert_ind = Array{Int64}(undef,3,8,2)
+    d = Array{Float64}(undef,4)    
+
+    # Cut by x-planes
+    if maxi > mini
+        dir=1
+        cut_ind=maxi 
+        for n=1:4 
+            d[n]=tet[1,n] - x[cut_ind]
+        end
+
+    # Cut by y-planes
+    elseif maxj > minj
+        dir=2
+        cut_ind=maxj
+        for n=1:4 
+            d[n]=tet[2,n] - y[cut_ind]
+        end
+
+    # Cut by z-planes
+    elseif maxk > mink
+        dir=3
+        cut_ind=maxk
+        for n=1:4 
+            d[n]=tet[3,n] - z[cut_ind]
+        end
+
+    # Cut by PLIC and compute output
+    else
+        vol =0.0
+        vLiq=0.0
+        # Copy vertices
+        for n=1:4
+            vert[:,n]=tet[:,n]
+        end
+        # Get index
+        i=ind[1,1];  j=ind[2,1];  k=ind[3,1];
+        # Calculate distance from each vertex to cut plane
+        for n=1:4
+            d[n]=nx[i,j,k]*vert[1,n]+ny[i,j,k]*vert[2,n]+nz[i,j,k]*vert[3,n]-D[i,j,k]
+        end
+        # Handle zero distances
+        npos = length(d[d.>0.0])
+        nneg = length(d[d.<0.0])
+        d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
+        # Determine case
+        case=(
+        1+Int(0.5+0.5*sign(d[1]))+
+        2*Int(0.5+0.5*sign(d[2]))+
+        4*Int(0.5+0.5*sign(d[3]))+
+        8*Int(0.5+0.5*sign(d[4])))
+
+        # Create interpolated vertices on cut plane
+        for n=1:cut_nvert[case]
+            v1 = cut_v1[n,case]; v2 = cut_v2[n,case]
+            mu=min(1.0,max(0.0, -d[v1] /̂ (d[v2]-d[v1])))
+            vert[:,4+n]=(1.0-mu)*vert[:,v1]+mu*vert[:,v2]
+        end
+        # Create new tets on liquid side
+        for n=cut_ntets[case]:-1:cut_nntet[case]
+            # Compute volume
+            # a=vert[:,cut_vtet[1,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # b=vert[:,cut_vtet[2,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # c=vert[:,cut_vtet[3,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # vol=abs(a[1]*(b[2]*c[3]-c[2]*b[3]) 
+            # -   a[2]*(b[1]*c[3]-c[1]*b[3]) 
+            # +   a[3]*(b[1]*c[2]-c[1]*b[2]))/6.0
+            tetVol = tet_vol(vert[:,cut_vtet[:,n,case]])
+            # Update volumes in this cell
+            vLiq += tetVol
+            vol  += tetVol
+        end
+        # Create new tets on gas side
+        for n=1:cut_nntet[case]-1
+            # Compute volume
+            # a=vert[:,cut_vtet[1,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # b=vert[:,cut_vtet[2,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # c=vert[:,cut_vtet[3,n,case]] - vert[:,cut_vtet[4,n,case]]
+            # vol=abs(a[1]*(b[2]*c[3]-c[2]*b[3]) 
+            # -   a[2]*(b[1]*c[3]-c[1]*b[3]) 
+            # +   a[3]*(b[1]*c[2]-c[1]*b[2]))/6.0
+            tetVol = tet_vol(vert[:,cut_vtet[:,n,case]])
+            # Update volumes in this cell
+            vol += tetVol
+        end
+
+        return vol, vLiq
+    end
+    
+    # Cut by plane
+    # -------------
+    # Handle zero distances
+    npos = length(d[d.>0.0])
+    nneg = length(d[d.<0.0])
+    d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
+    # Determine case
+    case=(
+    1+Int(0.5+0.5*sign(d[1]))+
+    2*Int(0.5+0.5*sign(d[2]))+
+    4*Int(0.5+0.5*sign(d[3]))+
+    8*Int(0.5+0.5*sign(d[4])))
+    # Get vertices and indices of tet
+    for n=1:4
+        vert[      :,n  ]=tet[:,n]
+        vert_ind[  :,n,1]=ind[:,n]
+        vert_ind[  :,n,2]=ind[:,n]
+        vert_ind[dir,n,1]=min(vert_ind[dir,n,1],cut_ind-1)
+        vert_ind[dir,n,2]=max(vert_ind[dir,n,1],cut_ind  )
+    end
+    # Create interpolated vertices on cut plane
+    for n=1:cut_nvert[case]
+        v1 = cut_v1[n,case]; v2 = cut_v2[n,case]
+        mu=min(1.0,max(0.0, -d[v1] /̂ (d[v2]-d[v1])))
+        vert[:,4+n]=(1.0-mu)*vert[:,v1]+mu*vert[:,v2]
+        # Get index for interpolated vertex
+        i=vert_ind[1,n,1]
+        j=vert_ind[2,n,1]
+        k=vert_ind[3,n,1]
+        vert_ind[:,4+n,1] = pt2index(vert[:,4+n],i,j,k,mesh)
+        # Enforce boundedness
+        vert_ind[:,4+n,1]=max(vert_ind[:,4+n,1],min(vert_ind[:,v1,1],vert_ind[:,v2,1]))
+        vert_ind[:,4+n,1]=min(vert_ind[:,4+n,1],max(vert_ind[:,v1,1],vert_ind[:,v2,1]))
+        # Set +/- indices in cut direction
+        vert_ind[:,4+n,2]=vert_ind[:,4+n,1]
+        vert_ind[dir,4+n,1]=cut_ind-1
+        vert_ind[dir,4+n,2]=cut_ind
+    end
+    # Create new tets
+    vol  = 0.0
+    vLiq = 0.0
+    for n=1:cut_ntets[case]
+       # Form new tet
+       for nn=1:4
+          tet[:,nn]=vert[:,cut_vtet[nn,n,case]]
+          ind[:,nn]=vert_ind[:,cut_vtet[nn,n,case],cut_side[n,case]]
+       end
+       # Cut new tet by next plnae
+       tetVol, tetVLiq = cutTet(tet,ind,nx,ny,nz,D,mesh,debug)
+       # Accumulate quantities
+       vol += tetVol
+       vLiq += tetVLiq
+    end
+
+    return vol,vLiq
+end 

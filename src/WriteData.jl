@@ -10,7 +10,7 @@ function std_out(nstep,t,P,u,v,w,divg,iter,par_env)
     max_divg = parallel_max(abs.(divg),par_env)
     
     if isroot 
-        rem(nstep,10)==1 && @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)    Piters\n")
+        rem(nstep,10)==0 && @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)    Piters\n")
         @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,iter)
     end
 
@@ -45,7 +45,7 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,divg,tmp,param,mesh,par_env,pvd,pvd
     @unpack VTK_dir = param
     
     # Check if should write output
-    if rem(iter-1,param.out_period)!==0
+    if rem(iter,param.out_period)!==0
         return nothing
     end
 
@@ -136,4 +136,56 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,divg,tmp,param,mesh,par_env,pvd,pvd
     end
 
     return nothing
+end
+
+"""
+Writes an array of tets[coord,vert,tet]
+where coord = [1:3] and corresponds to x,y,z of each vert 
+      vert = [1:4] and corresponds to each vertex in tet 
+      tet = [1:n] where n is the number of tets 
+"""
+function tets2VTK(tets,filename)
+    # Convert tets to points & tris 
+    nTet = size(tets,3)
+    pts  = Vector{Point}(undef,4*nTet)
+    tris = Vector{  Tri}(undef,4*nTet)
+    for n=1:nTet 
+        # Compute index of 4 points on this tet (also index of tris)
+        ind = 4(n-1).+(1:4)
+        for nn=1:4
+            pts[ind[nn]] = Point(tets[:,nn,n])
+        end
+        tris[ind[1]] = Tri([ind[1],ind[3],ind[2]])
+        tris[ind[2]] = Tri([ind[1],ind[2],ind[4]])
+        tris[ind[3]] = Tri([ind[1],ind[4],ind[3]])
+        tris[ind[4]] = Tri([ind[2],ind[3],ind[4]])
+    end
+
+    # Put pts into VTK format 
+    npts = length(pts)
+    points = Matrix{Float64}(undef,3,npts)
+    for n = eachindex(pts)
+        points[:,n]=pts[n].pt
+    end
+
+    # Put tris into VTK format
+    ncells = length(tris)
+    cells  = Vector{WriteVTK.MeshCell{WriteVTK.VTKCellTypes.VTKCellType, Vector{Int64}}}(undef,ncells)
+    ID  = Vector{Float64}(undef,ncells)
+    for n = eachindex(tris)
+        cells[n]=MeshCell(VTKCellTypes.VTK_TRIANGLE, tris[n].tri)
+        ID[n] = Int(floor((n-1)/4)+1)
+    end
+
+    # Write data
+    if ncells > 0    
+        vtk_grid(
+            filename, 
+            points, 
+            cells,
+            ) do vtk
+                vtk["Tri ID"] = ID
+        end
+    end
+
 end
