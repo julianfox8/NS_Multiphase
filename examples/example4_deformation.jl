@@ -7,7 +7,7 @@ using NavierStokes_Parallel
 # Define parameters 
 param = parameters(
     # Constants
-    mu=10.0,       # Dynamic viscosity
+    mu=1e-6,       # Dynamic viscosity
     rho=1.0,           # Density
     Lx=1.0,            # Domain size
     Ly=1.0,
@@ -44,6 +44,19 @@ Initial conditions for pressure and velocity
 function IC!(P,u,v,w,VF,mesh)
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack x,y,z = mesh
+    @unpack xm,ym,zm = mesh
+
+    # Velocity
+    t=0.0
+    u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/8.0)
+    v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/8.0)
+    w_fun(x,y,z,t) = 0.0
+    # Set velocities (including ghost cells)
+    for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+        u[i,j,k]  = u_fun(xm[i],ym[j],zm[k],t)
+        v[i,j,k]  = v_fun(xm[i],ym[j],zm[k],t)
+        w[i,j,k]  = w_fun(xm[i],ym[j],zm[k],t)
+    end
 
     # Volume Fraction
     D=0.125
