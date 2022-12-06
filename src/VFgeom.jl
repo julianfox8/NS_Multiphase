@@ -245,7 +245,7 @@ end
 """ 
 Cut tet by mesh then PLIC and return VF
 """
-function cutTet(tet,ind,nx,ny,nz,D,mesh,debug)
+function cutTet(tet,ind,nx,ny,nz,D,mesh)
     @unpack x,y,z = mesh
 
     # Determine max/min of indices
@@ -392,7 +392,7 @@ function cutTet(tet,ind,nx,ny,nz,D,mesh,debug)
           ind[:,nn]=vert_ind[:,cut_vtet[nn,n,case],cut_side[n,case]]
        end
        # Cut new tet by next plnae
-       tetVol, tetVLiq = cutTet(tet,ind,nx,ny,nz,D,mesh,debug)
+       tetVol, tetVLiq = cutTet(tet,ind,nx,ny,nz,D,mesh)
        # Accumulate quantities
        vol += tetVol
        vLiq += tetVLiq
