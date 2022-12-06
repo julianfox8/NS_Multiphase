@@ -52,6 +52,9 @@ function run_solver(param, IC!, BC!)
     # Create face velocities
     interpolateFace!(u,v,w,uf,vf,wf,mesh)
 
+    # Compute band around interface
+    computeBand!(band,VF,param,mesh,par_env)
+
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
@@ -66,7 +69,7 @@ function run_solver(param, IC!, BC!)
 
     # Output IC
     std_out(0,t,P,u,v,w,divg,0,par_env)
-    VTK(0,t,P,u,v,w,VF,nx,ny,nz,D,divg,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
+    VTK(0,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
 
     # Loop over time
     nstep = 0
@@ -124,7 +127,7 @@ function run_solver(param, IC!, BC!)
         
         # Output
         std_out(nstep,t,P,u,v,w,divg,iter,par_env)
-        VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,divg,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
+        VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
 
     end
 

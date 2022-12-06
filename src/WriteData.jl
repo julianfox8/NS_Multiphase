@@ -41,7 +41,7 @@ function format(iter)
     return @sprintf("%05i",iter)
 end
 
-function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,divg,tmp,param,mesh,par_env,pvd,pvd_PLIC)
+function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,tmp,param,mesh,par_env,pvd,pvd_PLIC)
     @unpack VTK_dir = param
     
     # Check if should write output
@@ -74,6 +74,7 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,divg,tmp,param,mesh,par_env,pvd,pvd
                 v[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
                 w[imin_:imax_,jmin_:jmax_,kmin_:kmax_] )
             pvtk["VF"] = @views VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["band"] = @views band[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["Divergence"] = @views divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["Normal"] = @views (
                 nx[imin_:imax_,jmin_:jmax_,kmin_:kmax_],

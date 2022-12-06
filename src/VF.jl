@@ -36,7 +36,7 @@ function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,p
     end
 
     # Create band around interface 
-
+    computeBand!(band,VF,param,mesh,par_env)
     
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
@@ -47,7 +47,6 @@ function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,p
     # Transport VF with semi-Lagrangian cells
     fill!(VFnew,0.0)
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
-        # TODO: Introduce a band!
 
         if i==-30 && j==36 && k==1
             debug = true 
@@ -98,6 +97,49 @@ function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,p
     #         Fz[i,j,k+1] - Fz[i,j,k]
     #     )
     # end
+    return nothing
+end
+
+""" 
+Compute band around interface 
+⋅ band== 0 = Has interface
+⋅ band==+n = liquid phase (n-away from interface)
+⋅ band==-n = gas phase (n-away from interface)
+""" 
+function computeBand!(band,VF,param,mesh,par_env)
+    @unpack VFlo,VFhi = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh 
+
+    # Number of bands to create 
+    nband=2
+
+    # Sweep to set gas/liquid/interface cells 
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
+        if VF[i,j,k] < VFlo
+            band[i,j,k] = -nband-1
+        elseif VF[i,j,k] > VFhi 
+            band[i,j,k] = +nband+1
+        else
+            band[i,j,k] = 0
+        end
+        # TODO: Add check for implicit interfaces between cells (only will matter for test cases)
+    end
+    update_borders!(band,mesh,par_env)
+
+    # Sweep to identify the bands 
+    for n=1:nband
+        for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
+            if abs(band[i,j,k]) > n
+                # Check neighbors 
+                for kk=k-1:k+1, jj=j-1:j+1, ii=i-1:i+1
+                    if abs(band[ii,jj,kk]) == n-1
+                        band[i,j,k] = n*sign(band[i,j,k])
+                    end
+                end
+            end
+        end
+        update_borders!(band,mesh,par_env)
+    end
     return nothing
 end
 
