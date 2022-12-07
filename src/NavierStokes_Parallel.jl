@@ -22,11 +22,11 @@ include("WriteData.jl")
 function run_solver(param, IC!, BC!)
     @unpack stepMax,tFinal,solveNS = param
 
-    println("Starting solver...")
-
     # Create parallel environment
     par_env = parallel_init(param)
     @unpack isroot = par_env
+
+    if isroot; println("Starting solver..."); end 
 
     # Create mesh
     mesh = create_mesh(param,par_env)
@@ -36,7 +36,7 @@ function run_solver(param, IC!, BC!)
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3 = initArrays(mesh)
 
     # Create initial condition
-    t = 0.0
+    t = 0.0 :: Float64
     IC!(P,u,v,w,VF,mesh)
     #printArray("VF",VF,par_env)
 
@@ -120,7 +120,6 @@ function run_solver(param, IC!, BC!)
 
         # Update processor boundaries
         update_borders!(VF,mesh,par_env)
-
         
         # Check divergence
         divg = divergence(uf,vf,wf,mesh,par_env)

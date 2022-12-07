@@ -134,7 +134,7 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     end
     isroot && println("Failed to converged Poisson equation rsnew = $rsnew")
 
-    return nothing
+    return length(RHS)
 end
 
 

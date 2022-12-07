@@ -284,24 +284,27 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
     @unpack dx,dy,dz = mesh
     
     # Allocate work arrays 
+    tet = Array{Float64}(undef,3,4)
     vert = Array{Float64}(undef,3,8)
     d = Array{Float64}(undef,4)
     
     # Compute VF in this cell 
     VF=0.0
     tets=cell2tets(i,j,k,mesh)
-    for tet=1:5
+    for t=1:5
         # Copy verts
         for n=1:4
-            vert[:,n] = tets[:,n,tet]
+            for p=1:3
+                vert[p,n] = tets[p,n,t]
+            end
         end
         # Calculate distance to PLIC reconstruction
         for n=1:4
             d[n] = nx*vert[1,n]+ny*vert[2,n]+nz*vert[3,n]-dist
         end
         # Handle zero distances
-        npos = length(d[d.>0.0])
-        nneg = length(d[d.<0.0])
+        npos = count(d.>0.0)
+        nneg = count(d.<0.0)
         d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
         # Determine case
         case=(
@@ -314,20 +317,21 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
         for n=1:cut_nvert[case]
             v1 = cut_v1[n,case]; v2 = cut_v2[n,case]
             mu=min(1.0,max(0.0, -d[v1] /̂ (d[v2]-d[v1])))
-            vert[:,4+n]=(1.0-mu)*vert[:,v1]+mu*vert[:,v2]
+            for nn = 1:3
+                vert[nn,4+n]=(1.0-mu)*vert[nn,v1]+mu*vert[nn,v2]
+            end
         end
         # Create new tets on liquid side
         for n=cut_ntets[case]:-1:cut_nntet[case]
+            # Form tet
+            for t = 1:4
+                vt = cut_vtet[t,n,case]
+                for p = 1:3
+                    tet[p,t] = vert[p,vt]
+                end
+            end
             # Compute volume
-            VF += tet_vol(vert[:,cut_vtet[:,n,case]])/(dx*dy*dz)
-            # a=vert[:,cut_vtet[1,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # b=vert[:,cut_vtet[2,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # c=vert[:,cut_vtet[3,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # vol=abs(a[1]*(b[2]*c[3]-c[2]*b[3]) 
-            # -   a[2]*(b[1]*c[3]-c[1]*b[3]) 
-            # +   a[3]*(b[1]*c[2]-c[1]*b[2]))/6.0
-            # Update VF in this cell
-            #VF += vol/(dx*dy*dz)
+            VF += tet_vol(tet)/(dx*dy*dz)
         end
     end
     return VF
@@ -383,8 +387,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
                     d[n] = nx[i,j,k]*vert[1,n]+ny[i,j,k]*vert[2,n]+nz[i,j,k]*vert[3,n]-D[i,j,k]
                 end
                 # Handle zero distances
-                npos = length(d[d.>0.0])
-                nneg = length(d[d.<0.0])
+                npos = count(d.>0.0)
+                nneg = count(d.<0.0)
                 d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
                 # Determine case
                 case=(
@@ -458,8 +462,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
                         end
                     end
                     # Handle zero distances
-                    npos = length(d[d.>0.0])
-                    nneg = length(d[d.<0.0])
+                    npos = count(d.>0.0)
+                    nneg = count(d.<0.0)
                     d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
                     # Determine case of tri
                     case=(
@@ -490,8 +494,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
                             end
                         end
                         # Handle zero distances
-                        npos = length(d[d.>0.0])
-                        nneg = length(d[d.<0.0])
+                        npos = count(d.>0.0)
+                        nneg = count(d.<0.0)
                         d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
                         # Find cut case
                         case2=(
@@ -533,8 +537,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
                             end
                         end
                         # Handle zero distances
-                        npos = length(d[d.>0.0])
-                        nneg = length(d[d.<0.0])
+                        npos = count(d.>0.0)
+                        nneg = count(d.<0.0)
                         d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
                         # Find cut case
                         case2=(

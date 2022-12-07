@@ -7,7 +7,7 @@ using NavierStokes_Parallel
 # Define parameters 
 param = parameters(
     # Constants
-    mu=1e-6,       # Dynamic viscosity
+    mu=0.0,            # Dynamic viscosity
     rho=1.0,           # Density
     Lx=1.0,            # Domain size
     Ly=1.0,
@@ -18,8 +18,9 @@ param = parameters(
     Nx=50,           # Number of grid cells
     Ny=50,
     Nz=1,
-    stepMax=400, #0000,   # Maximum number of timesteps
-    CFL=1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    stepMax=100,   # Maximum number of timesteps
+    max_dt = 0.9/50,
+    CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     out_period=1,     # Number of steps between when plots are updated
     tol = 1e-3,
 

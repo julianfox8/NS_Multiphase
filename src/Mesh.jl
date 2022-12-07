@@ -1,10 +1,10 @@
 struct mesh_struct
-    x :: OffsetArrays.OffsetVector{Float64}; 
-    y :: OffsetArrays.OffsetVector{Float64}; 
-    z :: OffsetArrays.OffsetVector{Float64};
-    xm :: OffsetArrays.OffsetVector{Float64}; 
-    ym :: OffsetArrays.OffsetVector{Float64}; 
-    zm :: OffsetArrays.OffsetVector{Float64};
+    x  :: OffsetArrays.OffsetVector{Float64, Vector{Float64}};
+    y  :: OffsetArrays.OffsetVector{Float64, Vector{Float64}};
+    z  :: OffsetArrays.OffsetVector{Float64, Vector{Float64}};
+    xm :: OffsetArrays.OffsetVector{Float64, Vector{Float64}};
+    ym :: OffsetArrays.OffsetVector{Float64, Vector{Float64}};
+    zm :: OffsetArrays.OffsetVector{Float64, Vector{Float64}};
     dx :: Float64;
     dy :: Float64;
     dz :: Float64;

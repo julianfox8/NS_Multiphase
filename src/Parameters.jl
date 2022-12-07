@@ -21,12 +21,13 @@ using Parameters
     # Maximum iterations
     stepMax :: Int64
 
-    # CFL Number (for time step)
+    # Time step
+    max_dt :: Float64 = Inf 
     CFL :: Float64
 
     # Number of iterations between writing output files
     out_period :: Int64
-    VTK_dir = "VTK" :: String
+    VTK_dir :: String = "VTK" 
    
     # Procs
     nprocx :: Int64
@@ -39,15 +40,15 @@ using Parameters
     zper :: Bool
     
     # Navier Stokes solver
-    solveNS = true :: Bool
-    pressureSolver = "ConjugateGradient" :: String
+    solveNS :: Bool = true 
+    pressureSolver :: String = "ConjugateGradient" 
     tol :: Float64
 
     # Interface solver
-    VFlo = 1e-10 :: Float64
-    VFhi = 1.0 - VFlo :: Float64
-    normalMethod = "ELVIRA" :: String
+    VFlo :: Float64 = 1e-10 
+    VFhi :: Float64 = 1.0 - VFlo 
+    normalMethod :: String = "ELVIRA" 
     # Velocity used for Vf transport when solveNS = false
-    VFVelocity = "Nothing" :: String 
+    VFVelocity :: String  = "Nothing" 
 
 end

@@ -231,9 +231,14 @@ Computes volume of tet !
 """
 function tet_vol(verts) 
   f1_6=0.16666666666666667
-  a=verts[:,1]-verts[:,4]
-  b=verts[:,2]-verts[:,4]
-  c=verts[:,3]-verts[:,4]
+  a = Vector{Float64}(undef,3)
+  b = Vector{Float64}(undef,3)
+  c = Vector{Float64}(undef,3)
+  for p=1:3
+      a[p]=verts[p,1]-verts[p,4]
+      b[p]=verts[p,2]-verts[p,4]
+      c[p]=verts[p,3]-verts[p,4]
+  end
   tet_vol = -f1_6 * 
        ( a[1] * ( b[2]*c[3] - c[2]*b[3] ) 
        - a[2] * ( b[1]*c[3] - c[1]*b[3] ) 
@@ -246,17 +251,18 @@ end
 Cut tet by mesh then PLIC and return VF
 """
 function cutTet(tet,ind,nx,ny,nz,D,mesh)
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack x,y,z = mesh
 
     # Determine max/min of indices
-    maxi = maximum(ind[1,:]); mini = minimum(ind[1,:]) 
-    maxj = maximum(ind[2,:]); minj = minimum(ind[2,:]) 
-    maxk = maximum(ind[3,:]); mink = minimum(ind[3,:]) 
+    maxi,maxj,maxk = maximum(ind,dims=2)
+    mini,minj,mink = minimum(ind,dims=2)
 
     # Allocate work arrays 
     vert     = Array{Float64}(undef,3,8)
     vert_ind = Array{Int64}(undef,3,8,2)
     d = Array{Float64}(undef,4)    
+    newtet = Array{Float64}(undef,3,4)
 
     # Cut by x-planes
     if maxi > mini
@@ -288,7 +294,9 @@ function cutTet(tet,ind,nx,ny,nz,D,mesh)
         vLiq=0.0
         # Copy vertices
         for n=1:4
-            vert[:,n]=tet[:,n]
+            for p=1:3
+                vert[p,n]=tet[p,n]
+            end
         end
         # Get index
         i=ind[1,1];  j=ind[2,1];  k=ind[3,1];
@@ -297,8 +305,8 @@ function cutTet(tet,ind,nx,ny,nz,D,mesh)
             d[n]=nx[i,j,k]*vert[1,n]+ny[i,j,k]*vert[2,n]+nz[i,j,k]*vert[3,n]-D[i,j,k]
         end
         # Handle zero distances
-        npos = length(d[d.>0.0])
-        nneg = length(d[d.<0.0])
+        npos = count(d.>0.0)
+        nneg = count(d.<0.0)
         d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
         # Determine case
         case=(
@@ -315,28 +323,30 @@ function cutTet(tet,ind,nx,ny,nz,D,mesh)
         end
         # Create new tets on liquid side
         for n=cut_ntets[case]:-1:cut_nntet[case]
+            # Form tet
+            for t = 1:4
+              vt = cut_vtet[t,n,case]
+              for p = 1:3
+                  newtet[p,t] = vert[p,vt]
+              end
+            end
             # Compute volume
-            # a=vert[:,cut_vtet[1,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # b=vert[:,cut_vtet[2,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # c=vert[:,cut_vtet[3,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # vol=abs(a[1]*(b[2]*c[3]-c[2]*b[3]) 
-            # -   a[2]*(b[1]*c[3]-c[1]*b[3]) 
-            # +   a[3]*(b[1]*c[2]-c[1]*b[2]))/6.0
-            tetVol = tet_vol(vert[:,cut_vtet[:,n,case]])
+            tetVol = tet_vol(newtet)
             # Update volumes in this cell
             vLiq += tetVol
             vol  += tetVol
         end
         # Create new tets on gas side
         for n=1:cut_nntet[case]-1
+            # Form tet
+            for t = 1:4
+                vt = cut_vtet[t,n,case]
+                for p = 1:3
+                    newtet[p,t] = vert[p,vt]
+                end
+            end
             # Compute volume
-            # a=vert[:,cut_vtet[1,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # b=vert[:,cut_vtet[2,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # c=vert[:,cut_vtet[3,n,case]] - vert[:,cut_vtet[4,n,case]]
-            # vol=abs(a[1]*(b[2]*c[3]-c[2]*b[3]) 
-            # -   a[2]*(b[1]*c[3]-c[1]*b[3]) 
-            # +   a[3]*(b[1]*c[2]-c[1]*b[2]))/6.0
-            tetVol = tet_vol(vert[:,cut_vtet[:,n,case]])
+            tetVol = tet_vol(newtet)
             # Update volumes in this cell
             vol += tetVol
         end
@@ -347,8 +357,8 @@ function cutTet(tet,ind,nx,ny,nz,D,mesh)
     # Cut by plane
     # -------------
     # Handle zero distances
-    npos = length(d[d.>0.0])
-    nneg = length(d[d.<0.0])
+    npos = count(d.>0.0)
+    nneg = count(d.<0.0)
     d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
     # Determine case
     case=(

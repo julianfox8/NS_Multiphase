@@ -29,7 +29,7 @@ end
 Compute timestep 
 """
 function compute_dt(u,v,w,param,mesh,par_env)
-    @unpack mu,CFL = param
+    @unpack mu,CFL,max_dt = param
     @unpack dx,dy,dz = mesh
 
     # Convective Δt
@@ -41,9 +41,9 @@ function compute_dt(u,v,w,param,mesh,par_env)
     viscous_dt = minimum([dx,dy,dz])/mu
     
     # Timestep
-    dt=CFL*minimum([convec_dt,viscous_dt])
+    dt=min(max_dt,CFL*minimum([convec_dt,viscous_dt]))
 
-    return dt
+    return dt::Float64
 end
 
 """

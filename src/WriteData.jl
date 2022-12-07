@@ -26,6 +26,7 @@ function VTK_init(param,par_env)
         isdir(dir) && rm(dir, recursive=true)
         mkdir(dir)
     end
+    MPI.Barrier(par_env.comm)
     pvd      = paraview_collection(joinpath(dir,"Solver"))
     pvd_PLIC = paraview_collection(joinpath(dir,"PLIC"))
     return pvd,pvd_PLIC
