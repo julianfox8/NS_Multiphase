@@ -81,7 +81,7 @@ function run_solver(param, IC!, BC!)
 
         # Compute timestep and update time
         dt = compute_dt(u,v,w,param,mesh,par_env)
-        t += dt;
+        t += dt
 
         if solveNS
 
@@ -113,6 +113,8 @@ function run_solver(param, IC!, BC!)
             update_borders!(v,mesh,par_env)
             update_borders!(w,mesh,par_env)
 
+        else
+            defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         end
 
         # Transport VF

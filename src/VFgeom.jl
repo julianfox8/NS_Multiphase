@@ -202,7 +202,7 @@ function cell2tets_withProject(i,j,k,u,v,w,dt,mesh)
     I = Matrix{Int64}(undef,(3,8))
     for n=1:8
       # Perform semi-Lagrangian projection
-      p[:,n] = project(p[:,n],i,j,k,u,v,w,dt,mesh)
+      p[:,n] = project(p[:,n],i,j,k,u,v,w,-dt,mesh)
       # Get cell index of projected vertex
       I[:,n] = pt2index(p[:,n],i,j,k,mesh)  
     end

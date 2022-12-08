@@ -15,17 +15,17 @@ param = parameters(
     tFinal=8.0,      # Simulation time
     
     # Discretization inputs
-    Nx=50,           # Number of grid cells
-    Ny=50,
+    Nx=125,           # Number of grid cells
+    Ny=125,
     Nz=1,
-    stepMax=100,   # Maximum number of timesteps
-    max_dt = 0.9/50,
-    CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_period=1,     # Number of steps between when plots are updated
+    stepMax=10000,   # Maximum number of timesteps
+    max_dt = 0.008,
+    CFL=10.9,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    out_period=10,     # Number of steps between when plots are updated
     tol = 1e-3,
 
     # Processors 
-    nprocx = 1,
+    nprocx = 2,
     nprocy = 1,
     nprocz = 1,
 
@@ -60,11 +60,11 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    D=0.125
+    rad=0.15
     xo=0.5
     yo=0.75
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],D,xo,yo)
+        VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end
 
     return nothing    

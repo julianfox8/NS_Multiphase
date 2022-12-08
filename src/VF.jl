@@ -13,27 +13,6 @@ function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,p
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack x,y,z,xm,ym,zm = mesh
-    
-    # Set velocity if not using NS solver
-    if !solveNS 
-        # Define velocity functions
-        if VFVelocity == "Deformation"
-            u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/8.0)
-            v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/8.0)
-            w_fun(x,y,z,t) = 0.0
-            # Set velocities (including ghost cells)
-            for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-                u[i,j,k]  = u_fun(xm[i],ym[j],zm[k],t)
-                v[i,j,k]  = v_fun(xm[i],ym[j],zm[k],t)
-                w[i,j,k]  = w_fun(xm[i],ym[j],zm[k],t)
-                uf[i,j,k] = u_fun( x[i],ym[j],zm[k],t)
-                vf[i,j,k] = v_fun(xm[i], y[j],zm[k],t)
-                wf[i,j,k] = w_fun(xm[i],ym[j], z[k],t)
-            end
-        else
-            error("Unknown VFVelocity = $VFVelocity")
-        end
-    end
 
     # Create band around interface 
     computeBand!(band,VF,param,mesh,par_env)

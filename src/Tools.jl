@@ -162,6 +162,35 @@ function get_velocity(pt,i,j,k,u,v,w,mesh)
 
 end
 
+"""
+Define velocity field (usually for VF testing)
+"""
+function defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
+    @unpack VFVelocity = param
+    @unpack x, y, z  = mesh
+    @unpack xm,ym,zm = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+
+    # Set velocity if not using NS solver
+    if VFVelocity == "Deformation"
+        u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/8.0)
+        v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/8.0)
+        w_fun(x,y,z,t) = 0.0            
+    else
+        error("Unknown VFVelocity = $VFVelocity")
+    end
+       
+    # Set velocities (including ghost cells)
+    for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+        u[i,j,k]  = u_fun(xm[i],ym[j],zm[k],t)
+        v[i,j,k]  = v_fun(xm[i],ym[j],zm[k],t)
+        w[i,j,k]  = w_fun(xm[i],ym[j],zm[k],t)
+        uf[i,j,k] = u_fun( x[i],ym[j],zm[k],t)
+        vf[i,j,k] = v_fun(xm[i], y[j],zm[k],t)
+        wf[i,j,k] = w_fun(xm[i],ym[j], z[k],t)
+    end
+    return nothing
+end
 
 """
 Exact VF values for 2D circle
