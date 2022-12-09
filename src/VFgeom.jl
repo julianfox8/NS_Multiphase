@@ -3,16 +3,16 @@ Look-up tables for cutting triangles
 """
 
 # Number of new vertices on cut plane
-const cutTri_nvert = [0, 2, 2, 2, 2, 2, 2, 0]
+const cutTri_nvert = SVector{8}([0, 2, 2, 2, 2, 2, 2, 0])
 
 # Number of resulting tris on positive side
-const cutTri_np = [0, 1, 1, 2, 1, 2, 2, 1]
+const cutTri_np = SVector{8}([0, 1, 1, 2, 1, 2, 2, 1])
 
 # Number of resulting tris on negative side
 const cutTri_nn = [1, 2, 2, 1, 2, 1, 1, 0]
 
 # First point on intersection
-const cutTri_v1 = reshape([
+const cutTri_v1 = SMatrix{2,8}([
         -1 -1
         1 1
         2 2
@@ -21,10 +21,10 @@ const cutTri_v1 = reshape([
         2 2
         1 1
         -1 -1
-    ]', (2, 8))
+    ]')
 
 # Second point on intersection
-const cutTri_v2 = reshape([
+const cutTri_v2 = SMatrix{2,8}([
         -1 -1
         2 3
         1 3
@@ -33,10 +33,10 @@ const cutTri_v2 = reshape([
         1 3
         2 3
         -1 -1
-    ]', (2, 8))
+    ]')
 
 # Vertices in each tri
-const cutTri_v = reshape([
+const cutTri_v = SArray{Tuple{3,3,8}}([
         1 2 3 -1 -1 -1 -1 -1 -1
         1 4 5 2 5 4 2 3 5
         2 5 4 1 4 5 1 5 3
@@ -45,24 +45,24 @@ const cutTri_v = reshape([
         1 4 5 1 5 3 2 5 4
         2 3 5 2 5 4 1 4 5
         1 2 3 -1 -1 -1 -1 -1 -1
-    ]', (3, 3, 8))
+    ]')
 
 """ 
 Look-up tables for cutting tetrahedra
 """
 
 # Number of new vertices on cut plane
-const cut_nvert = [0, 3, 3, 4, 3, 4, 4, 3, 3, 4, 4, 3, 4, 3, 3, 0]
+const cut_nvert = SVector{16}([0, 3, 3, 4, 3, 4, 4, 3, 3, 4, 4, 3, 4, 3, 3, 0])
 
 # Number of resulting tets
-const cut_ntets = [1, 4, 4, 6, 4, 6, 6, 4, 4, 6, 6, 4, 6, 4, 4, 1]
+const cut_ntets = SVector{16}([1, 4, 4, 6, 4, 6, 6, 4, 4, 6, 6, 4, 6, 4, 4, 1])
 
 # Number of tets on negative side of the plane
 # (Index of first positive tet = # tets - # negative tets + 1)
-const cut_nntet = [1, 2, 2, 4, 2, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 2]
+const cut_nntet = SVector{16}([1, 2, 2, 4, 2, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 2])
 
 # First point on intersection: cut_v1[4,16]
-const cut_v1 = reshape([
+const cut_v1 = SArray{Tuple{4,16}}([
         -1 -1 -1 -1
         1 1 1 -1
         2 2 2 -1
@@ -79,10 +79,10 @@ const cut_v1 = reshape([
         2 2 2 -1
         1 1 1 -1
         -1 -1 -1 -1
-    ]', (4, 16))
+    ]')
 
 # Second point on intersection: cut_v2[4,16]
-const cut_v2 = reshape([
+const cut_v2 = SArray{Tuple{4,16}}([
         -1 -1 -1 -1
         2 3 4 -1
         3 4 1 -1
@@ -99,10 +99,10 @@ const cut_v2 = reshape([
         3 4 1 -1
         2 3 4 -1
         -1 -1 -1 -1
-    ]', (4, 16))
+    ]')
 
 # Vertices in each tet: cut_vtet[4,6,16]
-const cut_vtet = reshape([
+const cut_vtet = SArray{Tuple{4,6,16}}([
         1 2 3 4 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
         5 7 6 1 6 2 3 4 4 2 5 6 5 6 7 4 -1 -1 -1 -1 -1 -1 -1 -1
         7 5 6 2 1 3 4 6 1 5 3 6 5 7 6 1 -1 -1 -1 -1 -1 -1 -1 -1
@@ -119,13 +119,13 @@ const cut_vtet = reshape([
         3 4 1 7 7 6 3 4 7 6 5 3 7 5 6 2 -1 -1 -1 -1 -1 -1 -1 -1
         7 4 2 3 2 3 6 7 5 6 7 2 5 7 6 1 -1 -1 -1 -1 -1 -1 -1 -1
         1 2 3 4 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
-    ]', (4, 6, 16))
+    ]')
 
 # Number of triangles on cut plate
-const cut_ntris = [0, 1, 1, 2, 1, 2, 2, 1, 1, 2, 2, 1, 2, 1, 1, 0]
+const cut_ntris = SVector{16}([0, 1, 1, 2, 1, 2, 2, 1, 1, 2, 2, 1, 2, 1, 1, 0])
 
 # Vertices in each tri on cut plane 
-cut_vtri = reshape([
+cut_vtri = SArray{Tuple{3,2,16}}([
         -1 -1 -1 -1 -1 -1
         5 7 6 -1 -1 -1
         5 6 7 -1 -1 -1
@@ -142,10 +142,10 @@ cut_vtri = reshape([
         5 7 6 -1 -1 -1
         5 6 7 -1 -1 -1
         -1 -1 -1 -1 -1 -1
-    ]', (3, 2, 16))
+    ]')
 
 # Side of cut plane (used to update i,j,k)
-const cut_side = reshape([
+const cut_side = SArray{Tuple{6,16}}([
         1 -1 -1 -1 -1 -1
         2 1 1 1 -1 -1
         2 1 1 1 -1 -1
@@ -162,7 +162,7 @@ const cut_side = reshape([
         2 2 2 1 -1 -1
         2 2 2 1 -1 -1
         2 -1 -1 -1 -1 -1
-    ]', (6, 16))
+    ]')
 
 function cell2tets(i, j, k, mesh)
     @unpack x, y, z = mesh

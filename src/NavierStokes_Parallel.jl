@@ -7,6 +7,7 @@ using UnPack
 using OffsetArrays
 using Plots
 using Printf
+using StaticArrays
 using .Threads
 
 include("Parameters.jl")
