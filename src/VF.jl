@@ -34,7 +34,8 @@ function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,p
             vol  = 0.0
             vLiq = 0.0
             for tet=1:5
-                tetVol, tetVLiq = cutTet(tets[:,:,tet],inds[:,:,tet],nx,ny,nz,D,mesh)
+                tetVol, tetVLiq = cutTet(tets[:,:,tet],inds[:,:,tet],
+                                    false,false,false,nx,ny,nz,D,mesh)
                 vol += tetVol
                 vLiq += tetVLiq
             end
@@ -281,16 +282,8 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
         for n=1:4
             d[n] = nx*vert[1,n]+ny*vert[2,n]+nz*vert[3,n]-dist
         end
-        # Handle zero distances
-        npos = count(d.>0.0)
-        nneg = count(d.<0.0)
-        d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
-        # Determine case
-        case=(
-        1+Int(0.5+0.5*sign(d[1]))+
-        2*Int(0.5+0.5*sign(d[2]))+
-        4*Int(0.5+0.5*sign(d[3]))+
-        8*Int(0.5+0.5*sign(d[4])))
+        # Compute cut case 
+        case = d2case(d)
         
         # Create interpolated vertices on cut plane
         for n=1:cut_nvert[case]
@@ -365,17 +358,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
                 for n=1:4
                     d[n] = nx[i,j,k]*vert[1,n]+ny[i,j,k]*vert[2,n]+nz[i,j,k]*vert[3,n]-D[i,j,k]
                 end
-                # Handle zero distances
-                npos = count(d.>0.0)
-                nneg = count(d.<0.0)
-                d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
-                # Determine case
-                case=(
-                1+Int(0.5+0.5*sign(d[1]))+
-                2*Int(0.5+0.5*sign(d[2]))+
-                4*Int(0.5+0.5*sign(d[3]))+
-                8*Int(0.5+0.5*sign(d[4])))
-                
+                # Compute cut case 
+                case = d2case(d)
                 # Create interpolated vertices on cut plane
                 for n=1:cut_nvert[case]
                     v1 = cut_v1[n,case]; v2 = cut_v2[n,case]
@@ -440,15 +424,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
                             d[n] = nx[i,j,k]*vert[1,n]+ny[i,j,k]*vert[2,n]+nz[i,j,k]*vert[3,n]-D[i,j,k]
                         end
                     end
-                    # Handle zero distances
-                    npos = count(d.>0.0)
-                    nneg = count(d.<0.0)
-                    d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
-                    # Determine case of tri
-                    case=(
-                    1+Int(0.5+0.5*sign(d[1]))+
-                    2*Int(0.5+0.5*sign(d[2]))+
-                    4*Int(0.5+0.5*sign(d[3])))
+                    # Compute cut case 
+                    case = d2case(d[1:3])
                     # Add points on cut plane to verts 
                     for n=1:cutTri_nvert[case]
                         v1=cutTri_v1[n,case]; v2=cutTri_v2[n,case]
@@ -472,15 +449,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
                                 d[nn]=nx[ii,jj,kk]*vert2[1,nn]+ny[ii,jj,kk]*vert2[2,nn]+nz[ii,jj,kk]*vert2[3,nn]-D[ii,jj,kk]
                             end
                         end
-                        # Handle zero distances
-                        npos = count(d.>0.0)
-                        nneg = count(d.<0.0)
-                        d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
-                        # Find cut case
-                        case2=(
-                        1+Int(0.5+0.5*sign(d[1]))+
-                        2*Int(0.5+0.5*sign(d[2]))+
-                        4*Int(0.5+0.5*sign(d[3])))
+                        # Compute cut case 
+                        case2 = d2case(d[1:3])
                         # Add points on cut plane to nodes 
                         for nn=1:cutTri_nvert[case2]
                             v1=cutTri_v1[nn,case2]; v2=cutTri_v2[nn,case2]
@@ -515,15 +485,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
                                 d[nn]=nx[ii,jj,kk]*vert2[1,nn]+ny[ii,jj,kk]*vert2[2,nn]+nz[ii,jj,kk]*vert2[3,nn]-D[ii,jj,kk]
                             end
                         end
-                        # Handle zero distances
-                        npos = count(d.>0.0)
-                        nneg = count(d.<0.0)
-                        d[d.==0] .= eps()*( npos > nneg ? 1.0 : -1.0 )
-                        # Find cut case
-                        case2=(
-                        1+Int(0.5+0.5*sign(d[1]))+
-                        2*Int(0.5+0.5*sign(d[2]))+
-                        4*Int(0.5+0.5*sign(d[3])))
+                        # Compute cut case 
+                        case2 = d2case(d[1:3])
                         # Add points on cut plane to nodes 
                         for nn=1:cutTri_nvert[case2]
                             v1=cutTri_v1[nn,case2]; v2=cutTri_v2[nn,case2]
