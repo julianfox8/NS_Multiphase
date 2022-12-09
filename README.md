@@ -16,3 +16,5 @@ This software does not use `@inbound`, `@fastmath`, etc. to speed up the softwar
 
 For example, 
 `mpiexecjl --project=. -np 1 julia --optimize=3 --math-mode=fast --check-bounds=no examples/example4_deformation.jl`
+
+`clear; env JULIA_NUM_THREADS=10 mpiexecjl --project=. -np 1 julia --optimize=3 --math-mode=fast --check-bounds=no examples/example4_deformation.jl`

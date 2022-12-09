@@ -13,10 +13,11 @@ function ELVIRA!(nx,ny,nz,VF,param,mesh,par_env)
     fill!(nz,0.0)
 
     # Loop over cells
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-       if VF[i,j,k] >= VFlo && VF[i,j,k] <= VFhi
+    @threads for ind in CartesianIndices((imin_:imax_,jmin_:jmax_,kmin_:kmax_))
+        i,j,k = ind[1],ind[2],ind[3]
+        if VF[i,j,k] >= VFlo && VF[i,j,k] <= VFhi
             ELVIRA_calc!(nx,ny,nz,VF,i,j,k,param,mesh)
-       end 
+        end 
     end  
     # Update processor boundaries
     update_borders!(nx,mesh,par_env)
