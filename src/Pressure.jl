@@ -24,6 +24,7 @@ end
 
 function poisson_solve!(P,RHS,param,mesh,par_env)
     @unpack pressureSolver = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     if pressureSolver == "GaussSeidel"
         iter = GaussSeidel!(P,RHS,param,mesh,par_env)
@@ -113,8 +114,7 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     for iter = 1:length(RHS)
         lap!(Ap,p,mesh)
         value = 0.0
-        @threads for ind in CartesianIndices((imin_:imax_,jmin_:jmax_,kmin_:kmax_))
-            i,j,k = ind[1],ind[2],ind[3]
+        @inbounds for i=imin_:imax_, j=jmin_:jmax_, k=kmin_:kmax_
             value += p[i,j,k]*Ap[i,j,k]
         end
         sum = parallel_sum_all(value,par_env)
