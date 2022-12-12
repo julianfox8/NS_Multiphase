@@ -51,4 +51,11 @@ using Parameters
     # Velocity used for Vf transport when solveNS = false
     VFVelocity :: String  = "Nothing" 
 
+    # Iterator type 
+    # - standard : standard julia for loop  
+    # - threads : parallelizes loop with .Threads library 
+    # - floop : parallelizes loop with FLoop
+    iter_type :: String = "standard"
+
+
 end

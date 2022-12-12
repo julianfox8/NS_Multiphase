@@ -26,8 +26,7 @@ function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,p
     # Transport VF with semi-Lagrangian cells
     fill!(VFnew,0.0)
     # Parallizes over available procs
-    @threads for ind in CartesianIndices((imin_:imax_,jmin_:jmax_,kmin_:kmax_))
-        i,j,k = ind[1],ind[2],ind[3]
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # Semi-Lagrangian near interface 
         if abs(band[i,j,k]) <= 1
             # From projected cell and break into tets 
@@ -89,8 +88,7 @@ function computeBand!(band,VF,param,mesh,par_env)
     nband=2
 
     # Sweep to set gas/liquid/interface cells 
-    @threads for ind in CartesianIndices((imin_:imax_,jmin_:jmax_,kmin_:kmax_))
-        i,j,k = ind[1],ind[2],ind[3]
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         if VF[i,j,k] < VFlo
             band[i,j,k] = -nband-1
         elseif VF[i,j,k] > VFhi 
@@ -104,8 +102,7 @@ function computeBand!(band,VF,param,mesh,par_env)
 
     # Sweep to identify the bands 
     for n=1:nband
-        @threads for ind in CartesianIndices((imin_:imax_,jmin_:jmax_,kmin_:kmax_))
-            i,j,k = ind[1],ind[2],ind[3]
+        @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
             if abs(band[i,j,k]) > n
                 # Check neighbors 
                 for kk=k-1:k+1, jj=j-1:j+1, ii=i-1:i+1
@@ -141,8 +138,7 @@ Compute interface reconstruction (PLIC)
 function computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh 
     
-    @threads for ind in CartesianIndices((imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_))
-        i,j,k = ind[1],ind[2],ind[3] 
+    @loop param for k=kmino_:kmaxo_, j=jmino_:jmaxo_, i=imino_:imaxo_
         D[i,j,k]=computeDist(i,j,k,nx[i,j,k],ny[i,j,k],nz[i,j,k],VF[i,j,k],param,mesh)
     end
     update_borders!(D,mesh,par_env)

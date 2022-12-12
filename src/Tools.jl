@@ -1,3 +1,71 @@
+""" 
+Macro to easily change looping behavior throughout code 
+- Careful: threads and floop only work on loops where each grid point can be updated independently
+"""
+macro loop(args...)
+    length(args) == 2 || error("Expecting param and for ...")
+    p = args[1]
+    ex = args[2]
+        
+    # Extract iterator and body of loop
+    iter = ex.args[1]
+    lbody = ex.args[2]
+
+    # Check iterator has three arguments
+    length(iter.args)==3 || error("Missing iterator")
+
+    # Pull out iterator ids (names) and rages
+    id1 = iter.args[1].args[1]; range1=iter.args[1].args[2]
+    id2 = iter.args[2].args[1]; range2=iter.args[2].args[2]
+    id3 = iter.args[3].args[1]; range3=iter.args[3].args[2]
+
+    # Check id ordering
+    if  id1 == :i && 
+        id2 == :j && 
+        id3 == :k
+        idx = id1; rangex = range1
+        idy = id2; rangey = range2
+        idz = id3; rangez = range3
+    elseif  id1 == :k && 
+            id2 == :j && 
+            id3 == :i
+        idx = id3; rangex = range3
+        idy = id2; rangey = range2
+        idz = id1; rangez = range1
+    else
+        error("Must provide i,j,k or k,j,i iterators")
+    end
+
+
+    quote
+        if eval($(esc(p))).iter_type == "standard"
+            # Standard for loops k,j,i
+            for $(esc(idz)) = $(esc(rangez)),$(esc(idy)) = $(esc(rangey)),$(esc(idx)) = $(esc(rangex))
+                $(esc(lbody))
+            end
+
+        elseif $(esc(p)).iter_type == "threads"
+            # Threads
+            @threads for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
+                $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
+                $(esc(lbody))
+            end
+
+        elseif $(esc(p)).iter_type == "floop"
+            # FLoops
+            @floop for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
+                $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
+                $(esc(lbody))
+            end
+        else
+            error("Unknown iterator type specificed")
+        end 
+
+        nothing
+    end
+end
+
+
 function initArrays(mesh)
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 

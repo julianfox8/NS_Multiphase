@@ -6,8 +6,7 @@ function pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     sig=0.1
-    @threads for ind in CartesianIndices((imin_:imax_,jmin_:jmax_,kmin_:kmax_))
-        i,j,k = ind[1],ind[2],ind[3]
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # Derivatives 
         duf_dx   = ( uf[i+1,j,k] - uf[i,j,k] )/(dx)
         dvf_dy   = ( vf[i,j+1,k] - vf[i,j,k] )/(dy)
@@ -49,8 +48,7 @@ function GaussSeidel!(P,RHS,param,mesh,par_env)
     while true
         iter += 1
         max_update=0.0
-        @threads for ind in CartesianIndices((imin_:imax_,jmin_:jmax_,kmin_:kmax_))
-            i,j,k = ind[1],ind[2],ind[3]
+        @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
             Pnew = ( (RHS[i,j,k]
                     - (P[i-1,j,k]+P[i+1,j,k])/dx^2
                     - (P[i,j-1,k]+P[i,j+1,k])/dy^2 
@@ -75,10 +73,9 @@ end
 """
 Conjugate gradient
 """
-function lap!(L,P,mesh)
+function lap!(L,P,param,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @threads for ind in CartesianIndices((imin_:imax_,jmin_:jmax_,kmin_:kmax_))
-        i,j,k = ind[1],ind[2],ind[3]
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         L[i,j,k] = (
             (P[i-1,j,k] - 2P[i,j,k] + P[i+1,j,k]) / dx^2 +
             (P[i,j-1,k] - 2P[i,j,k] + P[i,j+1,k]) / dy^2 +
@@ -104,7 +101,7 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     p  = OffsetArray{Float64}(undef, gx,gy,gz)
     Ap = OffsetArray{Float64}(undef, gx,gy,gz)
 
-    lap!(r,P,mesh)
+    lap!(r,P,param,mesh)
     r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
     pressure_BC!(r,mesh,par_env)
     update_borders!(r,mesh,par_env) # (overwrites BCs if periodic)
@@ -112,15 +109,14 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
     rsnew = 0.0
     for iter = 1:length(RHS)
-        lap!(Ap,p,mesh)
+        lap!(Ap,p,param,mesh)
         value = 0.0
         @inbounds for i=imin_:imax_, j=jmin_:jmax_, k=kmin_:kmax_
             value += p[i,j,k]*Ap[i,j,k]
         end
         sum = parallel_sum_all(value,par_env)
         alpha = rsold / sum
-        @threads for ind in CartesianIndices((imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_))
-            i,j,k = ind[1],ind[2],ind[3]
+        @loop param for k=kmino_:kmaxo_, j=jmino_:jmaxo_, i=imino_:imaxo_
             P[i,j,k] += alpha * p[i,j,k]
         end
         r -= alpha * Ap

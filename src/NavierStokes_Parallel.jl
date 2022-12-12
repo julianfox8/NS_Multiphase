@@ -9,6 +9,7 @@ using Plots
 using Printf
 using StaticArrays
 using .Threads
+using FLoops
 
 include("Parameters.jl")
 include("Mesh.jl")

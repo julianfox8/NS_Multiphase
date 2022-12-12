@@ -25,7 +25,7 @@ param = parameters(
     tol = 1e-3,
 
     # Processors 
-    nprocx = 2,
+    nprocx = 1,
     nprocy = 1,
     nprocz = 1,
 
@@ -37,6 +37,11 @@ param = parameters(
     # Turn off NS solver
     solveNS = false,
     VFVelocity = "Deformation",
+
+    # Iteration method used in @loop macro
+    #iter_type = "standard",
+    iter_type = "threads",
+    #iter_type = "floop",
 )
 
 """
