@@ -5,10 +5,8 @@ export run_solver, parameters, VFcircle, VFsphere, @unpack
 using MPI
 using UnPack
 using OffsetArrays
-using Plots
 using Printf
 using StaticArrays
-using .Threads
 using FLoops
 
 include("Parameters.jl")
