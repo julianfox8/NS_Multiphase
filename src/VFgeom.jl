@@ -307,19 +307,13 @@ end
 """ 
 Cut tet by mesh then PLIC and return VF
 """
-function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
+function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
     @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
     @unpack x, y, z = mesh
 
     # Determine max/min of indices
     #maxi,maxj,maxk = maximum(ind,dims=2)
     #mini,minj,mink = minimum(ind,dims=2)
-
-    # Allocate work arrays 
-    vert = Array{Float64}(undef, 3, 8)
-    vert_ind = Array{Int64}(undef, 3, 8, 2)
-    d = Array{Float64}(undef, 4)
-    newtet = Array{Float64}(undef, 3, 4)
 
     # Cut by x-planes
     if !xdone
@@ -331,7 +325,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
             end
         else
             xdone = true
-            return tetVol, tetVLiq = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
+            return tetVol, tetVLiq, maxlvl = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
         end
         # Cut by y-planes
     elseif !ydone
@@ -343,7 +337,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
             end
         else
             ydone = true
-            return tetVol, tetVLiq = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
+            return tetVol, tetVLiq, maxlvl = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
         end
         # Cut by z-planes
     elseif !zdone
@@ -355,7 +349,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
             end
         else
             zdone = true
-            return tetVol, tetVLiq = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
+            return tetVol, tetVLiq, maxlvl = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
         end
         # Cut by PLIC and compute output
     else
@@ -364,7 +358,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
         # Copy vertices
         for n = 1:4
             for p = 1:3
-                vert[p, n] = tet[p, n]
+                vert[p, n,lvl] = tet[p, n]
             end
         end
         # Get index
@@ -373,7 +367,10 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
         k = ind[3, 1]
         # Calculate distance from each vertex to cut plane
         for n = 1:4
-            d[n] = nx[i, j, k] * vert[1, n] + ny[i, j, k] * vert[2, n] + nz[i, j, k] * vert[3, n] - D[i, j, k]
+            d[n] = (
+                nx[i, j, k] * vert[1, n,lvl] + 
+                ny[i, j, k] * vert[2, n,lvl] + 
+                nz[i, j, k] * vert[3, n,lvl] - D[i, j, k] )
         end
         # Compute cut case 
         case = d2case(d)
@@ -382,7 +379,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
             v1 = cut_v1[n, case]
             v2 = cut_v2[n, case]
             mu = min(1.0, max(0.0, -d[v1] /̂ (d[v2] - d[v1])))
-            vert[:, 4+n] = (1.0 - mu) * vert[:, v1] + mu * vert[:, v2]
+            vert[:, 4+n,lvl] = (1.0 - mu) * vert[:, v1,lvl] + mu * vert[:, v2,lvl]
         end
         # Create new tets on liquid side
         for n = cut_ntets[case]:-1:cut_nntet[case]
@@ -390,7 +387,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
             for t = 1:4
                 vt = cut_vtet[t, n, case]
                 for p = 1:3
-                    newtet[p, t] = vert[p, vt]
+                    newtet[p, t] = vert[p, vt,lvl]
                 end
             end
             # Compute volume
@@ -405,7 +402,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
             for t = 1:4
                 vt = cut_vtet[t, n, case]
                 for p = 1:3
-                    newtet[p, t] = vert[p, vt]
+                    newtet[p, t] = vert[p, vt,lvl]
                 end
             end
             # Compute volume
@@ -414,7 +411,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
             vol += tetVol
         end
 
-        return vol, vLiq
+        return vol, vLiq, lvl
     end
 
     # Cut by plane
@@ -422,11 +419,13 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
     case = d2case(d)
     # Get vertices and indices of tet
     for n = 1:4
-        vert[:, n] = tet[:, n]
-        vert_ind[:, n, 1] .= ind[:, n]
-        vert_ind[:, n, 2] .= ind[:, n]
-        vert_ind[dir, n, 1] = min(vert_ind[dir, n, 1], cut_ind - 1)
-        vert_ind[dir, n, 2] = max(vert_ind[dir, n, 1], cut_ind)
+        for p = 1:3
+            vert[p, n,lvl] = tet[p, n]
+            vert_ind[p, n, 1,lvl] = ind[p, n]
+            vert_ind[p, n, 2,lvl] = ind[p, n]
+        end
+        vert_ind[dir, n, 1,lvl] = min(vert_ind[dir, n, 1,lvl], cut_ind - 1)
+        vert_ind[dir, n, 2,lvl] = max(vert_ind[dir, n, 1,lvl], cut_ind)
     end
     # Create interpolated vertices on cut plane
     for n = 1:cut_nvert[case]
@@ -434,20 +433,24 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
         v2 = cut_v2[n, case]
         mu = min(1.0, max(0.0, -d[v1] /̂ (d[v2] - d[v1])))
         for p = 1:3
-            vert[p, 4+n] = (1.0 - mu) * vert[p, v1] + mu * vert[p, v2]
+            vert[p, 4+n,lvl] = (1.0 - mu) * vert[p, v1,lvl] + mu * vert[p, v2,lvl]
         end
         # Get index for interpolated vertex
-        i = vert_ind[1, n, 1]
-        j = vert_ind[2, n, 1]
-        k = vert_ind[3, n, 1]
-        vert_ind[:, 4+n, 1] .= pt2index(vert[:, 4+n], i, j, k, mesh)
+        i = vert_ind[1, n, 1,lvl]
+        j = vert_ind[2, n, 1,lvl]
+        k = vert_ind[3, n, 1,lvl]
+        vert_ind[:, 4+n, 1,lvl] .= pt2index(vert[:, 4+n,lvl], i, j, k, mesh)
         # Enforce boundedness
-        @. vert_ind[:, 4+n, 1] = max(vert_ind[:, 4+n, 1], min(vert_ind[:, v1, 1], vert_ind[:, v2, 1]))
-        @. vert_ind[:, 4+n, 1] = min(vert_ind[:, 4+n, 1], max(vert_ind[:, v1, 1], vert_ind[:, v2, 1]))
+        for p=1:3
+            vert_ind[p, 4+n, 1,lvl] = max(vert_ind[p, 4+n, 1,lvl], min(vert_ind[p, v1, 1,lvl], vert_ind[p, v2, 1,lvl]))
+            vert_ind[p, 4+n, 1,lvl] = min(vert_ind[p, 4+n, 1,lvl], max(vert_ind[p, v1, 1,lvl], vert_ind[p, v2, 1,lvl]))
+        end
         # Set +/- indices in cut direction
-        vert_ind[:, 4+n, 2] .= vert_ind[:, 4+n, 1]
-        vert_ind[dir, 4+n, 1] = cut_ind - 1
-        vert_ind[dir, 4+n, 2] = cut_ind
+        for p=1:3
+            vert_ind[p, 4+n, 2,lvl] = vert_ind[p, 4+n, 1,lvl]
+        end
+        vert_ind[dir, 4+n, 1,lvl] = cut_ind - 1
+        vert_ind[dir, 4+n, 2,lvl] = cut_ind
     end
     # Create new tets
     vol = 0.0
@@ -456,17 +459,17 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
         # Form new tet
         for nn = 1:4
             for p = 1:3
-                tet[p, nn] = vert[p, cut_vtet[nn, n, case]]
-                ind[p, nn] = vert_ind[p, cut_vtet[nn, n, case], cut_side[n, case]]
+                tet[p, nn] = vert[p, cut_vtet[nn, n, case],lvl]
+                ind[p, nn] = vert_ind[p, cut_vtet[nn, n, case], cut_side[n, case],lvl]
             end
         end
         # Cut new tet by next plnae
-        tetVol, tetVLiq = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh)
+        tetVol, tetVLiq, maxlvl = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl+1,vert,vert_ind,d,newtet)
 
         # Accumulate quantities
         vol += tetVol
         vLiq += tetVLiq
     end
 
-    return vol, vLiq
+    return vol, vLiq, maxlvl
 end
