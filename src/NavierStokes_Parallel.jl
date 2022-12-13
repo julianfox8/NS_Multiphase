@@ -141,4 +141,7 @@ function run_solver(param, IC!, BC!)
 
 end # run_solver
 
+# Precompile
+include("precompile.jl")
+
 end
