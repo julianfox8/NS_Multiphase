@@ -241,9 +241,13 @@ function defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
 
     # Set velocity if not using NS solver
     if VFVelocity == "Deformation"
-        u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/8.0)
-        v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/8.0)
-        w_fun(x,y,z,t) = 0.0            
+        u_fun = (x,y,z,t) -> -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/8.0)
+        v_fun = (x,y,z,t) -> +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/8.0)
+        w_fun = (x,y,z,t) -> 0.0
+    elseif VFVelocity == "Deformation3D"
+        u_fun = (x,y,z,t) -> 2(sin(π*x))^2*sin(2π*y)*sin(2π*z)*cos(π*t/3.0)
+        v_fun = (x,y,z,t) -> -(sin(π*y))^2*sin(2π*x)*sin(2π*z)*cos(π*t/3.0)
+        w_fun = (x,y,z,t) -> -(sin(π*z))^2*sin(2π*x)*sin(2π*y)*cos(π*t/3.0)
     else
         error("Unknown VFVelocity = $VFVelocity")
     end
