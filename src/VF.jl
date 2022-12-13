@@ -520,6 +520,15 @@ function PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
             end
         end
     end
+    # Add zero area tri if no tri on this proc
+    if npts==0
+        for nnn=1:3
+            npts += 1
+            push!(pts,Point([x[imin_],y[jmin_],z[kmin_]]))
+        end
+        tri = Tri([npts-2,npts-1,npts])
+        push!(tris,tri)
+    end
 
     return pts, tris
 end
