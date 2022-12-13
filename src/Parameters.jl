@@ -53,9 +53,9 @@ using Parameters
 
     # Iterator type 
     # - standard : standard julia for loop  
-    # - threads : parallelizes loop with .Threads library 
+    # - threads : parallelizes loop with .Threads library - not working 
     # - floop : parallelizes loop with FLoop
-    iter_type :: String = "standard"
+    iter_type :: String = "floop"
 
 
 end

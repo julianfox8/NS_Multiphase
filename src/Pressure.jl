@@ -5,15 +5,14 @@ function pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    RHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     sig=0.1
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        # Derivatives 
-        duf_dx   = ( uf[i+1,j,k] - uf[i,j,k] )/(dx)
-        dvf_dy   = ( vf[i,j+1,k] - vf[i,j,k] )/(dy)
-        dwf_dz   = ( wf[i,j,k+1] - wf[i,j,k] )/(dz)
-
         # RHS
-        RHS[i,j,k]= rho/dt * ( duf_dx + dvf_dy + dwf_dz )
+        RHS[i,j,k]= rho/dt * ( 
+            ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
+            ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
+            ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
     end
 
     iter = poisson_solve!(P,RHS,param,mesh,par_env)
@@ -105,20 +104,14 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
     pressure_BC!(r,mesh,par_env)
     update_borders!(r,mesh,par_env) # (overwrites BCs if periodic)
-    p = copy(r)
+    p[:,:,:] .= r[:,:,:]
     rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
     rsnew = 0.0
     for iter = 1:length(RHS)
         lap!(Ap,p,param,mesh)
-        value = 0.0
-        @inbounds for i=imin_:imax_, j=jmin_:jmax_, k=kmin_:kmax_
-            value += p[i,j,k]*Ap[i,j,k]
-        end
-        sum = parallel_sum_all(value,par_env)
+        sum = parallel_sum_all(p[ix,iy,iz].*Ap[ix,iy,iz],par_env)
         alpha = rsold / sum
-        @loop param for k=kmino_:kmaxo_, j=jmino_:jmaxo_, i=imino_:imaxo_
-            P[i,j,k] += alpha * p[i,j,k]
-        end
+        P += alpha*p
         r -= alpha * Ap
         rsnew = parallel_sum_all(r[ix,iy,iz].^2,par_env)
         if sqrt(rsnew) < tol

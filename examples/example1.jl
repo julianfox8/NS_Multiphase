@@ -35,6 +35,10 @@ param = parameters(
     xper = false,
     yper = false,
     zper = false,
+
+    # Iteration method used in @loop macro
+    #iter_type = "standard",
+    iter_type = "floop",
 )
 
 """
