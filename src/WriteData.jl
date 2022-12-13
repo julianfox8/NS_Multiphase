@@ -1,7 +1,8 @@
 using WriteVTK
 using Printf
 
-function std_out(nstep,t,P,u,v,w,divg,iter,par_env)
+function std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
+    @unpack std_out_period = param
     @unpack isroot = par_env
 
     max_u    = parallel_max(abs.(u),   par_env)
@@ -10,8 +11,17 @@ function std_out(nstep,t,P,u,v,w,divg,iter,par_env)
     max_divg = parallel_max(abs.(divg),par_env)
     
     if isroot 
-        rem(nstep,10)==0 && @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)    Piters\n")
-        @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,iter)
+        if (now = time()) - t_last[1] > std_out_period
+            t_last[1] = now
+            h_last[1] += 1
+            # Write header
+            if h_last[1] >= 10
+                h_last[1] = 0
+                @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)    Piters\n")
+            end
+            # Write values
+            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,iter)
+        end
     end
 
     return nothing

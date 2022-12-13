@@ -26,6 +26,7 @@ using Parameters
     CFL :: Float64
 
     # Number of iterations between writing output files
+    std_out_period :: Float64 = 1.0
     out_period :: Int64
     VTK_dir :: String = "VTK" 
    

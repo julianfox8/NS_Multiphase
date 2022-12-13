@@ -69,7 +69,9 @@ function run_solver(param, IC!, BC!)
     pvd,pvd_PLIC = VTK_init(param,par_env)
 
     # Output IC
-    std_out(0,t,P,u,v,w,divg,0,par_env)
+    t_last =[-100.0,]
+    h_last =[100]
+    std_out(h_last,t_last,0,t,P,u,v,w,divg,0,param,par_env)
     VTK(0,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
 
     # Loop over time
@@ -128,7 +130,7 @@ function run_solver(param, IC!, BC!)
         divg = divergence(uf,vf,wf,mesh,par_env)
         
         # Output
-        std_out(nstep,t,P,u,v,w,divg,iter,par_env)
+        std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
 
     end
