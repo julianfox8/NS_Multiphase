@@ -26,38 +26,36 @@ function VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,VFnew,t,dt,param,mesh,p
     # Transport VF with semi-Lagrangian cells
     fill!(VFnew,0.0)
 
+    # Preallocate for cutTet
+    nLevel=100
+    nThread = Threads.nthreads()
+    vert = Array{Float64}(undef, 3, 8,nLevel,nThread)
+    vert_ind = Array{Int64}(undef, 3, 8, 2,nLevel,nThread)
+    d = Array{Float64}(undef, 4,nThread)
+    newtet = Array{Float64}(undef, 3, 4,nThread)
+    
     # Loop overdomain
-    #@loop param 
-    @floop begin
-        # Preallocate for cutTet
-        nLevel=100
-        vert = Array{Float64}(undef, 3, 8,nLevel)
-        vert_ind = Array{Int64}(undef, 3, 8, 2,nLevel)
-        d = Array{Float64}(undef, 4)
-        newtet = Array{Float64}(undef, 3, 4)
-        for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-            # Semi-Lagrangian near interface 
-            if abs(band[i,j,k]) <= 1
-                # From projected cell and break into tets 
-                tets,inds = cell2tets_withProject(i,j,k,u,v,w,dt,mesh)
-                # Compute VF in semi-Lagrangian cell 
-                vol  = 0.0
-                vLiq = 0.0
-                for tet=1:5
-                    tetVol, tetVLiq, maxlvl = cutTet(tets[:,:,tet],inds[:,:,tet],
-                                        false,false,false,nx,ny,nz,D,mesh,
-                                        1,vert,vert_ind,d,newtet)
-                    vol += tetVol
-                    vLiq += tetVLiq
-                end
-                VFnew[i,j,k] = vLiq/vol
-            else
-                VFnew[i,j,k] = VF[i,j,k]
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        # Semi-Lagrangian near interface 
+        if abs(band[i,j,k]) <= 1
+            # From projected cell and break into tets 
+            tets,inds = cell2tets_withProject(i,j,k,u,v,w,dt,mesh)
+            # Compute VF in semi-Lagrangian cell 
+            vol  = 0.0
+            vLiq = 0.0
+            for tet=1:5
+                tetVol, tetVLiq, maxlvl = cutTet(tets[:,:,tet],inds[:,:,tet],
+                                    false,false,false,nx,ny,nz,D,mesh,
+                                    1,vert,vert_ind,d,newtet)
+                vol += tetVol
+                vLiq += tetVLiq
             end
+            VFnew[i,j,k] = vLiq/vol
+        else
+            VFnew[i,j,k] = VF[i,j,k]
         end
     end
     VF[:,:,:] .= VFnew[:,:,:]
-    
     
     # # Compute fluxes
     # fill!(Fx,0.0)

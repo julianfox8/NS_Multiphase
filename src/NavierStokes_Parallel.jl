@@ -7,7 +7,9 @@ using UnPack
 using OffsetArrays
 using Printf
 using StaticArrays
+using FoldsThreads
 using FLoops
+using .Threads
 
 include("Parameters.jl")
 include("Mesh.jl")
@@ -27,7 +29,8 @@ function run_solver(param, IC!, BC!)
     par_env = parallel_init(param)
     @unpack isroot = par_env
 
-    if isroot; println("Starting solver..."); end 
+    if isroot; println("Starting solver ..."); end 
+    print("on $(nthreads()) threads\n")
 
     # Create mesh
     mesh = create_mesh(param,par_env)
