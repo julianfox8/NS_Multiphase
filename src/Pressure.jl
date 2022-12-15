@@ -57,7 +57,7 @@ function GaussSeidel!(P,RHS,param,mesh,par_env)
             P[i,j,k] = Pnew
         end
         update_borders!(P,mesh,par_env)
-        pressure_BC!(P,mesh,par_env)
+        Neumann!(P,mesh,par_env)
         # Check if converged
         max_update = parallel_max_all(max_update,par_env)
         max_update < tol && return iter # Converged
@@ -102,7 +102,7 @@ function conjgrad!(P,RHS,param,mesh,par_env)
 
     lap!(r,P,param,mesh)
     r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
-    pressure_BC!(r,mesh,par_env)
+    Neumann!(r,mesh,par_env)
     update_borders!(r,mesh,par_env) # (overwrites BCs if periodic)
     p .= r
     rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
@@ -118,31 +118,11 @@ function conjgrad!(P,RHS,param,mesh,par_env)
             return iter
         end
         p = r + (rsnew / rsold) * p
-        pressure_BC!(p,mesh,par_env)   
+        Neumann!(p,mesh,par_env)   
         update_borders!(p,mesh,par_env) # (overwrites BCs if periodic)
         rsold = rsnew
     end
     isroot && println("Failed to converged Poisson equation rsnew = $rsnew")
 
     return length(RHS)
-end
-
-
-
-""" 
-Apply BC's on pressure
-"""
-function pressure_BC!(A,mesh,par_env)
-
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack nprocx,nprocy,nprocz,irankx,iranky,irankz = par_env
-
-    irankx == 0        ? A[imin_-1,:,:]=A[imin_,:,:] : nothing # Left 
-    irankx == nprocx-1 ? A[imax_+1,:,:]=A[imax_,:,:] : nothing # Right
-    iranky == 0        ? A[:,jmin_-1,:]=A[:,jmin_,:] : nothing # Bottom
-    iranky == nprocy-1 ? A[:,jmax_+1,:]=A[:,jmax_,:] : nothing # Top
-    irankz == 0        ? A[:,:,kmin_-1]=A[:,:,kmin_] : nothing # Back
-    irankz == nprocz-1 ? A[:,:,kmax_+1]=A[:,:,kmax_] : nothing # Front
-    
-    return nothing
 end

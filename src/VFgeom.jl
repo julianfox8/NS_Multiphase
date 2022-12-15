@@ -307,7 +307,7 @@ end
 """ 
 Cut tet by mesh then PLIC and return VF
 """
-function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
+function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
     @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
     @unpack x, y, z = mesh
 
@@ -323,7 +323,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert
             end
         else
             xdone = true
-            return tetVol, tetVLiq, maxlvl = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
+            return tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
         end
         # Cut by y-planes
     elseif !ydone
@@ -335,7 +335,7 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert
             end
         else
             ydone = true
-            return tetVol, tetVLiq, maxlvl = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
+            return tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
         end
         # Cut by z-planes
     elseif !zdone
@@ -347,12 +347,15 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert
             end
         else
             zdone = true
-            return tetVol, tetVLiq, maxlvl = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
+            return tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
         end
         # Cut by PLIC and compute output
     else
         vol = 0.0
         vLiq = 0.0
+        vU = 0.0
+        vV = 0.0
+        vW = 0.0
         # Copy vertices
         for n = 1:4
             for p = 1:3
@@ -391,8 +394,12 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert
             # Compute volume
             tetVol = tet_vol(newtet[:,:,id])
             # Update volumes in this cell
-            vLiq += tetVol
             vol += tetVol
+            vLiq += tetVol
+            vU += tetVol*u[i,j,k]
+            vV += tetVol*v[i,j,k]
+            vW += tetVol*w[i,j,k]
+            
         end
         # Create new tets on gas side
         for n = 1:cut_nntet[case]-1
@@ -407,9 +414,12 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert
             tetVol = tet_vol(newtet[:,:,id])
             # Update volumes in this cell
             vol += tetVol
+            vU += tetVol*u[i,j,k]
+            vV += tetVol*v[i,j,k]
+            vW += tetVol*w[i,j,k]
         end
 
-        return vol, vLiq, lvl
+        return vol, vLiq, vU, vV, vW, lvl
     end
 
     # Cut by plane
@@ -453,6 +463,9 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert
     # Create new tets
     vol = 0.0
     vLiq = 0.0
+    vU = 0.0
+    vV = 0.0
+    vW = 0.0
     for n = 1:cut_ntets[case]
         # Form new tet
         for nn = 1:4
@@ -462,12 +475,15 @@ function cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert
             end
         end
         # Cut new tet by next plnae
-        tetVol, tetVLiq, maxlvl = cutTet(tet, ind, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl+1,vert,vert_ind,d,newtet)
+        tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl+1,vert,vert_ind,d,newtet)
 
         # Accumulate quantities
         vol += tetVol
-        vLiq += tetVLiq
+        vLiq += tetvLiq
+        vU += tetvU
+        vV += tetvV
+        vW += tetvW
     end
 
-    return vol, vLiq, maxlvl
+    return vol, vLiq, vU, vV, vW, maxlvl
 end

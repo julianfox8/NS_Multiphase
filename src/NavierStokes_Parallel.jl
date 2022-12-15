@@ -16,6 +16,7 @@ include("Mesh.jl")
 include("Parallel.jl")
 include("Tools.jl")
 include("Velocity.jl")
+include("Transport.jl")
 include("Pressure.jl")
 include("VF.jl")
 include("VFgeom.jl")
@@ -37,7 +38,7 @@ function run_solver(param, IC!, BC!)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3 = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4 = initArrays(mesh)
 
     # Create initial condition
     t = 0.0 :: Float64
@@ -58,7 +59,7 @@ function run_solver(param, IC!, BC!)
 
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
-
+    
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
@@ -89,19 +90,15 @@ function run_solver(param, IC!, BC!)
         dt = compute_dt(u,v,w,param,mesh,par_env)
         t += dt
 
+        # Set velocity for iteration if not using Navier-Stokes solver
+        if !solveNS
+            defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
+        end
+
+        # Predictor step (including VF transport)
+        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,dt,param,mesh,par_env,BC!)
+        
         if solveNS
-
-            # Predictor step
-            predictor!(us,vs,ws,u,v,w,uf,vf,wf,tmp1,tmp2,tmp3,dt,param,mesh,par_env)
-            
-            # Apply boundary conditions
-            BC!(us,vs,ws,mesh,par_env)
-
-            # Update Processor boundaries (overwrites BCs if periodic)
-            update_borders!(us,mesh,par_env)
-            update_borders!(vs,mesh,par_env)
-            update_borders!(ws,mesh,par_env)
-            
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
             
@@ -118,16 +115,7 @@ function run_solver(param, IC!, BC!)
             update_borders!(u,mesh,par_env)
             update_borders!(v,mesh,par_env)
             update_borders!(w,mesh,par_env)
-
-        else
-            defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         end
-
-        # Transport VF
-        VF_transport!(VF,nx,ny,nz,D,band,u,v,w,uf,vf,wf,tmp1,t,dt,param,mesh,par_env)
-
-        # Update processor boundaries
-        update_borders!(VF,mesh,par_env)
         
         # Check divergence
         divg = divergence(uf,vf,wf,mesh,par_env)

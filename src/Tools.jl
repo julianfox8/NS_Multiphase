@@ -1,4 +1,22 @@
 """ 
+Apply BC's on pressure
+"""
+function Neumann!(A,mesh,par_env)
+
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack nprocx,nprocy,nprocz,irankx,iranky,irankz = par_env
+
+    irankx == 0        ? A[imin_-1,:,:]=A[imin_,:,:] : nothing # Left 
+    irankx == nprocx-1 ? A[imax_+1,:,:]=A[imax_,:,:] : nothing # Right
+    iranky == 0        ? A[:,jmin_-1,:]=A[:,jmin_,:] : nothing # Bottom
+    iranky == nprocy-1 ? A[:,jmax_+1,:]=A[:,jmax_,:] : nothing # Top
+    irankz == 0        ? A[:,:,kmin_-1]=A[:,:,kmin_] : nothing # Back
+    irankz == nprocz-1 ? A[:,:,kmax_+1]=A[:,:,kmax_] : nothing # Front
+    
+    return nothing
+end
+
+""" 
 Macro to easily change looping behavior throughout code 
 - Careful: threads and floop only work on loops where each grid point can be updated independently
 """
@@ -89,8 +107,9 @@ function initArrays(mesh)
     tmp1 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp1,0.0)
     tmp2 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp2,0.0)
     tmp3 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp3,0.0)
+    tmp4 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp4,0.0)
 
-    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3
+    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4
 end
 
 """
