@@ -23,6 +23,7 @@ param = parameters(
     Nz=10,
     stepMax=200,   # Maximum number of timesteps
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    std_out_period = 0.0,
     out_period=10,     # Number of steps between when plots are updated
     tol = 1e-3,
 
