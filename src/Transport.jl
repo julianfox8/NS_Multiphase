@@ -31,6 +31,9 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,dt
             # ------------------------------
             # From projected cell and break into tets 
             tets,inds = cell2tets_withProject(i,j,k,u,v,w,dt,mesh)
+            
+            # TODO: Need to add correction tets!!!
+
             # Compute VF in semi-Lagrangian cell 
             vol  = 0.0
             vLiq = 0.0
