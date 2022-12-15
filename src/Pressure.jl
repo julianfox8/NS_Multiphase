@@ -104,14 +104,14 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
     pressure_BC!(r,mesh,par_env)
     update_borders!(r,mesh,par_env) # (overwrites BCs if periodic)
-    p[:,:,:] .= r[:,:,:]
+    p .= r
     rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
     rsnew = 0.0
     for iter = 1:length(RHS)
         lap!(Ap,p,param,mesh)
         sum = parallel_sum_all(p[ix,iy,iz].*Ap[ix,iy,iz],par_env)
         alpha = rsold / sum
-        P += alpha*p
+        P .+= alpha*p
         r -= alpha * Ap
         rsnew = parallel_sum_all(r[ix,iy,iz].^2,par_env)
         if sqrt(rsnew) < tol
