@@ -249,6 +249,145 @@ function get_velocity(pt,i,j,k,u,v,w,mesh)
 
 end
 
+""" 
+Interpolate velocities defined on faces to location of pt 
+"""
+function get_velocity_face(pt,i,j,k,uf,vf,wf,mesh)
+    u_pt = get_velocity_uface(pt,i,j,k,uf,mesh)
+    v_pt = get_velocity_vface(pt,i,j,k,vf,mesh)
+    w_pt = get_velocity_wface(pt,i,j,k,wf,mesh)
+    return [u_pt,v_pt,w_pt]
+end
+
+""" 
+Interpolate x face velocity to location of pt 
+"""
+function get_velocity_uface(pt,i,j,k,uf,mesh)
+    @unpack xm,ym,zm = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    # Find right i index
+    while pt[1]-x[i  ] <  0.0 && i   > imino_
+       i=i-1
+    end
+    while pt[1]-x[i+1] >= 0.0 && i+1 < imaxo_
+       i=i+1
+    end
+    # Find right j index
+    while pt[2]-ym[j  ] <  0.0 && j   > jmino_
+       j=j-1
+    end
+    while pt[2]-ym[j+1] >= 0.0 && j+1 < jmaxo_
+       j=j+1
+    end
+    # Find right k index
+    while pt[3]-zm[k  ] <  0.0 && k   > kmino_
+       k=k-1
+    end
+    while pt[3]-zm[k+1] >= 0.0 && k+1 < kmaxo_
+       k=k+1
+    end
+    # Prepare tri-linear interpolation coefficients
+    wx1=(pt[1]- x[i])/( x[i+1]- x[i]); wx2=1.0-wx1
+    wy1=(pt[2]-ym[j])/(ym[j+1]-ym[j]); wy2=1.0-wy1
+    wz1=(pt[3]-zm[k])/(zm[k+1]-zm[k]); wz2=1.0-wz1
+    # Tri-linear interpolation
+    u_pt=( wz1*(wy1*(wx1*uf[i+1,j+1,k+1]  +
+                     wx2*uf[i  ,j+1,k+1]) +
+                wy2*(wx1*uf[i+1,j  ,k+1]  +
+                     wx2*uf[i  ,j  ,k+1]))+
+           wz2*(wy1*(wx1*uf[i+1,j+1,k  ]  +
+                     wx2*uf[i  ,j+1,k  ]) +
+                wy2*(wx1*uf[i+1,j  ,k  ]  +
+                     wx2*uf[i  ,j  ,k  ])))
+    return u_pt
+end
+""" 
+Interpolate v face velocity to location of pt 
+"""
+function get_velocity_vface(pt,i,j,k,vf,mesh)
+    @unpack xm,ym,zm = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    # Find right i index
+    while pt[1]-xm[i  ] <  0.0 && i   > imino_
+       i=i-1
+    end
+    while pt[1]-xm[i+1] >= 0.0 && i+1 < imaxo_
+       i=i+1
+    end
+    # Find right j index
+    while pt[2]-y[j  ] <  0.0 && j   > jmino_
+       j=j-1
+    end
+    while pt[2]-y[j+1] >= 0.0 && j+1 < jmaxo_
+       j=j+1
+    end
+    # Find right k index
+    while pt[3]-zm[k  ] <  0.0 && k   > kmino_
+       k=k-1
+    end
+    while pt[3]-zm[k+1] >= 0.0 && k+1 < kmaxo_
+       k=k+1
+    end
+    # Prepare tri-linear interpolation coefficients
+    wx1=(pt[1]-xm[i])/(xm[i+1]-xm[i]); wx2=1.0-wx1
+    wy1=(pt[2]- y[j])/( y[j+1]- y[j]); wy2=1.0-wy1
+    wz1=(pt[3]-zm[k])/(zm[k+1]-zm[k]); wz2=1.0-wz1
+    # Tri-linear interpolation
+    v_pt=( wz1*(wy1*(wx1*vf[i+1,j+1,k+1]  +
+                     wx2*vf[i  ,j+1,k+1]) +
+                wy2*(wx1*vf[i+1,j  ,k+1]  +
+                     wx2*vf[i  ,j  ,k+1]))+
+           wz2*(wy1*(wx1*vf[i+1,j+1,k  ]  +
+                     wx2*vf[i  ,j+1,k  ]) +
+                wy2*(wx1*vf[i+1,j  ,k  ]  +
+                     wx2*vf[i  ,j  ,k  ])))
+    return v_pt
+end
+""" 
+Interpolate w face velocity to location of pt 
+"""
+function get_velocity_wface(pt,i,j,k,wf,mesh)
+    @unpack xm,ym,zm = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    # Find right i index
+    while pt[1]-xm[i  ] <  0.0 && i   > imino_
+       i=i-1
+    end
+    while pt[1]-xm[i+1] >= 0.0 && i+1 < imaxo_
+       i=i+1
+    end
+    # Find right j index
+    while pt[2]-ym[j  ] <  0.0 && j   > jmino_
+       j=j-1
+    end
+    while pt[2]-ym[j+1] >= 0.0 && j+1 < jmaxo_
+       j=j+1
+    end
+    # Find right k index
+    while pt[3]-z[k  ] <  0.0 && k   > kmino_
+       k=k-1
+    end
+    while pt[3]-z[k+1] >= 0.0 && k+1 < kmaxo_
+       k=k+1
+    end
+    # Prepare tri-linear interpolation coefficients
+    wx1=(pt[1]-xm[i])/(xm[i+1]-xm[i]); wx2=1.0-wx1
+    wy1=(pt[2]-ym[j])/(ym[j+1]-ym[j]); wy2=1.0-wy1
+    wz1=(pt[3]- z[k])/( z[k+1]- z[k]); wz2=1.0-wz1
+    # Tri-linear interpolation
+    w_pt=( wz1*(wy1*(wx1*wf[i+1,j+1,k+1]  +
+                     wx2*wf[i  ,j+1,k+1]) +
+                wy2*(wx1*wf[i+1,j  ,k+1]  +
+                     wx2*wf[i  ,j  ,k+1]))+
+           wz2*(wy1*(wx1*wf[i+1,j+1,k  ]  +
+                     wx2*wf[i  ,j+1,k  ]) +
+                wy2*(wx1*wf[i+1,j  ,k  ]  +
+                     wx2*wf[i  ,j  ,k  ])))
+    return w_pt
+end
+
+
+
 """
 Define velocity field (usually for VF testing)
 """
