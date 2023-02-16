@@ -134,6 +134,7 @@ function compute_dt(u,v,w,param,mesh,par_env)
 end
 
 """
+    printArray(text,A,par_env)
 Prints a parallel array
 """
 function printArray(text,A,par_env)
@@ -263,7 +264,7 @@ end
 Interpolate x face velocity to location of pt 
 """
 function get_velocity_uface(pt,i,j,k,uf,mesh)
-    @unpack xm,ym,zm = mesh
+    @unpack x ,ym,zm = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     # Find right i index
     while pt[1]-x[i  ] <  0.0 && i   > imino_
@@ -305,7 +306,7 @@ end
 Interpolate v face velocity to location of pt 
 """
 function get_velocity_vface(pt,i,j,k,vf,mesh)
-    @unpack xm,ym,zm = mesh
+    @unpack xm,y ,zm = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     # Find right i index
     while pt[1]-xm[i  ] <  0.0 && i   > imino_
@@ -347,7 +348,7 @@ end
 Interpolate w face velocity to location of pt 
 """
 function get_velocity_wface(pt,i,j,k,wf,mesh)
-    @unpack xm,ym,zm = mesh
+    @unpack xm,ym,z  = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     # Find right i index
     while pt[1]-xm[i  ] <  0.0 && i   > imino_

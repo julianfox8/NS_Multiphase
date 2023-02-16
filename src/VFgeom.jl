@@ -269,9 +269,78 @@ function cell2tets_withProject(i, j, k, u, v, w, dt, mesh)
     return tets, inds
 end
 
+function cell2tets_withProject_uvwf(i, j, k, uf, vf, wf, dt, mesh)
+    @unpack x, y, z = mesh
+    # Cell vertices 
+    p = Matrix{Float64}(undef, (3, 8))
+    p[:, 1] = [x[i], y[j], z[k]]
+    p[:, 2] = [x[i+1], y[j], z[k]]
+    p[:, 3] = [x[i], y[j+1], z[k]]
+    p[:, 4] = [x[i+1], y[j+1], z[k]]
+    p[:, 5] = [x[i], y[j], z[k+1]]
+    p[:, 6] = [x[i+1], y[j], z[k+1]]
+    p[:, 7] = [x[i], y[j+1], z[k+1]]
+    p[:, 8] = [x[i+1], y[j+1], z[k+1]]
+    # For each vertex
+    I = Matrix{Int64}(undef, (3, 8))
+    for n = 1:8
+        # Perform semi-Lagrangian projection
+        p[:, n] = project_uvwf(p[:, n], i, j, k, uf, vf, wf, -dt, mesh)
+        # Get cell index of projected vertex
+        I[:, n] = pt2index(p[:, n], i, j, k, mesh)
+    end
+    # Make five tets 
+    tets = Array{Float64}(undef, 3, 4, 5)
+    tets[:, 1, 1] = p[:, 1]
+    tets[:, 2, 1] = p[:, 2]
+    tets[:, 3, 1] = p[:, 4]
+    tets[:, 4, 1] = p[:, 6]
+    tets[:, 1, 2] = p[:, 1]
+    tets[:, 2, 2] = p[:, 4]
+    tets[:, 3, 2] = p[:, 3]
+    tets[:, 4, 2] = p[:, 7]
+    tets[:, 1, 3] = p[:, 1]
+    tets[:, 2, 3] = p[:, 5]
+    tets[:, 3, 3] = p[:, 6]
+    tets[:, 4, 3] = p[:, 7]
+    tets[:, 1, 4] = p[:, 4]
+    tets[:, 2, 4] = p[:, 7]
+    tets[:, 3, 4] = p[:, 6]
+    tets[:, 4, 4] = p[:, 8]
+    tets[:, 1, 5] = p[:, 1]
+    tets[:, 2, 5] = p[:, 4]
+    tets[:, 3, 5] = p[:, 7]
+    tets[:, 4, 5] = p[:, 6]
+
+    # Make five tets 
+    inds = Array{Int64}(undef, 3, 4, 5)
+    inds[:, 1, 1] = I[:, 1]
+    inds[:, 2, 1] = I[:, 2]
+    inds[:, 3, 1] = I[:, 4]
+    inds[:, 4, 1] = I[:, 6]
+    inds[:, 1, 2] = I[:, 1]
+    inds[:, 2, 2] = I[:, 4]
+    inds[:, 3, 2] = I[:, 3]
+    inds[:, 4, 2] = I[:, 7]
+    inds[:, 1, 3] = I[:, 1]
+    inds[:, 2, 3] = I[:, 5]
+    inds[:, 3, 3] = I[:, 6]
+    inds[:, 4, 3] = I[:, 7]
+    inds[:, 1, 4] = I[:, 4]
+    inds[:, 2, 4] = I[:, 7]
+    inds[:, 3, 4] = I[:, 6]
+    inds[:, 4, 4] = I[:, 8]
+    inds[:, 1, 5] = I[:, 1]
+    inds[:, 2, 5] = I[:, 4]
+    inds[:, 3, 5] = I[:, 7]
+    inds[:, 4, 5] = I[:, 6]
+
+    return tets, inds
+end
+
 
 """
-Computes volume of tet !
+Computes volume of tet
 """
 function tet_vol(verts)
     a(p) = verts[p, 1] - verts[p, 4]
@@ -282,6 +351,17 @@ function tet_vol(verts)
         - a(2) * (b(1) * c(3) - c(1) * b(3))
         + a(3) * (b(1) * c(2) - c(1) * b(2)))
     return tet_vol
+end
+
+"""
+Computes volume of tets
+"""
+function tets_vol(tets)
+    tets_vol = 0.0 
+    for n in 1:size(tets,3)
+        tets_vol += tet_vol(tets[:,:,n])
+    end
+    return tets_vol
 end
 
 """ 
