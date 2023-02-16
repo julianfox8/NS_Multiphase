@@ -120,7 +120,7 @@ function compute_dt(u,v,w,param,mesh,par_env)
     @unpack dx,dy,dz = mesh
 
     # Convective Δt
-    local_min_dx_vel = minimum([dx/maximum(u),dy/maximum(v),dz/maximum(w)])
+    local_min_dx_vel = minimum([dx/maximum(abs.(u)),dy/maximum(abs.(v)),dz/maximum(abs.(w))])
     min_dx_vel= parallel_min_all(local_min_dx_vel,par_env)
     convec_dt = min_dx_vel
 
