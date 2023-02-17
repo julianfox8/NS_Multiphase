@@ -13,9 +13,9 @@ function test_SLdivergence()
         # Constants
         mu=1e-5,       # Dynamic viscosity
         rho=1.0,           # Density
-        Lx=1.0,            # Domain size
-        Ly=1.0,
-        Lz=1.0,
+        Lx=3.0,            # Domain size
+        Ly=3.0,
+        Lz=3.0,
         tFinal=100.0,      # Simulation time
 
         # Discretization inputs
@@ -64,174 +64,210 @@ function test_SLdivergence()
     #####################################
     # Play with different velocity fields
     #####################################
-    # Set velocity fields 
-    for k=kmino_:kmaxo_, j=jmino_:jmaxo_, i=imino_:imaxo_
-        # # Field a
-        # ufa[i,j,k] = ym[j] + x[i]
-        # vfa[i,j,k] = 0.0
-        # wfa[i,j,k] = 0.0
-        # # Field b
-        # ufb[i,j,k] = 0.0
-        # vfb[i,j,k] = xm[i] + y[j]
-        # wfb[i,j,k] = 0.0
+    for case in ["A","B","C","D"]
+        # Set velocity fields 
+        for k=kmino_:kmaxo_, j=jmino_:jmaxo_, i=imino_:imaxo_
 
-        # Field a
-        ufa[i,j,k] = -(x[i]-0.5) #1.0
-        vfa[i,j,k] = -(y[j] - 0.5)
-        wfa[i,j,k] = 0.0
-        # Field b
-        ufb[i,j,k] = x[i]-0.5
-        vfb[i,j,k] = (y[j] - 0.5)
-        wfb[i,j,k] = 0.0
-    end
+            if case == "A"
+                # This velocity field works because 1 of the area dimensions remains constant
+                # Therefore the change in volume is linear w.r.t. time. 
+                
+                # Field a
+                ufa[i,j,k] = ym[j] + x[i]
+                vfa[i,j,k] = 0.0
+                wfa[i,j,k] = 0.0
+                # Field b
+                ufb[i,j,k] = 0.0
+                vfb[i,j,k] = xm[i] + y[j]
+                wfb[i,j,k] = 0.0
 
-    # Set timestep 
-    dta = NS.compute_dt(ufa,vfa,wfa,param,mesh,par_env)
-    dtb = NS.compute_dt(ufb,vfb,wfb,param,mesh,par_env)
-    dt = minimum([dta,dtb])
-    println(dt)
+            elseif case == "B"
+                # This velocity field does not work because the area changes 
+                # non-linearly w.r.t. time. 
 
-    # Output header 
-    @printf("%10s  %10s  %10s  %10s  %10s  %9s \n",
-            "Δt","∇⋅A","∇⋅B","∇⋅A + ∇⋅B","∇⋅(A+B)", "Error")
-        
+                # Field a
+                ufa[i,j,k] = -(x[i]-1.5)
+                vfa[i,j,k] = -(y[j]-1.5)
+                wfa[i,j,k] = 0.0
+                # Field b
+                ufb[i,j,k] = (x[i]-1.5)
+                vfb[i,j,k] = (y[j]-1.5)
+                wfb[i,j,k] = 0.0
 
-    dts=0.01:0.05:2dt
-    diva  = similar(dts)
-    divb  = similar(dts)
-    divab = similar(dts)
-    diva_fd  = similar(dts)
-    divb_fd  = similar(dts)
-    divab_fd = similar(dts)
-    vol2a  = similar(dts)
-    vol2b  = similar(dts)
-    vol2ab = similar(dts)
-    anim = @animate for n in eachindex(dts)
+            elseif case == "C"
+                # This velocity field does not work because the area changes 
+                # non-linearly w.r.t. time. 
 
-        # Only work with 1 cell 
-        i=imin_;j=jmin_;k=kmin_
+                # Field a
+                ufa[i,j,k] = -(ym[j]-1.5)
+                vfa[i,j,k] =  (xm[i]-1.5)
+                wfa[i,j,k] = 0.0
+                # Field b
+                ufb[i,j,k] =  (ym[j]-1.5) #x[i]-0.25
+                vfb[i,j,k] = -(xm[i]-1.5) #y[j]-0.25
+                wfb[i,j,k] = 0.0
 
-        # Field a 
-        tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufa,vfa,wfa,dts[n],mesh)
-        vol1 = dx*dy*dz
-        vol2a[n] = NS.tets_vol(tets)
-        diva[n] = (vol1-vol2a[n])/dts[n]
-        diva_fd[n] = ( (ufa[i+1,j,k] - ufa[i,j,k])/dx
-                     + (vfa[i,j+1,k] - vfa[i,j,k])/dy
-                     + (wfa[i,j,k+1] - wfa[i,j,k])/dz )
+            elseif case == "D"
+                # This has a different answer from finite difference, but
+                # ∇⋅(A+B) = ∇⋅A + ∇⋅B 
 
-        # Field b
-        tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufb,vfb,wfb,dts[n],mesh)
-        vol1 = dx*dy*dz
-        vol2b[n] = NS.tets_vol(tets)
-        divb[n] = (vol1-vol2b[n])/dts[n]
-        divb_fd[n] = ( (ufb[i+1,j,k] - ufb[i,j,k])/dx
-                     + (vfb[i,j+1,k] - vfb[i,j,k])/dy
-                     + (wfb[i,j,k+1] - wfb[i,j,k])/dz )
+                # Field a
+                ufa[i,j,k] = -(ym[j]-1.5)
+                vfa[i,j,k] =  (xm[i]-1.5)
+                wfa[i,j,k] = 0.0
+                # Field b
+                ufb[i,j,k] = x[i]-0.25
+                vfb[i,j,k] = y[j]-0.25
+                wfb[i,j,k] = 0.0
+            else 
+                error("Unknown velocity field specified")
+            end
+        end
 
-        # Field a + b
-        tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufa.+ufb,vfa.+vfb,wfa.+wfb,dts[n],mesh)
-        vol1 = dx*dy*dz
-        vol2ab[n] = NS.tets_vol(tets)
-        divab[n] = (vol1-vol2ab[n])/dts[n]
-        divab_fd[n] = ( ( (ufa[i+1,j,k] + ufb[i+1,j,k]) - (ufa[i,j,k] + ufb[i,j,k]) )/dx
-                      + ( (vfa[i,j+1,k] + vfb[i,j+1,k]) - (vfa[i,j,k] + vfb[i,j,k]) )/dy
-                      + ( (wfa[i,j,k+1] + wfb[i,j,k+1]) - (wfa[i,j,k] + wfb[i,j,k]) )/dz )
-    
+        # Set timestep 
+        dta = NS.compute_dt(ufa,vfa,wfa,param,mesh,par_env)
+        dtb = NS.compute_dt(ufb,vfb,wfb,param,mesh,par_env)
+        dt = minimum([dta,dtb])
+
+        # Output header 
+        @printf("%10s  %10s  %10s  %10s  %10s  %10s  %9s \n",
+                "Δt","∇⋅A","∇⋅A_fd","∇⋅B","∇⋅A + ∇⋅B","∇⋅(A+B)", "Error")
+            
+
+        dts=0.01:0.05:2dt
+        diva  = similar(dts)
+        divb  = similar(dts)
+        divab = similar(dts)
+        diva_fd  = similar(dts)
+        divb_fd  = similar(dts)
+        divab_fd = similar(dts)
+        vol2a  = similar(dts)
+        vol2b  = similar(dts)
+        vol2ab = similar(dts)
+        for n in eachindex(dts)
+
+            # Only work with 1 cell 
+            i=imin_;j=jmin_;k=kmin_
+
+            ##########################
+            # Compute divergences 
+            ##########################
+
+            # Field a 
+            tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufa,vfa,wfa,dts[n],mesh)
+            vol1 = dx*dy*dz
+            vol2a[n] = NS.tets_vol(tets)
+            diva[n] = (vol1-vol2a[n])/dts[n]/vol1
+            diva_fd[n] = ( (ufa[i+1,j,k] - ufa[i,j,k])/dx
+                         + (vfa[i,j+1,k] - vfa[i,j,k])/dy
+                         + (wfa[i,j,k+1] - wfa[i,j,k])/dz )
+
+            # Field b
+            tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufb,vfb,wfb,dts[n],mesh)
+            vol1 = dx*dy*dz
+            vol2b[n] = NS.tets_vol(tets)
+            divb[n] = (vol1-vol2b[n])/dts[n]/vol1
+            divb_fd[n] = ( (ufb[i+1,j,k] - ufb[i,j,k])/dx
+                         + (vfb[i,j+1,k] - vfb[i,j,k])/dy
+                         + (wfb[i,j,k+1] - wfb[i,j,k])/dz )
+
+            # Field a + b
+            tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufa.+ufb,vfa.+vfb,wfa.+wfb,dts[n],mesh)
+            vol1 = dx*dy*dz
+            vol2ab[n] = NS.tets_vol(tets)
+            divab[n] = (vol1-vol2ab[n])/dts[n]/vol1
+            divab_fd[n] = ( ( (ufa[i+1,j,k] + ufb[i+1,j,k]) - (ufa[i,j,k] + ufb[i,j,k]) )/dx
+                          + ( (vfa[i,j+1,k] + vfb[i,j+1,k]) - (vfa[i,j,k] + vfb[i,j,k]) )/dy
+                          + ( (wfa[i,j,k+1] + wfb[i,j,k+1]) - (wfa[i,j,k] + wfb[i,j,k]) )/dz )
+
+        end
+
+        ####################
         # Output 
-        error = abs((diva[n]+divb[n]) - divab[n])
-        @printf(" %+6.3e  %+6.3e  %+6.3e  %+6.3e  %+6.3e  %6.3e \n",
-            dts[n],diva[n],divb[n],diva[n]+divb[n],divab[n],error)
+        ####################
+        myplt = plot()
+        anim = @animate for n in eachindex(dts)
+            error = abs((diva[n]+divb[n]) - divab[n])
+            @printf(" %+6.3e  %+6.3e  %+6.3e  %+6.3e  %+6.3e  %+6.3e  %6.3e \n",
+                dts[n],diva[n],diva_fd[n],divb[n],diva[n]+divb[n],divab[n],error)
 
-        # Plot 
-        error = abs((diva[n]+divb[n]) - divab[n])
-        fig1 = plot(legend=false)
-        fig2 = plot(legend=false)
-        fig3 = plot(legend=false)
-        fig4 = plot(legend=:bottomleft)
-        fig5 = plot(legend=:bottomleft)
-        fig6 = plot(legend=:bottomleft)
-        fig7 = plot(legend=:topleft,xlim=[0,maximum(dts)], ylim=[-0.5,3])
-        fig8 = plot(legend=:topleft,xlim=[0,maximum(dts)], ylim=[-0.5,3])
-        fig9 = plot(legend=:topleft,xlim=[0,maximum(dts)], ylim=[-0.5,3])
-        plotGrid(fig1, (ufa    ,), (vfa    ,), (wfa    ,),     diva,  dts[n], mesh, title=@sprintf("Velocity A: Divg = %4.3f",diva[n]) ,color=:blue  )
-        plotGrid(fig2, (    ufb,), (    vfb,), (    wfb,),     divb,  dts[n], mesh, title=@sprintf("Velocity B: Divg = %4.3f",divb[n])       ,color=:blue  )
-        plotGrid(fig3, (ufa+ufb,), (vfa+vfb,), (wfa+wfb,),     divab, dts[n], mesh, title=@sprintf("Velocity A+B: Divg = %4.3f",divab[n]),color=:blue  )
-        plot!(fig4,dts[1:n],diva[1:n],label="∇⋅A",                         xlim=[0,maximum(dts)]) #,ylim=[-2,1])
-        plot!(fig4,dts[1:n],diva_fd[1:n],label="∇⋅A_fd",                   xlim=[0,maximum(dts)],ylim=[-2.7,-1.9])
-        plot!(fig5,dts[1:n],divb[1:n],label="∇⋅B",                         xlim=[0,maximum(dts)]) #,ylim=[-2,1])
-        plot!(fig5,dts[1:n],divb_fd[1:n],label="∇⋅B_fd",                   xlim=[0,maximum(dts)],ylim=[1.3,2.1])
-        plot!(fig6,dts[1:n],divab[1:n],label="∇⋅(A+B)",                    xlim=[0,maximum(dts)]) #,ylim=[-2,1])
-        plot!(fig6,dts[1:n],divab_fd[1:n],label="∇⋅(A+B)_fd",              xlim=[0,maximum(dts)]) #,ylim=[-2,1])
-        plot!(fig6,dts[1:n],diva[1:n].+divb[1:n],label="∇⋅A + ∇⋅B",l=:dash,xlim=[0,maximum(dts)],ylim=[-1.3,0.1])
-        plot!(fig7,dts[1:n],vol2a[1:n] ,label="Vol(A)")
-        plot!(fig7,dts[1:n],dx*dy*dz .- dts[1:n].*diva_fd[1:n],l=:dash,label="Needed volume")
-        plot!(fig8,dts[1:n],vol2b[1:n] ,label="Vol(B)")
-        plot!(fig8,dts[1:n],dx*dy*dz .- dts[1:n].*divb_fd[1:n],l=:dash,label="Needed volume")
-        plot!(fig9,dts[1:n],(vol2a[1:n] + vol2b[1:n])/2,label="Vol(A) + Vol(B)")
-        plot!(fig9,dts[1:n],vol2ab[1:n],label="Vol(A+B) ")
-        myplt=plot(fig1,fig2,fig3,fig4,fig5,fig6,fig7,fig8,fig9,
-                    layout=(3,3),
-                    size=(1000,800),
-                    #plot_title=@sprintf("Div(A) + Divg(B) = %4.3f,  Div(A+B) = %4.3f, Error = %4.3f",diva[n]+divb[n],divab[n],error),
-                    top_margin=10mm, 
-        )
-        display(myplt)
+            # Plot of projected cell 
+            xmin = x[imin_  ] - 2param.CFL*dx
+            xmax = x[imax_+1] + 2param.CFL*dx
+            ymin = y[jmin_  ] - 2param.CFL*dy
+            ymax = y[jmax_+1] + 2param.CFL*dy
+            fig1 = plot(legend=false, xlim=(xmin,xmax), ylim=(ymin,ymax),)
+            fig2 = plot(legend=false, xlim=(xmin,xmax), ylim=(ymin,ymax),)
+            fig3 = plot(legend=false, xlim=(xmin,xmax), ylim=(ymin,ymax),)
+            plotGrid(fig1, ufa    , vfa    , wfa    , dts[n], mesh,color=:blue  )
+            plotGrid(fig2,     ufb,     vfb,     wfb, dts[n], mesh,color=:blue  )
+            plotGrid(fig3, ufa+ufb, vfa+vfb, wfa+wfb, dts[n], mesh,color=:blue  )
+
+            # Plot of divergence vs time
+            ymin = minimum([minimum(diva),minimum(divb),minimum(divab)])
+            ymax = maximum([maximum(diva),maximum(divb),maximum(divab)])
+            ymin = minimum([ymin,minimum(diva_fd),minimum(divb_fd),minimum(divab_fd)])
+            ymax = maximum([ymax,maximum(diva_fd),maximum(divb_fd),maximum(divab_fd)])
+            pady = 0.05*(ymax-ymin)
+            ymin -= pady 
+            ymax += pady
+            fig4 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
+            fig5 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
+            fig6 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
+            plot!(fig4,dts[1:n],diva[1:n],label="∇⋅A",                        )
+            plot!(fig4,dts[1:n],diva_fd[1:n],label="∇⋅A_fd",                  )
+            plot!(fig5,dts[1:n],divb[1:n],label="∇⋅B",                        )
+            plot!(fig5,dts[1:n],divb_fd[1:n],label="∇⋅B_fd",                  )
+            plot!(fig6,dts[1:n],divab[1:n],label="∇⋅(A+B)",                   )
+            plot!(fig6,dts[1:n],divab_fd[1:n],label="∇⋅(A+B)_fd",             )
+            plot!(fig6,dts[1:n],diva[1:n].+divb[1:n],label="∇⋅A + ∇⋅B",l=:dash)
+
+            # Plot of volumes vs time 
+            # Needed volume is the projected volume to have the semi-Lagrangian divg match the finite diff divg
+            vol2a_fd   = dx*dy*dz .* ( 1.0 .- dts.*diva_fd )
+            vol2b_fd   = dx*dy*dz .* ( 1.0 .- dts.*divb_fd )
+            vol2ab_fd  = dx*dy*dz .* ( 1.0 .- dts.*divab_fd )
+            vol2apb_fd = dx*dy*dz .* ( 2.0 .- dts.*(diva_fd + divb_fd) )
+            vol1 = dx*dy*dz
+            ymin = minimum([minimum(vol2a),minimum(vol2b),minimum(vol2a+vol2b.-vol1),minimum(vol2ab)])
+            ymax = maximum([maximum(vol2a),maximum(vol2b),maximum(vol2a+vol2b.-vol1),maximum(vol2ab)])
+            ymin = minimum([ymin,minimum(vol2a_fd),minimum(vol2b_fd),minimum(vol2ab_fd)])
+            ymax = maximum([ymax,maximum(vol2a_fd),maximum(vol2b_fd),maximum(vol2ab_fd)])
+            pady = 0.05*(ymax-ymin)
+            ymin -= pady 
+            ymax += pady
+            fig7 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
+            fig8 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
+            fig9 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
+            plot!(fig7,dts[1:n],vol2a[1:n]   ,                          label="Vol(A)")
+            scatter!(fig7,dts[1:n],vol2a_fd[1:n],markershape=:+,        label="Vol(A)_fd")
+            plot!(   fig8,dts[1:n],vol2b[1:n]   ,                       label="Vol(B)")
+            scatter!(fig8,dts[1:n],vol2b_fd[1:n],markershape=:+,        label="Vol(B)_fd")
+            plot!(   fig9,dts[1:n],vol2a[1:n]+vol2b[1:n].-vol1,         label="(Vol(A) + Vol(B)) - vol1")
+            plot!(   fig9,dts[1:n],vol2ab[1:n],                         label="Vol(A+B) ")
+            scatter!(fig9,dts[1:n],vol2ab_fd[1:n],markershape=:+,       label="Vol(A+B)_fd")
+            #scatter!(fig9,dts[1:n],vol2apb_fd[1:n].-vol1,markershape=:circle,label="(Vol(A) + Vol(B))_fd - vol1")
+            
+            # Put all plots together
+            myplt=plot(fig1,fig2,fig3,fig4,fig5,fig6,fig7,fig8,fig9,
+                        layout=(3,3),
+                        size=(1000,1000),
+                        #plot_title=@sprintf("Div(A) + Divg(B) = %4.3f,  Div(A+B) = %4.3f, Error = %4.3f",diva[n]+divb[n],divab[n],error),
+                        top_margin=10mm, 
+            )
+            display(myplt)
+        end
+        # Save final figure
+        savefig(myplt,"divVsTime_Velocity$case.pdf")
+
+        # Save animation
+        gif(anim, "divVsTime_Velocity$case.gif", fps = 15)
+
+        
     end
-
-    gif(anim, "animation.gif", fps = 15)
-
-    # Plot volumes vs time 
-    fig = plot() 
-    fig = plot!(fig,dts,diva ,label="∇⋅A",line = :dash)
-    fig = plot!(fig,dts,divb ,label="∇⋅B",line = :dash)
-    fig = plot!(fig,dts,diva .+ divb ,label="∇⋅A + ∇⋅B")
-    fig = plot!(fig,dts,divab,label="∇⋅(A+B)")
-    fig = plot!(legend=:bottomleft,
-                size=(400,300),
-                xlabel="Δt",
-                ylabel="Divergence",
-                )
-    savefig("divVsTime.pdf")
-
-    # # Plots
-    # fig1 = plot(legend=false)
-    # fig2 = plot(legend=false)
-    # fig3 = plot(legend=false)
-    # fig4 = plot(legend=false)
-    # plotGrid(fig1, (ufa    ,), (vfa    ,), (wfa    ,),     diva,  dt, mesh, title="Velocity A"               ,color=:blue  )
-    # plotGrid(fig2, (    ufb,), (    vfb,), (    wfb,),     divb,  dt, mesh, title="Velocity B"               ,color=:blue  )
-    # plotGrid(fig3, (ufa+ufb,), (vfa+vfb,), (wfa+wfb,),     divab, dt, mesh, title="Velocity (A + B)"         ,color=:blue  )
-    # plotGrid(fig4, (ufa,ufb,), (vfa,vfb,), (wfa,wfb,), diva+divb, dt, mesh, title="Velocity A + Velocity B"  ,color=:blue  )
-    # myplt=plot(fig1,fig2,fig3,fig4,
-    #             layout=(2,2),
-    #             size=(1000,900),
-    # )
-    # display(myplt)
-    # savefig("SLdivergence1.pdf")
-
-    # # Plot of Velocity (A+B) and Velocity A + Velocity B on same figure
-    # fig1 = plot(legend=false,size=(1000,900))
-    # plotGrid(fig1, (ufa+ufb,), (vfa+vfb,), (wfa+wfb,),     divab, dt, mesh, title=""         ,color=:blue  )
-    # plotGrid(fig1, (ufa,ufb,), (vfa,vfb,), (wfa,wfb,), diva+divb, dt, mesh, title="Velocity (A + B) & Velocity A + Velocity B"  ,color=:blue  )
-    # display(fig1)
-    # savefig("SLdivergence2.pdf")
-
-
-    # fig1 = plot(legend=false)
-    # plotGrid(fig1, (ufa    ,), (vfa    ,), (wfa    ,),     diva,  dt, mesh, title="Velocity A"               ,color=:blue  )
-    # plotGrid(fig1, (    ufb,), (    vfb,), (    wfb,),     divb,  dt, mesh, title="Velocity B"               ,color=:red  )
-    # plotGrid(fig1, (ufa+ufb,), (vfa+vfb,), (wfa+wfb,),     divab, dt, mesh, title="Velocity (A + B)"         ,color=:green  )
-    # myplt=plot(fig1,
-    #             size=(1000,900),
-    # )
-    # display(myplt)
-    # savefig("SLdivergence3.pdf")
-
-    
 end
 
-function plotGrid(fig,uf,vf,wf,div,dt,mesh; title="", color=:black)
+function plotGrid(fig,uf,vf,wf,dt,mesh; color=:black)
     @unpack x,y,z = mesh 
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     
@@ -246,59 +282,33 @@ function plotGrid(fig,uf,vf,wf,div,dt,mesh; title="", color=:black)
         pt4 = [x[i+1],y[j+1],z[k  ]]
 
         # Plot cell 
-        plot_cell(fig,pt1,pt2,pt3,pt4,title,(:red,:dash,2,0.5))
+        plot_cell(fig,pt1,pt2,pt3,pt4,(:red,:dash,2,0.5))
+    
+        # Project 
+        pt1_p = pt1 + NS.project_uvwf(pt1,i,j,k,uf,vf,wf,-dt,mesh)-pt1
+        pt2_p = pt2 + NS.project_uvwf(pt2,i,j,k,uf,vf,wf,-dt,mesh)-pt2
+        pt3_p = pt3 + NS.project_uvwf(pt3,i,j,k,uf,vf,wf,-dt,mesh)-pt3
+        pt4_p = pt4 + NS.project_uvwf(pt4,i,j,k,uf,vf,wf,-dt,mesh)-pt4
 
-        # projected points 
-        pt1_p = pt1
-        pt2_p = pt2
-        pt3_p = pt3
-        pt4_p = pt4
-
-        # Lines for porjections 
-        lines=[:black,:green]
-        for n in eachindex(uf)
-            
-            # Project 
-            pt1_pnew = pt1_p + NS.project_uvwf(pt1,i,j,k,uf[n],vf[n],wf[n],-dt,mesh)-pt1
-            pt2_pnew = pt2_p + NS.project_uvwf(pt2,i,j,k,uf[n],vf[n],wf[n],-dt,mesh)-pt2
-            pt3_pnew = pt3_p + NS.project_uvwf(pt3,i,j,k,uf[n],vf[n],wf[n],-dt,mesh)-pt3
-            pt4_pnew = pt4_p + NS.project_uvwf(pt4,i,j,k,uf[n],vf[n],wf[n],-dt,mesh)-pt4
-
-            # Plot projection 
-            GR.setarrowsize(0.5)
-            plot!([pt1_p[1],pt1_pnew[1]],[pt1_p[2],pt1_pnew[2]],arrow=(:closed), arrowsize=5, line=lines[n], label="")
-            plot!([pt2_p[1],pt2_pnew[1]],[pt2_p[2],pt2_pnew[2]],arrow=(:closed), arrowsize=5, line=lines[n], label="")
-            plot!([pt3_p[1],pt3_pnew[1]],[pt3_p[2],pt3_pnew[2]],arrow=(:closed), arrowsize=5, line=lines[n], label="")
-            plot!([pt4_p[1],pt4_pnew[1]],[pt4_p[2],pt4_pnew[2]],arrow=(:closed), arrowsize=5, line=lines[n], label="")
-
-            # Update points 
-            pt1_p = pt1_pnew
-            pt2_p = pt2_pnew
-            pt3_p = pt3_pnew
-            pt4_p = pt4_pnew
-
-        end
+        # Plot projection 
+        GR.setarrowsize(0.5)
+        plot!([pt1[1],pt1_p[1]],[pt1[2],pt1_p[2]],arrow=(:closed), arrowsize=5, line=:black, label="")
+        plot!([pt2[1],pt2_p[1]],[pt2[2],pt2_p[2]],arrow=(:closed), arrowsize=5, line=:black, label="")
+        plot!([pt3[1],pt3_p[1]],[pt3[2],pt3_p[2]],arrow=(:closed), arrowsize=5, line=:black, label="")
+        plot!([pt4[1],pt4_p[1]],[pt4[2],pt4_p[2]],arrow=(:closed), arrowsize=5, line=:black, label="")
 
         # Plot projected cell 
-        # Color by divergence
-        # divrange=range(-5e-2, 5e-2, length=100)
-        # colors=range(colorant"blue", stop=colorant"red", length=100)
-        # value,index = findmin(abs.(divrange .- div[n]))
-        # fillcolor=colors[index]
-        # plot_cell(fig,pt1_p,pt2_p,pt3_p,pt4_p,title,color; fill=true, fillcolor=fillcolor)
-        plot_cell(fig,pt1_p,pt2_p,pt3_p,pt4_p,title,color; fill=true, fillcolor=color)
+        plot_cell(fig,pt1_p,pt2_p,pt3_p,pt4_p,color; fill=true, fillcolor=color)
 
     end
     return fig
 end
 
-function plot_cell(fig,pt1,pt2,pt3,pt4,title,linestyle; fill=false, fillcolor=nothing)
+function plot_cell(fig,pt1,pt2,pt3,pt4,linestyle; fill=false, fillcolor=nothing)
     # Plot this cell 
     fig = plot!(fig,
             #title=title, 
             aspect_ratio=:equal,
-            xlim=(-0.5,1.5),
-            ylim=(-0.5,1.5),
             #axis=nothing,
             #border=:none,
             grid=false,
