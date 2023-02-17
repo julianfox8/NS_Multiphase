@@ -103,6 +103,9 @@ function test_SLdivergence()
     diva_fd  = similar(dts)
     divb_fd  = similar(dts)
     divab_fd = similar(dts)
+    vol2a  = similar(dts)
+    vol2b  = similar(dts)
+    vol2ab = similar(dts)
     anim = @animate for n in eachindex(dts)
 
         # Only work with 1 cell 
@@ -111,8 +114,8 @@ function test_SLdivergence()
         # Field a 
         tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufa,vfa,wfa,dts[n],mesh)
         vol1 = dx*dy*dz
-        vol2 = NS.tets_vol(tets)
-        diva[n] = (vol1-vol2)/dts[n]
+        vol2a[n] = NS.tets_vol(tets)
+        diva[n] = (vol1-vol2a[n])/dts[n]
         diva_fd[n] = ( (ufa[i+1,j,k] - ufa[i,j,k])/dx
                      + (vfa[i,j+1,k] - vfa[i,j,k])/dy
                      + (wfa[i,j,k+1] - wfa[i,j,k])/dz )
@@ -120,8 +123,8 @@ function test_SLdivergence()
         # Field b
         tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufb,vfb,wfb,dts[n],mesh)
         vol1 = dx*dy*dz
-        vol2 = NS.tets_vol(tets)
-        divb[n] = (vol1-vol2)/dts[n]
+        vol2b[n] = NS.tets_vol(tets)
+        divb[n] = (vol1-vol2b[n])/dts[n]
         divb_fd[n] = ( (ufb[i+1,j,k] - ufb[i,j,k])/dx
                      + (vfb[i,j+1,k] - vfb[i,j,k])/dy
                      + (wfb[i,j,k+1] - wfb[i,j,k])/dz )
@@ -129,8 +132,8 @@ function test_SLdivergence()
         # Field a + b
         tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufa.+ufb,vfa.+vfb,wfa.+wfb,dts[n],mesh)
         vol1 = dx*dy*dz
-        vol2 = NS.tets_vol(tets)
-        divab[n] = (vol1-vol2)/dts[n]
+        vol2ab[n] = NS.tets_vol(tets)
+        divab[n] = (vol1-vol2ab[n])/dts[n]
         divab_fd[n] = ( ( (ufa[i+1,j,k] + ufb[i+1,j,k]) - (ufa[i,j,k] + ufb[i,j,k]) )/dx
                       + ( (vfa[i,j+1,k] + vfb[i,j+1,k]) - (vfa[i,j,k] + vfb[i,j,k]) )/dy
                       + ( (wfa[i,j,k+1] + wfb[i,j,k+1]) - (wfa[i,j,k] + wfb[i,j,k]) )/dz )
@@ -145,10 +148,12 @@ function test_SLdivergence()
         fig1 = plot(legend=false)
         fig2 = plot(legend=false)
         fig3 = plot(legend=false)
-        fig4 = plot()
-        fig5 = plot()
-        fig6 = plot()
-        fig7 = plot(ylim=[-1.1,-0.9])
+        fig4 = plot(legend=:bottomleft)
+        fig5 = plot(legend=:bottomleft)
+        fig6 = plot(legend=:bottomleft)
+        fig7 = plot(legend=:topleft,xlim=[0,maximum(dts)], ylim=[-0.5,3])
+        fig8 = plot(legend=:topleft,xlim=[0,maximum(dts)], ylim=[-0.5,3])
+        fig9 = plot(legend=:topleft,xlim=[0,maximum(dts)], ylim=[-0.5,3])
         plotGrid(fig1, (ufa    ,), (vfa    ,), (wfa    ,),     diva,  dts[n], mesh, title=@sprintf("Velocity A: Divg = %4.3f",diva[n]) ,color=:blue  )
         plotGrid(fig2, (    ufb,), (    vfb,), (    wfb,),     divb,  dts[n], mesh, title=@sprintf("Velocity B: Divg = %4.3f",divb[n])       ,color=:blue  )
         plotGrid(fig3, (ufa+ufb,), (vfa+vfb,), (wfa+wfb,),     divab, dts[n], mesh, title=@sprintf("Velocity A+B: Divg = %4.3f",divab[n]),color=:blue  )
@@ -159,12 +164,13 @@ function test_SLdivergence()
         plot!(fig6,dts[1:n],divab[1:n],label="∇⋅(A+B)",                    xlim=[0,maximum(dts)]) #,ylim=[-2,1])
         plot!(fig6,dts[1:n],divab_fd[1:n],label="∇⋅(A+B)_fd",              xlim=[0,maximum(dts)]) #,ylim=[-2,1])
         plot!(fig6,dts[1:n],diva[1:n].+divb[1:n],label="∇⋅A + ∇⋅B",l=:dash,xlim=[0,maximum(dts)],ylim=[-1.3,0.1])
-        if n>=2
-            fig7 = plot(fig7,legend=:bottomright)
-            plot!(fig7,dts[2:n],((diva[2:n].-diva[1:n-1])./(dts[2:n].-dts[1:n-1])),label="d(∇⋅A)/(dΔt)",xlim=[0,maximum(dts)]) #,ylim=[-2,1])
-            plot!(fig7,dts[2:n],((divb[2:n].-divb[1:n-1])./(dts[2:n].-dts[1:n-1])),label="d(∇⋅B)/(dΔt)",xlim=[0,maximum(dts)], ylim=[-1.1,-0.9])
-        end
-        myplt=plot(fig1,fig2,fig3,fig4,fig5,fig6,fig7,
+        plot!(fig7,dts[1:n],vol2a[1:n] ,label="Vol(A)")
+        plot!(fig7,dts[1:n],dx*dy*dz .- dts[1:n].*diva_fd[1:n],l=:dash,label="Needed volume")
+        plot!(fig8,dts[1:n],vol2b[1:n] ,label="Vol(B)")
+        plot!(fig8,dts[1:n],dx*dy*dz .- dts[1:n].*divb_fd[1:n],l=:dash,label="Needed volume")
+        plot!(fig9,dts[1:n],(vol2a[1:n] + vol2b[1:n])/2,label="Vol(A) + Vol(B)")
+        plot!(fig9,dts[1:n],vol2ab[1:n],label="Vol(A+B) ")
+        myplt=plot(fig1,fig2,fig3,fig4,fig5,fig6,fig7,fig8,fig9,
                     layout=(3,3),
                     size=(1000,800),
                     #plot_title=@sprintf("Div(A) + Divg(B) = %4.3f,  Div(A+B) = %4.3f, Error = %4.3f",diva[n]+divb[n],divab[n],error),
