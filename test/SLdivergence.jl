@@ -96,10 +96,13 @@ function test_SLdivergence()
             "Δt","∇⋅A","∇⋅B","∇⋅A + ∇⋅B","∇⋅(A+B)", "Error")
         
 
-    dts=0.0:0.01:2dt
+    dts=0.01:0.05:2dt
     diva  = similar(dts)
     divb  = similar(dts)
     divab = similar(dts)
+    diva_fd  = similar(dts)
+    divb_fd  = similar(dts)
+    divab_fd = similar(dts)
     anim = @animate for n in eachindex(dts)
 
         # Only work with 1 cell 
@@ -109,19 +112,28 @@ function test_SLdivergence()
         tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufa,vfa,wfa,dts[n],mesh)
         vol1 = dx*dy*dz
         vol2 = NS.tets_vol(tets)
-        diva[n] = (vol1-vol2)
+        diva[n] = (vol1-vol2)/dts[n]
+        diva_fd[n] = ( (ufa[i+1,j,k] - ufa[i,j,k])/dx
+                     + (vfa[i,j+1,k] - vfa[i,j,k])/dy
+                     + (wfa[i,j,k+1] - wfa[i,j,k])/dz )
 
         # Field b
         tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufb,vfb,wfb,dts[n],mesh)
         vol1 = dx*dy*dz
         vol2 = NS.tets_vol(tets)
-        divb[n] = (vol1-vol2)
+        divb[n] = (vol1-vol2)/dts[n]
+        divb_fd[n] = ( (ufb[i+1,j,k] - ufb[i,j,k])/dx
+                     + (vfb[i,j+1,k] - vfb[i,j,k])/dy
+                     + (wfb[i,j,k+1] - wfb[i,j,k])/dz )
 
         # Field a + b
         tets,ind = NS.cell2tets_withProject_uvwf(i,j,k,ufa.+ufb,vfa.+vfb,wfa.+wfb,dts[n],mesh)
         vol1 = dx*dy*dz
         vol2 = NS.tets_vol(tets)
-        divab[n] = (vol1-vol2)
+        divab[n] = (vol1-vol2)/dts[n]
+        divab_fd[n] = ( ( (ufa[i+1,j,k] + ufb[i+1,j,k]) - (ufa[i,j,k] + ufb[i,j,k]) )/dx
+                      + ( (vfa[i,j+1,k] + vfb[i,j+1,k]) - (vfa[i,j,k] + vfb[i,j,k]) )/dy
+                      + ( (wfa[i,j,k+1] + wfb[i,j,k+1]) - (wfa[i,j,k] + wfb[i,j,k]) )/dz )
     
         # Output 
         error = abs((diva[n]+divb[n]) - divab[n])
@@ -133,13 +145,28 @@ function test_SLdivergence()
         fig1 = plot(legend=false)
         fig2 = plot(legend=false)
         fig3 = plot(legend=false)
-        fig4 = plot(legend=false)
+        fig4 = plot()
+        fig5 = plot()
+        fig6 = plot()
+        fig7 = plot()
         plotGrid(fig1, (ufa    ,), (vfa    ,), (wfa    ,),     diva,  dts[n], mesh, title=@sprintf("Velocity A: Divg = %4.3f",diva[n]) ,color=:blue  )
         plotGrid(fig2, (    ufb,), (    vfb,), (    wfb,),     divb,  dts[n], mesh, title=@sprintf("Velocity B: Divg = %4.3f",divb[n])       ,color=:blue  )
         plotGrid(fig3, (ufa+ufb,), (vfa+vfb,), (wfa+wfb,),     divab, dts[n], mesh, title=@sprintf("Velocity A+B: Divg = %4.3f",divab[n]),color=:blue  )
-        myplt=plot(fig1,fig2,fig3,
-                    layout=(1,3),
-                    size=(1000,400),
+        plot!(fig4,dts[1:n],diva[1:n],label="∇⋅A",                         xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+        plot!(fig4,dts[1:n],diva_fd[1:n],label="∇⋅A_fd",                   xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+        plot!(fig5,dts[1:n],divb[1:n],label="∇⋅B",                         xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+        plot!(fig5,dts[1:n],divb_fd[1:n],label="∇⋅B_fd",                   xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+        plot!(fig6,dts[1:n],divab[1:n],label="∇⋅(A+B)",                    xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+        plot!(fig6,dts[1:n],divab_fd[1:n],label="∇⋅(A+B)_fd",              xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+        plot!(fig6,dts[1:n],diva[1:n].+divb[1:n],label="∇⋅A + ∇⋅B",l=:dash,xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+        if n>=2
+            fig7 = plot(fig7,legend=:bottomright)
+            plot!(fig7,dts[2:n],((diva[2:n].-diva[1:n-1])./(dts[2:n].-dts[1:n-1])),label="d(∇⋅A)/(dΔt)",xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+            plot!(fig7,dts[2:n],((divb[2:n].-divb[1:n-1])./(dts[2:n].-dts[1:n-1])),label="d(∇⋅B)/(dΔt)",xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+        end
+        myplt=plot(fig1,fig2,fig3,fig4,fig5,fig6,fig7,
+                    layout=(3,3),
+                    size=(1000,800),
                     #plot_title=@sprintf("Div(A) + Divg(B) = %4.3f,  Div(A+B) = %4.3f, Error = %4.3f",diva[n]+divb[n],divab[n],error),
                     top_margin=10mm, 
         )
@@ -159,6 +186,7 @@ function test_SLdivergence()
                 xlabel="Δt",
                 ylabel="Divergence",
                 )
+    savefig("divVsTime.pdf")
 
     # # Plots
     # fig1 = plot(legend=false)
