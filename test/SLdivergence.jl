@@ -148,7 +148,7 @@ function test_SLdivergence()
         fig4 = plot()
         fig5 = plot()
         fig6 = plot()
-        fig7 = plot()
+        fig7 = plot(ylim=[-1.1,-0.9])
         plotGrid(fig1, (ufa    ,), (vfa    ,), (wfa    ,),     diva,  dts[n], mesh, title=@sprintf("Velocity A: Divg = %4.3f",diva[n]) ,color=:blue  )
         plotGrid(fig2, (    ufb,), (    vfb,), (    wfb,),     divb,  dts[n], mesh, title=@sprintf("Velocity B: Divg = %4.3f",divb[n])       ,color=:blue  )
         plotGrid(fig3, (ufa+ufb,), (vfa+vfb,), (wfa+wfb,),     divab, dts[n], mesh, title=@sprintf("Velocity A+B: Divg = %4.3f",divab[n]),color=:blue  )
@@ -162,7 +162,7 @@ function test_SLdivergence()
         if n>=2
             fig7 = plot(fig7,legend=:bottomright)
             plot!(fig7,dts[2:n],((diva[2:n].-diva[1:n-1])./(dts[2:n].-dts[1:n-1])),label="d(∇⋅A)/(dΔt)",xlim=[0,maximum(dts)]) #,ylim=[-2,1])
-            plot!(fig7,dts[2:n],((divb[2:n].-divb[1:n-1])./(dts[2:n].-dts[1:n-1])),label="d(∇⋅B)/(dΔt)",xlim=[0,maximum(dts)]) #,ylim=[-2,1])
+            plot!(fig7,dts[2:n],((divb[2:n].-divb[1:n-1])./(dts[2:n].-dts[1:n-1])),label="d(∇⋅B)/(dΔt)",xlim=[0,maximum(dts)], ylim=[-1.1,-0.9])
         end
         myplt=plot(fig1,fig2,fig3,fig4,fig5,fig6,fig7,
                     layout=(3,3),
