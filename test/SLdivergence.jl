@@ -71,7 +71,7 @@ function test_SLdivergence()
             if case == "A"
                 # This velocity field works because 1 of the area dimensions remains constant
                 # Therefore the change in volume is linear w.r.t. time. 
-                
+
                 # Field a
                 ufa[i,j,k] = ym[j] + x[i]
                 vfa[i,j,k] = 0.0
@@ -214,14 +214,14 @@ function test_SLdivergence()
             fig4 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
             fig5 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
             fig6 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
-            plot!(fig4,dts[1:n],diva[1:n],label="∇⋅A",                        )
-            plot!(fig4,dts[1:n],diva_fd[1:n],label="∇⋅A_fd",                  )
-            plot!(fig5,dts[1:n],divb[1:n],label="∇⋅B",                        )
-            plot!(fig5,dts[1:n],divb_fd[1:n],label="∇⋅B_fd",                  )
-            plot!(fig6,dts[1:n],divab[1:n],label="∇⋅(A+B)",                   )
-            plot!(fig6,dts[1:n],divab_fd[1:n],label="∇⋅(A+B)_fd",             )
-            plot!(fig6,dts[1:n],diva[1:n].+divb[1:n],label="∇⋅A + ∇⋅B",l=:dash)
-
+            plot!(   fig4,dts[1:n],diva[1:n],label="∇⋅A",                             )
+            scatter!(fig4,dts[1:n],diva_fd[1:n],label="∇⋅A_fd",     marker=(:+,:black))
+            plot!(   fig5,dts[1:n],divb[1:n],label="∇⋅B",                             )
+            scatter!(fig5,dts[1:n],divb_fd[1:n],label="∇⋅B_fd",     marker=(:+,:black))
+            plot!(   fig6,dts[1:n],divab[1:n],label="∇⋅(A+B)",                        )
+            plot!(   fig6,dts[1:n],diva[1:n].+divb[1:n],label="∇⋅A + ∇⋅B",l=:dash     )
+            scatter!(fig6,dts[1:n],divab_fd[1:n],label="∇⋅(A+B)_fd",marker=(:+,:black))
+            
             # Plot of volumes vs time 
             # Needed volume is the projected volume to have the semi-Lagrangian divg match the finite diff divg
             vol2a_fd   = dx*dy*dz .* ( 1.0 .- dts.*diva_fd )
@@ -239,13 +239,13 @@ function test_SLdivergence()
             fig7 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
             fig8 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
             fig9 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
-            plot!(fig7,dts[1:n],vol2a[1:n]   ,                          label="Vol(A)")
-            scatter!(fig7,dts[1:n],vol2a_fd[1:n],markershape=:+,        label="Vol(A)_fd")
+            plot!(   fig7,dts[1:n],vol2a[1:n]   ,                       label="Vol(A)")
+            scatter!(fig7,dts[1:n],vol2a_fd[1:n],marker=(:+,:black),    label="Vol(A)_fd")
             plot!(   fig8,dts[1:n],vol2b[1:n]   ,                       label="Vol(B)")
-            scatter!(fig8,dts[1:n],vol2b_fd[1:n],markershape=:+,        label="Vol(B)_fd")
+            scatter!(fig8,dts[1:n],vol2b_fd[1:n],marker=(:+,:black),    label="Vol(B)_fd")
             plot!(   fig9,dts[1:n],vol2a[1:n]+vol2b[1:n].-vol1,         label="(Vol(A) + Vol(B)) - vol1")
-            plot!(   fig9,dts[1:n],vol2ab[1:n],                         label="Vol(A+B) ")
-            scatter!(fig9,dts[1:n],vol2ab_fd[1:n],markershape=:+,       label="Vol(A+B)_fd")
+            plot!(   fig9,dts[1:n],vol2ab[1:n], l=:dash,                label="Vol(A+B) ")
+            scatter!(fig9,dts[1:n],vol2ab_fd[1:n],marker=(:+,:black),   label="Vol(A+B)_fd")
             #scatter!(fig9,dts[1:n],vol2apb_fd[1:n].-vol1,markershape=:circle,label="(Vol(A) + Vol(B))_fd - vol1")
             
             # Put all plots together
