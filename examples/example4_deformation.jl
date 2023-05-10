@@ -8,20 +8,22 @@ using NavierStokes_Parallel
 param = parameters(
     # Constants
     mu=0.0,            # Dynamic viscosity
-    rho=1.0,           # Density
+    rho_liq=1.0,           # Density
+    rho_gas = 0.1,
+    sigma = 1,
     Lx=1.0,            # Domain size
     Ly=1.0,
     Lz=1/50,
     tFinal=8.0,      # Simulation time
     
     # Discretization inputs
-    Nx=125,           # Number of grid cells
-    Ny=125,
+    Nx=10,           # Number of grid cells
+    Ny=10,
     Nz=1,
-    stepMax=10000,   # Maximum number of timesteps
+    stepMax=3,   # Maximum number of timesteps
     max_dt = 0.008,
     CFL=10.9,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_period=10,     # Number of steps between when plots are updated
+    out_period=1,     # Number of steps between when plots are updated
     tol = 1e-3,
 
     # Processors 
@@ -37,6 +39,7 @@ param = parameters(
     # Turn off NS solver
     solveNS = false,
     VFVelocity = "Deformation",
+    # VTK_dir= "VTK_example_static_bubble1"
 
     # Iteration method used in @loop macro
     #iter_type = "standard",
@@ -66,7 +69,8 @@ function IC!(P,u,v,w,VF,mesh)
     # Volume Fraction
     rad=0.15
     xo=0.5
-    yo=0.75
+    yo=0.5
+
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end

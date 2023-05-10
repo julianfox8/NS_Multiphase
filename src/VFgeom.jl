@@ -270,6 +270,7 @@ function cell2tets_withProject(i, j, k, u, v, w, dt, mesh)
 end
 
 function cell2tets_withProject_uvwf(i, j, k, uf, vf, wf, dt, mesh)
+
     @unpack x, y, z = mesh
     # Cell vertices 
     p = Matrix{Float64}(undef, (3, 8))
@@ -281,12 +282,13 @@ function cell2tets_withProject_uvwf(i, j, k, uf, vf, wf, dt, mesh)
     p[:, 6] = [x[i+1], y[j], z[k+1]]
     p[:, 7] = [x[i], y[j+1], z[k+1]]
     p[:, 8] = [x[i+1], y[j+1], z[k+1]]
+
     # For each vertex
     I = Matrix{Int64}(undef, (3, 8))
     for n = 1:8
         # Perform semi-Lagrangian projection
         p[:, n] = project_uvwf(p[:, n], i, j, k, uf, vf, wf, -dt, mesh)
-        # Get cell index of projected vertex
+        # # Get cell index of projected vertex
         I[:, n] = pt2index(p[:, n], i, j, k, mesh)
     end
     # Make five tets 
@@ -335,7 +337,7 @@ function cell2tets_withProject_uvwf(i, j, k, uf, vf, wf, dt, mesh)
     inds[:, 3, 5] = I[:, 7]
     inds[:, 4, 5] = I[:, 6]
 
-    return tets, inds
+    return tets,inds
 end
 
 
@@ -350,20 +352,19 @@ function tet_vol(verts)
         ( a(1) * (b(2) * c(3) - c(2) * b(3))
         - a(2) * (b(1) * c(3) - c(1) * b(3))
         + a(3) * (b(1) * c(2) - c(1) * b(2)))
+    if tet_vol == isnan
+        error("tet_vol is nan")
+    end
     return tet_vol
 end
 
-"""
-Computes volume of tets
-"""
 function tets_vol(tets)
-    tets_vol = 0.0 
-    for n in 1:size(tets,3)
-        tets_vol += tet_vol(tets[:,:,n])
+    vol= 0.0
+    for n=1:size(tets,3)
+        vol += tet_vol(tets[:,:,n])
     end
-    return tets_vol
+    return vol
 end
-
 """ 
 Determine cut case based on sign of d's
 """

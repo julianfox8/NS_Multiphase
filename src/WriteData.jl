@@ -52,9 +52,9 @@ function format(iter)
     return @sprintf("%05i",iter)
 end
 
-function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,tmp,param,mesh,par_env,pvd,pvd_PLIC)
+function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_PLIC)
     @unpack VTK_dir = param
-    
+    # println(Curve)
     # Check if should write output
     if rem(iter,param.out_period)!==0
         return nothing
@@ -91,6 +91,7 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,tmp,param,mesh,par_env,pv
                 nx[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
                 ny[imin_:imax_,jmin_:jmax_,kmin_:kmax_],
                 nz[imin_:imax_,jmin_:jmax_,kmin_:kmax_] )
+            pvtk["Curve"] = @views Curve[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             # Indices for debugging
             for i=imin_:imax_; tmp[i,:,:] .= i; end
             pvtk["i_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]

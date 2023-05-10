@@ -256,23 +256,36 @@ function project(pt,i,j,k,u,v,w,dt,mesh)
     return pt 
 end
 
+function project_face(pt,i,j,k,u,v,w,dt,mesh)
+    v1=get_velocity_face(pt         ,i,j,k,u,v,w,mesh)
+    v2=get_velocity_face(pt+0.5dt*v1,i,j,k,u,v,w,mesh)
+    v3=get_velocity_face(pt+0.5dt*v2,i,j,k,u,v,w,mesh)
+    v4=get_velocity_face(pt+   dt*v3,i,j,k,u,v,w,mesh)
+    pt+=dt/6.0*(v1+2.0v2+2.0v3+v4)
+    return pt 
+end
+
 """ 
 Semi-Lagrangian projection of point back in time 
 using face velocities
+
 """ 
-function project_uvwf(pt,i,j,k,uf,vf,wf,dt,mesh)
-    v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
-    pt+=dt*v1
-    return pt 
-end
+#euler steo
 # function project_uvwf(pt,i,j,k,uf,vf,wf,dt,mesh)
 #     v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
-#     v2=get_velocity_face(pt+0.5dt*v1,i,j,k,uf,vf,wf,mesh)
-#     v3=get_velocity_face(pt+0.5dt*v2,i,j,k,uf,vf,wf,mesh)
-#     v4=get_velocity_face(pt+   dt*v3,i,j,k,uf,vf,wf,mesh)
-#     pt+=dt/6.0*(v1+2.0v2+2.0v3+v4)
+#     pt+=dt*v1
 #     return pt 
 # end
+
+#runge-kutta step
+function project_uvwf(pt,i,j,k,uf,vf,wf,dt,mesh)
+    v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
+    v2=get_velocity_face(pt+0.5dt*v1,i,j,k,uf,vf,wf,mesh)
+    v3=get_velocity_face(pt+0.5dt*v2,i,j,k,uf,vf,wf,mesh)
+    v4=get_velocity_face(pt+   dt*v3,i,j,k,uf,vf,wf,mesh)
+    pt+=dt/6.0*(v1+2.0v2+2.0v3+v4)
+    return pt 
+end
 
 """ 
 Compute unstructured mesh representing PLIC 

@@ -107,3 +107,60 @@ function check_normal!(err,nx_,ny_,nz_,nx,ny,nz,VF,i,j,k,param,mesh)
     
     return nothing
 end
+
+
+"""
+Compute the curvature using the unit normal vectors
+"""
+function compute_curvature!(Curve,VF,param,mesh)
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    hf = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    hfx = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    hfy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    hfxx = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    hfyy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    hfxy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+
+    # height function
+    @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        for kk = k-2:k+2, jj = j-2:j+2, ii = i-6:i+6
+            hf[i,j,k] += VF[ii,jj,kk]
+        end
+    end
+
+    #calculate first and second derivatives of height function
+    @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        hfx[i,j,k] = (hf[i+1,j,k]-hf[i-1,j,k])/(2*dx)
+        hfy[i,j,k] = (hf[i,j+1,k]-hf[i,j-1,k])/(2*dy)
+        hfxx[i,j,k] = (hf[i+1,j,k]-2*hf[i,j,k]+hf[i-1,j,k])/(dx^2)
+        hfyy[i,j,k] = (hf[i,j+1,k]-2*hf[i,j,k]+hf[i,j-1,k])/(dy^2)
+        hfxy[i,j,k] = (hf[i+1,j+1,k]-hf[i+1,j-1,k]-hf[i-1,j+1,k]+hf[i-1,j-1,k])/(4*dy*dx)
+    end
+
+    @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        Curve[i,j,k] = (hfxx[i,j,k]+hfy[i,j,k]+hfxx[i,j,k]*hfy[i,j,k]^2+hfyy[i,j,k]*hfx[i,j,k]^2-2*hfxy[i,j,k]*hfx[i,j,k]*hfy[i,j,k])/((1+hfx[i,j,k]^2+hfy[i,j,k]^2)^(3/2))
+    end
+    return nothing
+end
+
+
+"""
+Compute surface tension force (using Continuous surface force method)
+"""
+function compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
+    @unpack sigma = param
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+
+    fill!(sfx,0.0)
+    fill!(sfy,0.0)
+    fill!(sfz,0.0)
+
+    for k = kmin_+1:kmax_-1, j = jmin_+1:jmax_-1, i = imin_+1:imax_-1
+        sfx[i,j,k] = -sigma/2/dx*(VF[i+1,j,k]-VF[i,j,k])*(Curve[i+1,j,k]-Curve[i,j,k])
+        sfy[i,j,k] = -sigma/2/dy*(VF[i,j+1,k]-VF[i,j,k])*(Curve[i,j+1,k]-Curve[i,j,k])
+        sfz[i,j,k] = -sigma/2/dz*(VF[i,j,k+1]-VF[i,j,k])*(Curve[i,j,k+1]-Curve[i,j,k])
+    end
+    return nothing
+end
+
+

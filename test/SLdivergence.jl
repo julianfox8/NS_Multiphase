@@ -64,7 +64,8 @@ function test_SLdivergence()
     #####################################
     # Play with different velocity fields
     #####################################
-    for case in ["A","B","C","D"]
+    # for case in ["C"]
+    for case in ["A","B","C","D"]    
         # Set velocity fields 
         for k=kmino_:kmaxo_, j=jmino_:jmaxo_, i=imino_:imaxo_
 
@@ -76,6 +77,8 @@ function test_SLdivergence()
                 ufa[i,j,k] = ym[j] + x[i]
                 vfa[i,j,k] = 0.0
                 wfa[i,j,k] = 0.0
+
+
                 # Field b
                 ufb[i,j,k] = 0.0
                 vfb[i,j,k] = xm[i] + y[j]
@@ -103,8 +106,8 @@ function test_SLdivergence()
                 vfa[i,j,k] =  (xm[i]-1.5)
                 wfa[i,j,k] = 0.0
                 # Field b
-                ufb[i,j,k] =  (ym[j]-1.5) #x[i]-0.25
-                vfb[i,j,k] = -(xm[i]-1.5) #y[j]-0.25
+                ufb[i,j,k] =  2*(ym[j]-1.5) #x[i]-0.25
+                vfb[i,j,k] = 2*(xm[i]-1.5) #y[j]-0.25
                 wfb[i,j,k] = 0.0
 
             elseif case == "D"
@@ -112,8 +115,8 @@ function test_SLdivergence()
                 # ∇⋅(A+B) = ∇⋅A + ∇⋅B 
 
                 # Field a
-                ufa[i,j,k] = -(ym[j]-1.5)
-                vfa[i,j,k] =  (xm[i]-1.5)
+                ufa[i,j,k] = -(y[j]-1.5)
+                vfa[i,j,k] =  (x[i]-1.5)
                 wfa[i,j,k] = 0.0
                 # Field b
                 ufb[i,j,k] = x[i]-0.25
@@ -214,13 +217,13 @@ function test_SLdivergence()
             fig4 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
             fig5 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
             fig6 = plot(legend=:outertop,foreground_color_legend = nothing,xlim=[0,maximum(dts)], ylim=[ymin,ymax])
-            plot!(   fig4,dts[1:n],diva[1:n],label="∇⋅A",           lw=3              )
-            scatter!(fig4,dts[1:n],diva_fd[1:n],label="∇⋅A_fd",     marker=(:+,:black))
-            plot!(   fig5,dts[1:n],divb[1:n],label="∇⋅B",           lw=3              )
-            scatter!(fig5,dts[1:n],divb_fd[1:n],label="∇⋅B_fd",     marker=(:+,:black))
-            plot!(   fig6,dts[1:n],divab[1:n],label="∇⋅(A+B)",      lw=3              )
-            plot!(   fig6,dts[1:n],diva[1:n].+divb[1:n],label="∇⋅A + ∇⋅B",l=:dash,lw=3)
-            scatter!(fig6,dts[1:n],divab_fd[1:n],label="∇⋅(A+B)_fd",marker=(:+,:black))
+            plot!(   fig4,dts[1:n],diva[1:n],label="∇⋅A (SL)",           lw=3              )
+            scatter!(fig4,dts[1:n],diva_fd[1:n],label="∇⋅A (FD)",     marker=(:+,:black))
+            plot!(   fig5,dts[1:n],divb[1:n],label="∇⋅B (SL)",           lw=3              )
+            scatter!(fig5,dts[1:n],divb_fd[1:n],label="∇⋅B (FD)",     marker=(:+,:black))
+            plot!(   fig6,dts[1:n],divab[1:n],label="∇⋅(A+B) (SL)",      lw=3              )
+            plot!(   fig6,dts[1:n],diva[1:n].+divb[1:n],label="∇⋅A + ∇⋅B (SL)",l=:dash,lw=3)
+            scatter!(fig6,dts[1:n],divab_fd[1:n],label="∇⋅(A+B) (FD)",marker=(:+,:black))
             
             # Plot of volumes vs time 
             # Needed volume is the projected volume to have the semi-Lagrangian divg match the finite diff divg
