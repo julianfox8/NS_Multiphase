@@ -2,17 +2,19 @@
 Apply BC's on pressure
 """
 function Neumann!(A,mesh,par_env)
-
+    # @unpack xper,yper,zper = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack nprocx,nprocy,nprocz,irankx,iranky,irankz = par_env
 
+
     irankx == 0        ? A[imin_-1,:,:]=A[imin_,:,:] : nothing # Left 
     irankx == nprocx-1 ? A[imax_+1,:,:]=A[imax_,:,:] : nothing # Right
+
     iranky == 0        ? A[:,jmin_-1,:]=A[:,jmin_,:] : nothing # Bottom
     iranky == nprocy-1 ? A[:,jmax_+1,:]=A[:,jmax_,:] : nothing # Top
+
     irankz == 0        ? A[:,:,kmin_-1]=A[:,:,kmin_] : nothing # Back
     irankz == nprocz-1 ? A[:,:,kmax_+1]=A[:,:,kmax_] : nothing # Front
-    
     return nothing
 end
 
@@ -85,13 +87,13 @@ end
 
 
 function initArrays(mesh)
-    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Allocate memory
     u  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(u ,0.0)
     v  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(v ,0.0)
     w  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(w ,0.0)
-    VF = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(VF,0.0)
+    VF = OffsetArray{Float64}(undef, imino_-6:imaxo_+6,jmino_-2:jmaxo_+2,kmino_-2:kmaxo_+2); fill!(VF,0.0)
     nx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(nx,0.0)
     ny = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(ny,0.0)
     nz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(nz,0.0)
@@ -107,9 +109,11 @@ function initArrays(mesh)
     tmp1 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp1,0.0)
     tmp2 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp2,0.0)
     tmp3 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp3,0.0)
-    tmp4 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp4,0.0)
+    tmp4 = OffsetArray{Float64}(undef, imino_-6:imaxo_+6,jmino_-2:jmaxo_+2,kmino_-2:kmaxo_+2); fill!(tmp4,0.0)
+    Curve = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_); fill!(Curve,0.0)
 
-    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4
+
+    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve
 end
 
 """
@@ -288,9 +292,9 @@ function get_velocity_uface(pt,i,j,k,uf,mesh)
        k=k+1
     end
     # Prepare tri-linear interpolation coefficients
-    wx1=(pt[1]- x[i])/( x[i+1]- x[i]); wx2=1.0-wx1
-    wy1=(pt[2]-ym[j])/(ym[j+1]-ym[j]); wy2=1.0-wy1
-    wz1=(pt[3]-zm[k])/(zm[k+1]-zm[k]); wz2=1.0-wz1
+    wx1=(pt[1]- x[i])/̂( x[i+1]- x[i]); wx2=1.0-wx1
+    wy1=(pt[2]-ym[j])/̂(ym[j+1]-ym[j]); wy2=1.0-wy1
+    wz1=(pt[3]-zm[k])/̂(zm[k+1]-zm[k]); wz2=1.0-wz1
     # Tri-linear interpolation
     u_pt=( wz1*(wy1*(wx1*uf[i+1,j+1,k+1]  +
                      wx2*uf[i  ,j+1,k+1]) +
@@ -330,9 +334,9 @@ function get_velocity_vface(pt,i,j,k,vf,mesh)
        k=k+1
     end
     # Prepare tri-linear interpolation coefficients
-    wx1=(pt[1]-xm[i])/(xm[i+1]-xm[i]); wx2=1.0-wx1
-    wy1=(pt[2]- y[j])/( y[j+1]- y[j]); wy2=1.0-wy1
-    wz1=(pt[3]-zm[k])/(zm[k+1]-zm[k]); wz2=1.0-wz1
+    wx1=(pt[1]-xm[i])/̂(xm[i+1]-xm[i]); wx2=1.0-wx1
+    wy1=(pt[2]- y[j])/̂( y[j+1]- y[j]); wy2=1.0-wy1
+    wz1=(pt[3]-zm[k])/̂(zm[k+1]-zm[k]); wz2=1.0-wz1
     # Tri-linear interpolation
     v_pt=( wz1*(wy1*(wx1*vf[i+1,j+1,k+1]  +
                      wx2*vf[i  ,j+1,k+1]) +
@@ -372,9 +376,9 @@ function get_velocity_wface(pt,i,j,k,wf,mesh)
        k=k+1
     end
     # Prepare tri-linear interpolation coefficients
-    wx1=(pt[1]-xm[i])/(xm[i+1]-xm[i]); wx2=1.0-wx1
-    wy1=(pt[2]-ym[j])/(ym[j+1]-ym[j]); wy2=1.0-wy1
-    wz1=(pt[3]- z[k])/( z[k+1]- z[k]); wz2=1.0-wz1
+    wx1=(pt[1]-xm[i])/̂(xm[i+1]-xm[i]); wx2=1.0-wx1
+    wy1=(pt[2]-ym[j])/̂(ym[j+1]-ym[j]); wy2=1.0-wy1
+    wz1=(pt[3]- z[k])/̂( z[k+1]- z[k]); wz2=1.0-wz1
     # Tri-linear interpolation
     w_pt=( wz1*(wy1*(wx1*wf[i+1,j+1,k+1]  +
                      wx2*wf[i  ,j+1,k+1]) +

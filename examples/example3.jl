@@ -9,17 +9,19 @@ param = parameters(
     # Constants
     mu=10.0,       # Dynamic viscosity
     rho=1.0,           # Density
+    sigma = 0.1, #surface tension coefficient
     Lx=3.0,            # Domain size
     Ly=3.0,
     Lz=3.0,
     tFinal=1.0,      # Simulation time
     
     # Discretization inputs
-    Nx=50,           # Number of grid cells
-    Ny=50,
-    Nz=1,
-    stepMax=100,   # Maximum number of timesteps
-    CFL=0.01,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    Nx=10,           # Number of grid cells
+    Ny=10,
+    Nz=2,
+    stepMax=5,   # Maximum number of timesteps
+    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
     tol = 1e-3,
 
@@ -30,8 +32,16 @@ param = parameters(
 
     # Periodicity
     xper = false,
-    yper = true,
-    zper = true,
+    yper = false,
+    zper = false,
+
+    # pressureSolver = "GaussSeidel",
+    # pressureSolver = "ConjugateGradient",
+    # pressureSolver = "Secant",
+    pressureSolver = "NLsolve",
+    iter_type = "standard",
+    # VTK_dir= "VTK_example_3_25_semi_lag"
+
 )
 
 """
@@ -51,7 +61,7 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    fill!(VF,0.0)
+    fill!(VF,0.2)
 
     return nothing    
 end

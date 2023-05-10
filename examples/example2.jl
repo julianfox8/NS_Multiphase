@@ -17,12 +17,12 @@ param = parameters(
     tFinal=100.0,      # Simulation time
     
     # Discretization inputs
-    Nx=50,           # Number of grid cells
-    Ny=50,
-    Nz=10,
+    Nx=25,           # Number of grid cells
+    Ny=25,
+    Nz=1,
     stepMax=20,   # Maximum number of timesteps
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    out_period=10,     # Number of steps between when plots are updated
+    out_period=1,     # Number of steps between when plots are updated
     tol = 1e-3,
 
     # Processors 
@@ -34,6 +34,7 @@ param = parameters(
     xper = false,
     yper = false,
     zper = false,
+    # VTK_dir= "VTK_example_2"
 )
 
 """
