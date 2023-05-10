@@ -1,0 +1,7 @@
+/Manifest.toml
+
+# Outputs
+*.png
+
+# VTK
+VTK*
