@@ -8,7 +8,7 @@ using NavierStokes_Parallel
 param = parameters(
     # Constants
     mu=0.0,            # Dynamic viscosity
-    rho_liq=1.0,           # Density
+    rho=1.0,           # Density
     rho_gas = 0.1,
     sigma = 1,
     Lx=1.0,            # Domain size

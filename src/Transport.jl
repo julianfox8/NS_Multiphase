@@ -1,5 +1,5 @@
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!)
-    @unpack rho_liq,mu = param
+    @unpack rho,mu = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Create band around interface 
@@ -23,29 +23,9 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     d = Array{Float64}(undef, 4,nThread)
     newtet = Array{Float64}(undef, 3, 4,nThread)
 
-    #need to introduce a way to determine whether gas or liquid
-    #we can determine whether we or in the bubble dependent on the liquid volume fraction
-    rho = rho_liq
-
-
-    #need to introduce gravity term into the transport
-
-
-
-
 
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-
-        # #need a method to determine the fluid properties along the interface
-        # rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
-        # mu = 1/(VF[i,j,k]/mu_liq+((1-VF[i,j,k])/mu_gas))
-
-        # Compute surface tension using curvature and normal vectors
-        
-
-
-        # Calculate inertia near or away from the interface
         # Check if near interface
         if abs(band[i,j,k]) <= 1
 

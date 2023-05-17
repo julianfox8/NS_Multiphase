@@ -10,8 +10,7 @@ using Random
 param = parameters(
     # Constants
     mu=10.0,       # Dynamic viscosity
-    rho_liq=1.0,           # Density
-    rho_gas =0.1, 
+    rho=1.0,           # Density
     sigma = 0.1, #surface tension coefficient
     Lx=1.0,            # Domain size
     Ly=1.0,
