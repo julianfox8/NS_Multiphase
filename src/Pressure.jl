@@ -114,25 +114,26 @@ function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_en
     @unpack rho_liq= param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     
-    for ks = k:k+1, js=j:j+1, is=i:i+1
-        gradx[i,j,k]=(P[i,j,k]-P[i-1,j,k])/dx
-        grady[i,j,k]=(P[i,j,k]-P[i,j-1,k])/dy
-        gradz[i,j,k]=(P[i,j,k]-P[i,j,k-1])/dz
-        uf1 = uf-dt/rho_liq*gradx
-        vf1 = vf-dt/rho_liq*grady
-        wf1 = wf-dt/rho_liq*gradz
-        if abs(band[i,j,k]) <= 1
-            tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
-            if any(isnan,tets)
-                error("Nan in tets at ", i,j,k)
-            end
-            v2 = dx*dy*dz
-            v1 = tets_vol(tets)
-            LHS[i,j,k] = (v2-v1) /̂ v2 /̂ dt
-        else 
-            lap!(LHS,P,param,mesh)
-            LHS[i,j,k] = RHS[i,j,k] - LHS[i,j,k]
+    #probably dont need to calculate every pt but need a 3x3 stencil for velocity projection with i,j,k being in a corner
+    #maybe want to use a second order approx
+    gradx[i,j,k]=(P[i+1,j,k]-P[i-1,j,k])/(2*dx)
+    grady[i,j,k]=(P[i,j+1,k]-P[i,j-1,k])/(2*dy)
+    gradz[i,j,k]=(P[i,j,k+1]-P[i,j,k-1])/(2*dz)
+    uf1 = uf-dt/rho_liq*gradx
+    vf1 = vf-dt/rho_liq*grady
+    wf1 = wf-dt/rho_liq*gradz
+
+    if abs(band[i,j,k]) <= 1
+        tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
+        if any(isnan,tets)
+            error("Nan in tets at ", i,j,k)
         end
+        v2 = dx*dy*dz
+        v1 = tets_vol(tets)
+        LHS[i,j,k] = (v2-v1) /̂ v2 /̂ dt
+    else 
+        lap!(LHS,P,param,mesh)
+        LHS[i,j,k] = RHS[i,j,k] - LHS[i,j,k]
     end
     return LHS[i,j,k]
 end
@@ -140,8 +141,19 @@ end
 
 
         
+function outflowCorrection!(AP,uf,vf,wf)
+    iter = 0; maxIter=100
+    d = sum(AP)
+    while abs(d) >tol*1e-1
+        iter += 1
+        #need to compute correction for 3D and not specific to right side outflow
 
 
+        if iter == maxIter
+            @warn("outflowCorrection did not converge!")
+            return
+        end
+    end
 
 function computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
     @unpack Nx,Ny,Nz = param
@@ -213,30 +225,18 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
 
         # compute jacobian
         J = computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
-        # println(J)
-        # Jv = vec(J)
-        # P_int = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
 
-        # Pv = vec(P_int)
-        # APv = vec(AP)
-        # Pv .-= Jv./APv
-        # P_int = reshape(Pv, (imin_:imax_, jmin_:jmax_, kmin_:kmax_))
-
-        # #avoid drift
-        P_int .-= mean(P_int)
-        # # println(P_int)
-        
         # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P_int
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= AP/J
 
-        P .-=mena(P)
-        
+        P .-=mean(P)
 
-
+        #compute new Ap
+        A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
 
 
         #Need to introduce outflow correction
-
+        outflowCorrection!(AP,uf,vf,wf,tol,dt)
         #compute new Ap
         A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
 
