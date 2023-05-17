@@ -223,11 +223,16 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
         # P_int = reshape(Pv, (imin_:imax_, jmin_:jmax_, kmin_:kmax_))
 
         # #avoid drift
-        # P_int .-= mean(P_int)
+        P_int .-= mean(P_int)
         # # println(P_int)
         
         # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P_int
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= AP/J
+
+        P .-=mena(P)
+        
+
+
 
 
         #Need to introduce outflow correction

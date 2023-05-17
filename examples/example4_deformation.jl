@@ -17,10 +17,10 @@ param = parameters(
     tFinal=8.0,      # Simulation time
     
     # Discretization inputs
-    Nx=10,           # Number of grid cells
-    Ny=10,
+    Nx=30,           # Number of grid cells
+    Ny=30,
     Nz=1,
-    stepMax=3,   # Maximum number of timesteps
+    stepMax=100,   # Maximum number of timesteps
     max_dt = 0.008,
     CFL=10.9,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     out_period=1,     # Number of steps between when plots are updated
@@ -39,7 +39,7 @@ param = parameters(
     # Turn off NS solver
     solveNS = false,
     VFVelocity = "Deformation",
-    # VTK_dir= "VTK_example_static_bubble1"
+    VTK_dir= "VTK_example_static_bubble1"
 
     # Iteration method used in @loop macro
     #iter_type = "standard",
