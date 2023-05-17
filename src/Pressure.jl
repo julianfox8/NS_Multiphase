@@ -36,8 +36,6 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_
         iter = GaussSeidel!(P,RHS,param,mesh,par_env)
     elseif pressureSolver == "ConjugateGradient"
         iter = conjgrad!(P,RHS,param,mesh,par_env)
-    elseif pressureSolver == "Secant"
-        iter = Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
     elseif pressureSolver == "NLsolve"
         iter = computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
     else
@@ -109,59 +107,7 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
     return nothing
 end
 
-#local A! matrix
-function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-    @unpack rho_liq= param
-    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    
-    for ks = k:k+1, js=j:j+1, is=i:i+1
-        gradx[i,j,k]=(P[i,j,k]-P[i-1,j,k])/dx
-        grady[i,j,k]=(P[i,j,k]-P[i,j-1,k])/dy
-        gradz[i,j,k]=(P[i,j,k]-P[i,j,k-1])/dz
-        uf1 = uf-dt/rho_liq*gradx
-        vf1 = vf-dt/rho_liq*grady
-        wf1 = wf-dt/rho_liq*gradz
-        if abs(band[i,j,k]) <= 1
-            tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
-            if any(isnan,tets)
-                error("Nan in tets at ", i,j,k)
-            end
-            v2 = dx*dy*dz
-            v1 = tets_vol(tets)
-            LHS[i,j,k] = (v2-v1) /̂ v2 /̂ dt
-        else 
-            lap!(LHS,P,param,mesh)
-            LHS[i,j,k] = RHS[i,j,k] - LHS[i,j,k]
-        end
-    end
-    return LHS[i,j,k]
-end
 
-
-
-        
-
-
-
-function computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
-    @unpack Nx,Ny,Nz = param
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-
-    J = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    dp = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-
-    delta = 1.0
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        dp[i,j,k] += delta
-        J[i,j,k] = (
-            (A!(i,j,k,RHS,LHS1,uf,vf,wf,P+dp,dt,gradx,grady,gradz,band,param,mesh,par_env)
-            - (A!(i,j,k,RHS,LHS2,uf,vf,wf,P-dp,dt,gradx,grady,gradz,band,param,mesh,par_env))
-            ./(2*delta)))
-    end
-    return J 
-end
 
 # NLsolve Library
 function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
@@ -193,57 +139,6 @@ function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par
     P .= out.zero
 
     return out.iterations
-end
-
-
-# Secant method
-function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
-    @unpack tol,Nx,Ny,Nz = param
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-    @unpack dx,dy,dz = mesh
-
-
-    AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-
-    # Iterate 
-    iter=0
-    while true
-        iter += 1
-
-        # compute jacobian
-        J = computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
-        # println(J)
-        # Jv = vec(J)
-        # P_int = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-
-        # Pv = vec(P_int)
-        # APv = vec(AP)
-        # Pv .-= Jv./APv
-        # P_int = reshape(Pv, (imin_:imax_, jmin_:jmax_, kmin_:kmax_))
-
-        # #avoid drift
-        # P_int .-= mean(P_int)
-        # # println(P_int)
-        
-        # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P_int
-        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= AP/J
-
-
-        #Need to introduce outflow correction
-
-        #compute new Ap
-        A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-
-        res = maximum(abs.(AP))
-        if res < tol
-            return P
-        end
-
-        @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
-
-    end    
-    
 end
 
 
