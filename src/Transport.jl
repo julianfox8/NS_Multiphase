@@ -49,7 +49,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         # Check if near interface
         if abs(band[i,j,k]) <= 1
 
-            compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
             # Semi-Lagrangian near interface 
             # ------------------------------
             # From projected cell and break into tets using face velocities
@@ -182,8 +181,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             us[i,j,k] = us[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] -
-                sfx[i,j,k]
+                Fz[i,j,k+1] - Fz[i,j,k] 
 
             )
         end
@@ -208,8 +206,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] -
-                sfy[i,j,k] 
+                Fz[i,j,k+1] - Fz[i,j,k]
             )
         end
 
@@ -235,14 +232,11 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             ws[i,j,k] = ws[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] -
-                sfz[i,j,k]
+                Fz[i,j,k+1] - Fz[i,j,k] 
             )
         end 
     end # Domain loop
 
-    # println(Curve)
-    # error("check")
 
     # Finish updating VF 
     VF .= VFnew

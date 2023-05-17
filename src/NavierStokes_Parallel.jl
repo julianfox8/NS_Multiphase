@@ -113,9 +113,6 @@ function run_solver(param, IC!, BC!)
     
             # # Call pressure Solver (handles processor boundaries for P)
             iter = pressure_solver!(P,uf,vf,wf,dt,band,param,mesh,par_env)
-    
-            # # Call pressure Solver (handles processor boundaries for P)
-            # iter = semi_lag_pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
  
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,param,mesh)
