@@ -112,33 +112,51 @@ end
 """
 Compute the curvature using the unit normal vectors
 """
-function compute_curvature!(Curve,VF,param,mesh)
+function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-    hf = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    hfx = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    hfy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    hfxx = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    hfyy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    hfxy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
 
-    # height function
-    @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-        for kk = k-2:k+2, jj = j-2:j+2, ii = i-6:i+6
-            hf[i,j,k] += VF[ii,jj,kk]
+    if nx[i,j,k] > ny[i,j,k] && nx[i,j,k] > nz[i,j,k]
+        hf = OffsetArray{Float64}(undef, j-1:j+1,k-1:k+1)
+        fill!(hf,0.0)
+        for kk = k-1:k+1, jj = j-1:j+1,ii = i-3:i+3
+            hf[jj,kk] += VF[ii,jj,kk]
         end
-    end
+        hf/=(dy*dz)
+        hfy= (hf[j+1,k]-hf[j-1,k])/(2*dy)
+        hfz = (hf[j,k+1]-hf[j,k-1])/(2*dz)
+        hfyy = (hf[j+1,k]-2*hf[j,k]+hf[j-1,k])/(dy^2)
+        hfzz = (hf[j,k+1]-2*hf[j,k]+hf[j,k-1])/(dz^2)
+        hfyz = (hf[j+1,k+1]-hf[j-1,k+1]-hf[j+1,k-1]+hf[j-1,k-1])/(4*dy*dz)
+        Curve[i,j,k] = (hfyy+hfzz+(hfyy*hfz^2)+(hfzz*hfy^2)-(2*hfyz*hfy*hfz))/((1+(hfy^2)+(hfz^2))^(3/2))
 
-    #calculate first and second derivatives of height function
-    @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-        hfx[i,j,k] = (hf[i+1,j,k]-hf[i-1,j,k])/(2*dx)
-        hfy[i,j,k] = (hf[i,j+1,k]-hf[i,j-1,k])/(2*dy)
-        hfxx[i,j,k] = (hf[i+1,j,k]-2*hf[i,j,k]+hf[i-1,j,k])/(dx^2)
-        hfyy[i,j,k] = (hf[i,j+1,k]-2*hf[i,j,k]+hf[i,j-1,k])/(dy^2)
-        hfxy[i,j,k] = (hf[i+1,j+1,k]-hf[i+1,j-1,k]-hf[i-1,j+1,k]+hf[i-1,j-1,k])/(4*dy*dx)
-    end
+    elseif ny[i,j,k] > nx[i,j,k] && ny[i,j,k] > nz[i,j,k]
+        hf = OffsetArray{Float64}(undef, k-1:k+1,i-1:i+1)
+        fill!(hf,0.0)
+        for ii = i-1:i+1, kk = k-1:k+1, jj = j-3:j+3
+            hf[kk,ii] += VF[ii,jj,kk]
+        end
+        hf/=(dx*dz)
+        hfz = (hf[k+1,i]-hf[k-1,i])/(2*dz)
+        hfx = (hf[k,i+1]-hf[k,i-1])/(2*dx)
+        hfzz = (hf[k+1,i]-2*hf[k,i]+hf[k-1,i])/(dz^2)
+        hfxx = (hf[k,i+1]-2*hf[k,i]+hf[k,i-1])/(dx^2)
+        hfxz = (hf[k+1,i+1]-hf[k+1,i-1]-hf[k-1,i+1]+hf[k-1,i-1])/(4*dz*dx)
+        Curve[i,j,k] = (hfzz+hfxx+(hfzz*hfx^2)+(hfxx*hfz^2)-(2*hfxz*hfz*hfx))/((1+(hfz^2)+(hfx^2))^(3/2))
 
-    @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-        Curve[i,j,k] = (hfxx[i,j,k]+hfy[i,j,k]+hfxx[i,j,k]*hfy[i,j,k]^2+hfyy[i,j,k]*hfx[i,j,k]^2-2*hfxy[i,j,k]*hfx[i,j,k]*hfy[i,j,k])/((1+hfx[i,j,k]^2+hfy[i,j,k]^2)^(3/2))
+    elseif nz[i,j,k] > ny[i,j,k] && nz[i,j,k] > nx[i,j,k]
+        hf = OffsetArray{Float64}(undef, i-1:i+1,j-1:j+1)
+        fill!(hf,0.0)
+        for jj = j-1:j+1, ii = i-1:i+1, kk = k-3:k+3
+            hf[ii,jj] += VF[ii,jj,kk]
+        end
+        hf/=(dy*dx)
+        hfx = (hf[i+1,j]-hf[i-1,j])/(2*dx)
+        hfy = (hf[i,j+1]-hf[i,j-1])/(2*dy)
+        hfxx = (hf[i+1,j]-2*hf[i,j]+hf[i-1,j])/(dx^2)
+        hfyy = (hf[i,j+1]-2*hf[i,j]+hf[i,j-1])/(dy^2)
+        hfxy = (hf[i+1,j+1]-hf[i+1,j-1]-hf[i-1,j+1]+hf[i-1,j-1])/(4*dy*dx)
+        Curve[i,j,k] = (hfxx+hfyy+(hfxx*hfy^2)+(hfyy*hfx^2)-(2*hfxy*hfx*hfy))/((1+(hfx^2)+(hfy^2))^(3/2))
+
     end
     return nothing
 end

@@ -11,19 +11,9 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     # Compute PLIC reconstruction 
     computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
-    # # Compute surface tension using curvature and normal vectors
-    # compute_curvature!(Curve,VF,param,mesh)
-    # # println(nx)
-    # # println(Curve)
-
-    # #maybe use temp arrays
-    # sfx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    # sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    # sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    # compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
-
     # Transport velocity and volume fraction 
     fill!(VFnew,0.0)
+    fill!(Curve,0.0)
 
     # Preallocate for cutTet
     nLevel=100
@@ -51,11 +41,15 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         # rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
         # mu = 1/(VF[i,j,k]/mu_liq+((1-VF[i,j,k])/mu_gas))
 
+        # Compute surface tension using curvature and normal vectors
+        
+
 
         # Calculate inertia near or away from the interface
         # Check if near interface
         if abs(band[i,j,k]) <= 1
 
+            compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
             # Semi-Lagrangian near interface 
             # ------------------------------
             # From projected cell and break into tets using face velocities
@@ -87,7 +81,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             # --------------------------------------
             # VF (doesn't change)
             VFnew[i,j,k] = VF[i,j,k]
-
+        
             # u: x-velocity
             fill!(Fx,0.0) 
             for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
@@ -161,7 +155,13 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 )
             end
         end #end band conditional
-                
+
+
+           # #maybe use temp arrays
+        sfx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+        sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+        sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+        compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
         ## Need to introduce viscous and surface tension effects(how to add surface tension effects)
         fill!(Fx,0.0) 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
@@ -182,8 +182,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             us[i,j,k] = us[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] #-
-                #sfx[i,j,k]
+                Fz[i,j,k+1] - Fz[i,j,k] -
+                sfx[i,j,k]
 
             )
         end
@@ -208,8 +208,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] #-
-                #sfy[i,j,k] 
+                Fz[i,j,k+1] - Fz[i,j,k] -
+                sfy[i,j,k] 
             )
         end
 
@@ -235,95 +235,14 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             ws[i,j,k] = ws[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] #-
-                #sfz[i,j,k]
+                Fz[i,j,k+1] - Fz[i,j,k] -
+                sfz[i,j,k]
             )
-        end
-        
-            # ###original
-            # # u: x-velocity
-            # fill!(Fx,0.0) 
-            # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
-            #     uface = 0.5*(u[i-1,j,k] + u[i,j,k])
-            #     dudx = (u[i,j,k] - u[i-1,j,k])/dx
-            #     Fx[i,j,k] = dy*dz*( - uf[i,j,k]*uface + mu/rho*dudx ) # uf*uf or uf*uface ???
-            # end
-            # fill!(Fy,0.0)
-            # for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_ # Loop over faces 
-            #     uface = 0.5*(u[i,j-1,k] + u[i,j,k])
-            #     dudy = (u[i,j,k] - u[i,j-1,k])/dy
-            #     Fy[i,j,k] = dx*dz*( - vf[i,j,k]*uface + mu/rho*dudy )
-            # end
-            # fill!(Fz,0.0)
-            # for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_ # Loop over faces 
-            #     uface = 0.5*(u[i,j,k-1] + u[i,j,k])
-            #     dudz = (u[i,j,k] - u[i,j,k-1])/dz
-            #     Fz[i,j,k] = dx*dy*( - wf[i,j,k]*uface + mu/rho*dudz )
-            # end
-            # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-            #     us[i,j,k] = u[i,j,k] + dt/(dx*dy*dz) * (
-            #         Fx[i+1,j,k] - Fx[i,j,k] +
-            #         Fy[i,j+1,k] - Fy[i,j,k] + 
-            #         Fz[i,j,k+1] - Fz[i,j,k]
-            #     )
-            # end
-
-            # # v: y-velocity
-            # fill!(Fx,0.0)
-            # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
-            #     vface = 0.5*(v[i-1,j,k] + v[i,j,k])
-            #     dvdx = (v[i,j,k] - v[i-1,j,k])/dx
-            #     Fx[i,j,k] = dy*dz*( - uf[i,j,k]*vface + mu/rho*dvdx) # uf*uf or uf*uface ???
-            # end
-            # fill!(Fy,0.0)
-            # for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_ # Loop over faces 
-            #     vface = 0.5*(v[i,j-1,k] + v[i,j,k])
-            #     dvdy = (v[i,j,k] - v[i,j-1,k])/dy
-            #     Fy[i,j,k] = dx*dz*( - vf[i,j,k]*vface + mu/rho*dvdy )
-            # end
-            # fill!(Fz,0.0)
-            # for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_ # Loop over faces 
-            #     vface = 0.5*(v[i,j,k-1] + v[i,j,k])
-            #     dvdz = (v[i,j,k] - v[i,j,k-1])/dz
-            #     Fz[i,j,k] = dx*dy*( - wf[i,j,k]*vface + mu/rho*dvdz )
-            # end
-            # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-            #     vs[i,j,k] = v[i,j,k] + dt/(dx*dy*dz) * (
-            #         Fx[i+1,j,k] - Fx[i,j,k] +
-            #         Fy[i,j+1,k] - Fy[i,j,k] + 
-            #         Fz[i,j,k+1] - Fz[i,j,k]
-            #     )
-            # end
-
-
-            # # w: z-velocity
-            # fill!(Fx,0.0)
-            # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
-            #     wface = 0.5*(w[i-1,j,k] + w[i,j,k])
-            #     dwdx = (w[i,j,k] - w[i-1,j,k])/dx
-            #     Fx[i,j,k] = dy*dz*( - uf[i,j,k]*wface + mu/rho*dwdx ) # uf*uf or uf*uface ???
-            # end
-            # fill!(Fy,0.0)
-            # for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_ # Loop over faces 
-            #     wface = 0.5*(w[i,j-1,k] + w[i,j,k])
-            #     dwdy = (w[i,j,k] - w[i,j-1,k])/dy
-            #     Fy[i,j,k] = dx*dz*( - vf[i,j,k]*wface + mu/rho*dwdy )
-            # end
-            # fill!(Fz,0.0)
-            # for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_ # Loop over faces 
-            #     wface = 0.5*(w[i,j,k-1] + w[i,j,k])
-            #     dwdz = (w[i,j,k] - w[i,j,k-1])/dz
-            #     Fz[i,j,k] = dx*dy*( - wf[i,j,k]*wface + mu/rho*dwdz )
-            # end
-            # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-            #     ws[i,j,k] = w[i,j,k] + dt/(dx*dy*dz) * (
-            #         Fx[i+1,j,k] - Fx[i,j,k] +
-            #         Fy[i,j+1,k] - Fy[i,j,k] + 
-            #         Fz[i,j,k+1] - Fz[i,j,k]
-            #     )
-            # end
-        # end # Band conditional
+        end 
     end # Domain loop
+
+    # println(Curve)
+    # error("check")
 
     # Finish updating VF 
     VF .= VFnew
