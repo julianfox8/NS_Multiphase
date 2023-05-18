@@ -116,9 +116,18 @@ function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_en
     
     #probably dont need to calculate every pt but need a 3x3 stencil for velocity projection with i,j,k being in a corner
     #maybe want to use diff finite difference approx
-    gradx[i,j,k]=(P[i+1,j,k]-P[i-1,j,k])/(2*dx)
-    grady[i,j,k]=(P[i,j+1,k]-P[i,j-1,k])/(2*dy)
-    gradz[i,j,k]=(P[i,j,k+1]-P[i,j,k-1])/(2*dz)
+    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+        gradx[i,j,k]=(P[i,j,k]-P[i-1,j,k])/dx
+    end
+
+    for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+        grady[i,j,k]=(P[i,j,k]-P[i,j-1,k])/dy
+    end
+
+    for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+        gradz[i,j,k]=(P[i,j,k]-P[i,j,k-1])/dz
+    end
+    
     uf1 = uf-dt/rho_liq*gradx
     vf1 = vf-dt/rho_liq*grady
     wf1 = wf-dt/rho_liq*gradz
