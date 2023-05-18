@@ -147,7 +147,11 @@ function outflowCorrection!(AP,uf,vf,wf)
     while abs(d) >tol*1e-1
         iter += 1
         #need to compute correction for 3D and not specific to right side outflow
-
+        #do we actully need to create a more generalized outflow correction?
+        #determine largest velocity component and the orientation(negative or positive)
+        #divide sum of A(P) by dt and size of grid in the two smaller velocity component directions
+        #substract correction from the cell 
+        #check divergence
 
         if iter == maxIter
             @warn("outflowCorrection did not converge!")
