@@ -115,7 +115,7 @@ function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_en
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     
     #probably dont need to calculate every pt but need a 3x3 stencil for velocity projection with i,j,k being in a corner
-    #maybe want to use a second order approx
+    #maybe want to use diff finite difference approx
     gradx[i,j,k]=(P[i+1,j,k]-P[i-1,j,k])/(2*dx)
     grady[i,j,k]=(P[i,j+1,k]-P[i,j-1,k])/(2*dy)
     gradz[i,j,k]=(P[i,j,k+1]-P[i,j,k-1])/(2*dz)
@@ -241,7 +241,7 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
 
         #Need to introduce outflow correction
         outflowCorrection!(AP,uf,vf,wf,tol,dt)
-        #compute new Ap
+        #update new Ap
         A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
 
         res = maximum(abs.(AP))
