@@ -115,27 +115,28 @@ Compute the curvature using the unit normal vectors
 function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
-    if nx[i,j,k] > ny[i,j,k] && nx[i,j,k] > nz[i,j,k]
+    if abs(nx[i,j,k]) > abs(ny[i,j,k]) && abs(nx[i,j,k]) > abs(nz[i,j,k])
+        println(i,j,k)
         hf = OffsetArray{Float64}(undef, j-1:j+1,k-1:k+1)
         fill!(hf,0.0)
         for kk = k-1:k+1, jj = j-1:j+1,ii = i-3:i+3
             hf[jj,kk] += VF[ii,jj,kk]
         end
-        hf/=(dy*dz)
+        hf*=dx
         hfy= (hf[j+1,k]-hf[j-1,k])/(2*dy)
         hfz = (hf[j,k+1]-hf[j,k-1])/(2*dz)
         hfyy = (hf[j+1,k]-2*hf[j,k]+hf[j-1,k])/(dy^2)
         hfzz = (hf[j,k+1]-2*hf[j,k]+hf[j,k-1])/(dz^2)
         hfyz = (hf[j+1,k+1]-hf[j-1,k+1]-hf[j+1,k-1]+hf[j-1,k-1])/(4*dy*dz)
         Curve[i,j,k] = (hfyy+hfzz+(hfyy*hfz^2)+(hfzz*hfy^2)-(2*hfyz*hfy*hfz))/((1+(hfy^2)+(hfz^2))^(3/2))
-
-    elseif ny[i,j,k] > nx[i,j,k] && ny[i,j,k] > nz[i,j,k]
+        println(Curve[i,j,k])
+    elseif abs(ny[i,j,k]) > abs(nx[i,j,k]) && abs(ny[i,j,k]) > abs(nz[i,j,k])
         hf = OffsetArray{Float64}(undef, k-1:k+1,i-1:i+1)
         fill!(hf,0.0)
         for ii = i-1:i+1, kk = k-1:k+1, jj = j-3:j+3
             hf[kk,ii] += VF[ii,jj,kk]
         end
-        hf/=(dx*dz)
+        hf*=dy
         hfz = (hf[k+1,i]-hf[k-1,i])/(2*dz)
         hfx = (hf[k,i+1]-hf[k,i-1])/(2*dx)
         hfzz = (hf[k+1,i]-2*hf[k,i]+hf[k-1,i])/(dz^2)
@@ -143,13 +144,13 @@ function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
         hfxz = (hf[k+1,i+1]-hf[k+1,i-1]-hf[k-1,i+1]+hf[k-1,i-1])/(4*dz*dx)
         Curve[i,j,k] = (hfzz+hfxx+(hfzz*hfx^2)+(hfxx*hfz^2)-(2*hfxz*hfz*hfx))/((1+(hfz^2)+(hfx^2))^(3/2))
 
-    elseif nz[i,j,k] > ny[i,j,k] && nz[i,j,k] > nx[i,j,k]
+    elseif abs(nz[i,j,k]) > abs(ny[i,j,k]) && abs(nz[i,j,k]) > abs(nx[i,j,k])
         hf = OffsetArray{Float64}(undef, i-1:i+1,j-1:j+1)
         fill!(hf,0.0)
         for jj = j-1:j+1, ii = i-1:i+1, kk = k-3:k+3
             hf[ii,jj] += VF[ii,jj,kk]
         end
-        hf/=(dy*dx)
+        hf*=dz
         hfx = (hf[i+1,j]-hf[i-1,j])/(2*dx)
         hfy = (hf[i,j+1]-hf[i,j-1])/(2*dy)
         hfxx = (hf[i+1,j]-2*hf[i,j]+hf[i-1,j])/(dx^2)
