@@ -1,5 +1,5 @@
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!)
-    @unpack rho_liq,mu = param
+    @unpack rho,mu = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Create band around interface 
@@ -25,7 +25,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
     #need to introduce a way to determine whether gas or liquid
     #we can determine whether we or in the bubble dependent on the liquid volume fraction
-    rho = rho_liq
+    rho = rho
 
 
     #need to introduce gravity term into the transport
@@ -38,7 +38,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
 
         # #need a method to determine the fluid properties along the interface
-        # rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
+        # rho = rho*VF[i,j,k] +*(1-VF[i,j,k])
         # mu = 1/(VF[i,j,k]/mu_liq+((1-VF[i,j,k])/mu_gas))
 
         # Compute surface tension using curvature and normal vectors
@@ -157,10 +157,10 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
 
            # #maybe use temp arrays
-        sfx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-        sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-        sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-        compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
+        # sfx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+        # sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+        # sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+        # compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
         ## Need to introduce viscous and surface tension effects(how to add surface tension effects)
         fill!(Fx,0.0) 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 

@@ -2,7 +2,7 @@
 
 # Solve Poisson equation: δP form
 function pressure_solver!(P,uf,vf,wf,dt,band,param,mesh,par_env)
-    @unpack rho_liq = param
+    @unpack rho = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
@@ -14,7 +14,7 @@ function pressure_solver!(P,uf,vf,wf,dt,band,param,mesh,par_env)
     sig=0.1
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # RHS
-        RHS[i,j,k]= rho_liq/dt * ( 
+        RHS[i,j,k]= rho/dt * ( 
             ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
             ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
             ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
@@ -61,7 +61,7 @@ end
 
 # LHS of pressure poisson equation
 function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-    @unpack rho_liq= param
+    @unpack rho= param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -84,9 +84,9 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
         gradz[i,j,k]=(P[i,j,k]-P[i,j,k-1])/dz
     end
 
-    uf1 = uf-dt/rho_liq*gradx
-    vf1 = vf-dt/rho_liq*grady
-    wf1 = wf-dt/rho_liq*gradz
+    uf1 = uf-dt/rho*gradx
+    vf1 = vf-dt/rho*grady
+    wf1 = wf-dt/rho*gradz
 
 
 
@@ -111,7 +111,7 @@ end
 
 #local A! matrix
 function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-    @unpack rho_liq= param
+    @unpack rho= param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     
     #probably dont need to calculate every pt but need a 3x3 stencil for velocity projection with i,j,k being in a corner
@@ -128,9 +128,9 @@ function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_en
         gradz[i,j,k]=(P[i,j,k]-P[i,j,k-1])/dz
     end
     
-    uf1 = uf-dt/rho_liq*gradx
-    vf1 = vf-dt/rho_liq*grady
-    wf1 = wf-dt/rho_liq*gradz
+    uf1 = uf-dt/rho*gradx
+    vf1 = vf-dt/rho*grady
+    wf1 = wf-dt/rho*gradz
 
     if abs(band[i,j,k]) <= 1
         tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
@@ -167,6 +167,7 @@ function outflowCorrection!(AP,uf,vf,wf)
             return
         end
     end
+end
 
 function computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
     @unpack Nx,Ny,Nz = param

@@ -12,6 +12,7 @@ param = parameters(
     mu=0.1,       # Dynamic viscosity
     rho=1.0,           # Density
     Lx=3.0,            # Domain size
+    sigma = 1.0,
     Ly=3.0,
     Lz=3.0,
     tFinal=100.0,      # Simulation time
@@ -26,7 +27,7 @@ param = parameters(
     tol = 1e-3,
 
     # Processors 
-    nprocx = 2,
+    nprocx = 1,
     nprocy = 1,
     nprocz = 1,
 
@@ -35,6 +36,8 @@ param = parameters(
     yper = false,
     zper = false,
     # VTK_dir= "VTK_example_2"
+
+    pressureSolver = "NLsolve",
 )
 
 """

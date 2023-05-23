@@ -3,8 +3,7 @@ using Parameters
 @with_kw struct parameters 
     # Material properties
     mu  :: Float64
-    rho_liq :: Float64
-    rho_gas :: Float64
+    rho :: Float64
     sigma :: Float64
 
     # Domain size

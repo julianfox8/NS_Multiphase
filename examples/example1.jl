@@ -11,8 +11,7 @@ using NavierStokes_Parallel
 param = parameters(
     # Constants
     mu=0.1,       # Dynamic viscosity
-    rho_liq=1.0,           # Density
-    rho_gas = 0.1,
+    rho=1.0,           # Density
     sigma = 1,
     Lx=3.0,            # Domain size
     Ly=3.0,
@@ -24,10 +23,10 @@ param = parameters(
     Ny=20,
     Nz=1,
     stepMax=200,   # Maximum number of timesteps
-    CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    CFL=0.04,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=10,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-5,
 
     # Processors 
     nprocx = 1,
@@ -39,7 +38,7 @@ param = parameters(
     yper = false,
     zper = false,
 
-    pressureSolver = "Secant",
+    pressureSolver = "ConjugateGradient",
     # Iteration method used in @loop macro
     iter_type = "standard",
     # iter_type = "floop",
@@ -63,7 +62,7 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    fill!(VF,0.2)
+    fill!(VF,0.0)
 
     return nothing    
 end
