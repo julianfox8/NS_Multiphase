@@ -116,7 +116,6 @@ function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     if abs(nx[i,j,k]) > abs(ny[i,j,k]) && abs(nx[i,j,k]) > abs(nz[i,j,k])
-        println(i,j,k)
         hf = OffsetArray{Float64}(undef, j-1:j+1,k-1:k+1)
         fill!(hf,0.0)
         for kk = k-1:k+1, jj = j-1:j+1,ii = i-3:i+3
@@ -129,7 +128,7 @@ function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
         hfzz = (hf[j,k+1]-2*hf[j,k]+hf[j,k-1])/(dz^2)
         hfyz = (hf[j+1,k+1]-hf[j-1,k+1]-hf[j+1,k-1]+hf[j-1,k-1])/(4*dy*dz)
         Curve[i,j,k] = (hfyy+hfzz+(hfyy*hfz^2)+(hfzz*hfy^2)-(2*hfyz*hfy*hfz))/((1+(hfy^2)+(hfz^2))^(3/2))
-        println(Curve[i,j,k])
+        
     elseif abs(ny[i,j,k]) > abs(nx[i,j,k]) && abs(ny[i,j,k]) > abs(nz[i,j,k])
         hf = OffsetArray{Float64}(undef, k-1:k+1,i-1:i+1)
         fill!(hf,0.0)

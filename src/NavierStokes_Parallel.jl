@@ -105,7 +105,7 @@ function run_solver(param, IC!, BC!)
 
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!)
-        # println(Curve)
+        
         if solveNS
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)

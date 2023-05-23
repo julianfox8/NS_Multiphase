@@ -1,5 +1,5 @@
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!)
-    @unpack rho_liq,mu = param
+    @unpack rho_liq,mu_liq,rho_gas,mu_gas = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Create band around interface 
@@ -11,16 +11,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     # Compute PLIC reconstruction 
     computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
-    # # Compute surface tension using curvature and normal vectors
-    # compute_curvature!(Curve,VF,param,mesh)
-    # # println(nx)
-    # # println(Curve)
-
-    # #maybe use temp arrays
-    # sfx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    # sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    # sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    # compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
 
     # Transport velocity and volume fraction 
     fill!(VFnew,0.0)
@@ -35,21 +25,15 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
     #need to introduce a way to determine whether gas or liquid
     #we can determine whether we or in the bubble dependent on the liquid volume fraction
-    rho = rho_liq
-
 
     #need to introduce gravity term into the transport
-
-
-
-
 
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
 
         # #need a method to determine the fluid properties along the interface
-        # rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
-        # mu = 1/(VF[i,j,k]/mu_liq+((1-VF[i,j,k])/mu_gas))
+        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
+        mu = 1/(VF[i,j,k]/mu_liq+((1-VF[i,j,k])/mu_gas))
 
 
         # Calculate inertia near or away from the interface
@@ -168,6 +152,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         sfx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
         sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
         sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+        compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
+
         fill!(Fx,0.0) 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
             dudx = (u[i,j,k] - u[i-1,j,k])/dx
@@ -183,6 +169,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             dudz = (u[i,j,k] - u[i,j,k-1])/dz
             Fz[i,j,k] = dx*dy*( mu/rho*dudz )
         end
+
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
             us[i,j,k] = us[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
@@ -241,7 +228,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k] -
-                sfz[i,j,k]
+                sfz[i,j,k] - 9.81
             )
         end
         

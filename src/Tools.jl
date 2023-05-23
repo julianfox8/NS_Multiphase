@@ -120,8 +120,11 @@ end
 Compute timestep 
 """
 function compute_dt(u,v,w,param,mesh,par_env)
-    @unpack mu,CFL,max_dt = param
+    @unpack mu_liq,mu_gas,CFL,max_dt = param
     @unpack dx,dy,dz = mesh
+
+    #need to do this calc elsewhere
+    # mu = 1/(VF[i,j,k]/mu_liq+((1-VF[i,j,k])/mu_gas))
 
     # Convective Δt
     local_min_dx_vel = minimum([dx/maximum(abs.(u)),dy/maximum(abs.(v)),dz/maximum(abs.(w))])
@@ -129,7 +132,7 @@ function compute_dt(u,v,w,param,mesh,par_env)
     convec_dt = min_dx_vel
 
     # Viscous Δt 
-    viscous_dt = minimum([dx,dy,dz])/mu
+    viscous_dt = minimum([dx,dy,dz])/mu_liq
     
     # Timestep
     dt=min(max_dt,CFL*minimum([convec_dt,viscous_dt]))
