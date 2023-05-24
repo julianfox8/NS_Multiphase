@@ -148,6 +148,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             end
         end #end band conditional
                 
+
         ## Need to introduce viscous and surface tension effects(how to add surface tension effects)
         sfx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
         sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
@@ -233,6 +234,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         end
         
     end # Domain loop
+
+
 
     # Finish updating VF 
     VF .= VFnew

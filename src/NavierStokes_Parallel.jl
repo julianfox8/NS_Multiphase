@@ -135,8 +135,8 @@ function run_solver(param, IC!, BC!)
         # Check semi-lagrangian divergence
         # divg = semi_lag_divergence(uf,vf,wf,dt,mesh,par_env)
         
-
-        
+        println(w)
+        error("w")
         # Output
         std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC)

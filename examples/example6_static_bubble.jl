@@ -9,20 +9,21 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu=10.0,       # Dynamic viscosity
+    mu_liq=1.0,       # Dynamic viscosity
+    mu_gas = 0.01,
     rho_liq=1.0,           # Density
     rho_gas =0.1, 
     sigma = 0.1, #surface tension coefficient
-    Lx=1.0,            # Domain size
-    Ly=1.0,
+    Lx=5.0,            # Domain size
+    Ly=5.0,
     Lz=1/50,
     tFinal=1.0,      # Simulation time
     
     # Discretization inputs
-    Nx=10,           # Number of grid cells
-    Ny=10,
-    Nz=10,
-    stepMax=2,   # Maximum number of timesteps
+    Nx=25,           # Number of grid cells
+    Ny=25,
+    Nz=1,
+    stepMax=50,   # Maximum number of timesteps
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
@@ -63,9 +64,9 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    rad=0.15
-    xo=0.5
-    yo=0.5
+    rad=0.5
+    xo=2.5
+    yo=1.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end
