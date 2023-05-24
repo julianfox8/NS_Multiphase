@@ -1,4 +1,4 @@
-function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!)
+function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,nstep)
     @unpack rho_liq,mu_liq,rho_gas,mu_gas = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -27,6 +27,12 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     #we can determine whether we or in the bubble dependent on the liquid volume fraction
 
     #need to introduce gravity term into the transport
+        # Loop overdomain
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        if abs(band[i,j,k]) <= 1
+            compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
+        end
+    end
 
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
@@ -40,7 +46,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         # Check if near interface
         if abs(band[i,j,k]) <= 1
 
-            compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
 
             # Semi-Lagrangian near interface 
             # ------------------------------
@@ -150,9 +155,13 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 
 
         ## Need to introduce viscous and surface tension effects(how to add surface tension effects)
-        sfx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-        sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-        sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+        sfx = OffsetArray{Float64}(undef, imino_:imaxo_+1,jmino_:jmaxo_,kmino_:kmaxo_)
+        sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_+1,kmino_:kmaxo_)
+        sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_+1)
+        # if Curve[i,j,k] != 0
+        #     println(Curve[i,j,k])
+        #     # error("get outta here")
+        # end
         compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
 
         fill!(Fx,0.0) 
@@ -224,12 +233,13 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             dwdz = (w[i,j,k] - w[i,j,k-1])/dz
             Fz[i,j,k] = dx*dy*( mu/rho*dwdz )
         end
+ 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
             ws[i,j,k] = ws[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k] -
-                sfz[i,j,k] - 9.81
+                sfz[i,j,k] 
             )
         end
         

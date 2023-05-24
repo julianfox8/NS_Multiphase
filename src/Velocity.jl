@@ -73,8 +73,6 @@ function divergence(uf,vf,wf,dt,band,mesh,par_env)
             v1 = tets_vol(tets)
             divg[i,j,k] = (v2-v1) /̂ v2 /̂ dt
 
-            #using divergence function
-            # divg = semi_lag_divergence(uf,vf,wf,dt,mesh)
         else
             # Calculate divergence with finite differnce
             du_dx = ( uf[i+1,j,k] - uf[i,j,k] )/(dx)

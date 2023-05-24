@@ -104,11 +104,12 @@ function run_solver(param, IC!, BC!)
         end
 
         # Predictor step (including VF transport)
-        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!)
-        
+        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,nstep)
+
         if solveNS
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
+
 
     
             # # Call pressure Solver (handles processor boundaries for P)
@@ -116,12 +117,21 @@ function run_solver(param, IC!, BC!)
     
             # # Call pressure Solver (handles processor boundaries for P)
             # iter = semi_lag_pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
+
+
  
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,param,mesh)
+            println(u)
+            println(us)
+            error("get outta here")
+            
 
             # Interpolate velocity to cell centers (keeping BCs from predictor)
             interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
+
+
+
 
             # Update Processor boundaries
             update_borders!(u,mesh,par_env)
@@ -134,9 +144,7 @@ function run_solver(param, IC!, BC!)
 
         # Check semi-lagrangian divergence
         # divg = semi_lag_divergence(uf,vf,wf,dt,mesh,par_env)
-        
-        println(w)
-        error("w")
+
         # Output
         std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC)

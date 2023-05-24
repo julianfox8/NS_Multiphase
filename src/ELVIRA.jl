@@ -200,15 +200,16 @@ Compute surface tension force (using Continuous surface force method)
 function compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
     @unpack sigma = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-
     fill!(sfx,0.0)
     fill!(sfy,0.0)
     fill!(sfz,0.0)
 
-    for k = kmin_+1:kmax_-1, j = jmin_+1:jmax_-1, i = imin_+1:imax_-1
+
+    for k = 1, j = jmin_:jmax_, i = imin_:imax_
         sfx[i,j,k] = -sigma/2/dx*(VF[i+1,j,k]-VF[i,j,k])*(Curve[i+1,j,k]-Curve[i,j,k])
         sfy[i,j,k] = -sigma/2/dy*(VF[i,j+1,k]-VF[i,j,k])*(Curve[i,j+1,k]-Curve[i,j,k])
         sfz[i,j,k] = -sigma/2/dz*(VF[i,j,k+1]-VF[i,j,k])*(Curve[i,j,k+1]-Curve[i,j,k])
+
     end
     return nothing
 end
