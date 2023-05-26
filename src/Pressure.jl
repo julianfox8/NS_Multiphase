@@ -149,7 +149,7 @@ end
 
 
 
-        
+#//* want to implement bubble rising in 2-D so provide outflow correction for top of container
 function outflowCorrection!(AP,uf,vf,wf)
     iter = 0; maxIter=100
     d = sum(AP)
