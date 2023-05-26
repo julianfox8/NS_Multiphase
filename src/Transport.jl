@@ -1,4 +1,4 @@
-function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,nstep)
+function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz)
     @unpack rho_liq,mu_liq,rho_gas,mu_gas = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -23,8 +23,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     d = Array{Float64}(undef, 4,nThread)
     newtet = Array{Float64}(undef, 3, 4,nThread)
 
-    #need to introduce a way to determine whether gas or liquid
-    #we can determine whether we or in the bubble dependent on the liquid volume fraction
+
 
     #need to introduce gravity term into the transport
         # Loop overdomain
@@ -154,14 +153,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         end #end band conditional
                 
 
-        ## Need to introduce viscous and surface tension effects(how to add surface tension effects)
-        sfx = OffsetArray{Float64}(undef, imino_:imaxo_+1,jmino_:jmaxo_,kmino_:kmaxo_)
-        sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_+1,kmino_:kmaxo_)
-        sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_+1)
-        # if Curve[i,j,k] != 0
-        #     println(Curve[i,j,k])
-        #     # error("get outta here")
-        # end
+        ## //? do we want to move allocation of surface tension here?
         compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
 
         fill!(Fx,0.0) 
@@ -189,7 +181,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
             )
         end
-
+        # //! need to properly define the gravity term (use difference between water and air density)
         # v: y-velocity
         fill!(Fx,0.0)
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
@@ -211,7 +203,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k] -
-                sfy[i,j,k] 
+                sfy[i,j,k] + 0.000981
             )
         end
 

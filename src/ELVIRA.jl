@@ -162,37 +162,6 @@ function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
 end
 
 
-# function compute_curvature!(Curve,VF,param,mesh)
-#     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-#     hf = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-#     hfx = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-#     hfy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-#     hfxx = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-#     hfyy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-#     hfxy = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-
-#     # height function
-#     @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-#         for kk = k-2:k+2, jj = j-2:j+2, ii = i-6:i+6
-#             hf[i,j,k] += VF[ii,jj,kk]
-#         end
-#     end
-
-#     #calculate first and second derivatives of height function
-#     @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-#         hfx[i,j,k] = (hf[i+1,j,k]-hf[i-1,j,k])/(2*dx)
-#         hfy[i,j,k] = (hf[i,j+1,k]-hf[i,j-1,k])/(2*dy)
-#         hfxx[i,j,k] = (hf[i+1,j,k]-2*hf[i,j,k]+hf[i-1,j,k])/(dx^2)
-#         hfyy[i,j,k] = (hf[i,j+1,k]-2*hf[i,j,k]+hf[i,j-1,k])/(dy^2)
-#         hfxy[i,j,k] = (hf[i+1,j+1,k]-hf[i+1,j-1,k]-hf[i-1,j+1,k]+hf[i-1,j-1,k])/(4*dy*dx)
-#     end
-
-#     @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-#         Curve[i,j,k] = (hfxx[i,j,k]+hfy[i,j,k]+hfxx[i,j,k]*hfy[i,j,k]^2+hfyy[i,j,k]*hfx[i,j,k]^2-2*hfxy[i,j,k]*hfx[i,j,k]*hfy[i,j,k])/((1+hfx[i,j,k]^2+hfy[i,j,k]^2)^(3/2))
-#     end
-#     return nothing
-# end
-
 
 """
 Compute surface tension force (using Continuous surface force method)

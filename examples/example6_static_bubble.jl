@@ -9,11 +9,11 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=1.0,       # Dynamic viscosity
-    mu_gas = 0.01,
+    mu_liq=1e-6,       # Dynamic viscosity
+    mu_gas = 1e-9,
     rho_liq=1.0,           # Density
-    rho_gas =0.1, 
-    sigma = 1.0, #surface tension coefficient
+    rho_gas =0.0001, 
+    sigma = 0.000072, #surface tension coefficient
     Lx=5.0,            # Domain size
     Ly=5.0,
     Lz=1/50,
@@ -24,10 +24,11 @@ param = parameters(
     Ny=25,
     Nz=1,
     stepMax=50,   # Maximum number of timesteps
+    max_dt = 1e-3,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-5,
 
     # Processors 
     nprocx = 1,

@@ -41,7 +41,7 @@ function run_solver(param, IC!, BC!)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz = initArrays(mesh)
 
     # Create initial condition
     t = 0.0 :: Float64
@@ -83,7 +83,7 @@ function run_solver(param, IC!, BC!)
     t_last =[-100.0,]
     h_last =[100]
     std_out(h_last,t_last,0,t,P,u,v,w,divg,0,param,par_env)
-    VTK(0,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
+    VTK(0,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz)
 
     # Loop over time
     nstep = 0
@@ -104,7 +104,7 @@ function run_solver(param, IC!, BC!)
         end
 
         # Predictor step (including VF transport)
-        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,nstep)
+        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz)
 
         if solveNS
             # Create face velocities
@@ -115,16 +115,11 @@ function run_solver(param, IC!, BC!)
             # # Call pressure Solver (handles processor boundaries for P)
             iter = pressure_solver!(P,uf,vf,wf,dt,band,param,mesh,par_env)
     
-            # # Call pressure Solver (handles processor boundaries for P)
-            # iter = semi_lag_pressure_solver!(P,uf,vf,wf,dt,param,mesh,par_env)
-
 
  
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,param,mesh)
-            println(u)
-            println(us)
-            error("get outta here")
+
             
 
             # Interpolate velocity to cell centers (keeping BCs from predictor)
@@ -147,7 +142,7 @@ function run_solver(param, IC!, BC!)
 
         # Output
         std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
-        VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC)
+        VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz)
 
     end
     
