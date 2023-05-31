@@ -25,13 +25,13 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
 
 
-    #need to introduce gravity term into the transport
-        # Loop overdomain
+    fill!(Curve,0.0)
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         if abs(band[i,j,k]) <= 1
             compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
         end
     end
+
 
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
@@ -203,7 +203,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k] -
-                sfy[i,j,k] + 0.000981
+                sfy[i,j,k] + 0.00981
             )
         end
 

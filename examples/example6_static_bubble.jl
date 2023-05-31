@@ -19,7 +19,7 @@ param = parameters(
     Lz=1/50,
     tFinal=1.0,      # Simulation time
     
-    # Discretization inputs
+    # Discretization inputsc
     Nx=25,           # Number of grid cells
     Ny=25,
     Nz=1,
@@ -42,7 +42,7 @@ param = parameters(
 
     pressureSolver = "NLsolve",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble1"
+    VTK_dir= "VTK_example_static_bubble"
 
 )
 

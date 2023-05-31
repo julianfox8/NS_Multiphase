@@ -40,7 +40,7 @@ param = parameters(
 
     pressureSolver = "NLsolve",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble"
+    VTK_dir= "VTK_example_static_bubble2"
 
 )
 

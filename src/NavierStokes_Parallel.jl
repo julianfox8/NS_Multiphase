@@ -62,7 +62,7 @@ function run_solver(param, IC!, BC!)
 
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
-    
+
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
@@ -113,12 +113,12 @@ function run_solver(param, IC!, BC!)
 
     
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,param,mesh,par_env)
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env)
     
 
  
             # Corrector face velocities
-            corrector!(uf,vf,wf,P,dt,param,mesh)
+            corrector!(uf,vf,wf,P,dt,VF,param,mesh)
 
             
 
@@ -133,6 +133,7 @@ function run_solver(param, IC!, BC!)
             update_borders!(v,mesh,par_env)
             update_borders!(w,mesh,par_env)
         end
+
         
         # # Check divergence
         divg = divergence(uf,vf,wf,dt,band,mesh,par_env)

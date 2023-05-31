@@ -7,9 +7,11 @@ using NavierStokes_Parallel
 # Define parameters 
 param = parameters(
     # Constants
-    mu=10.0,       # Dynamic viscosity
-    rho=1.0,           # Density
-    sigma = 0.1, #surface tension coefficient
+    mu_liq=1e-6,       # Dynamic viscosity
+    mu_gas = 1e-9,
+    rho_liq=1.0,           # Density
+    rho_gas =0.0001, 
+    sigma = 0.000072,  #surface tension coefficient
     Lx=3.0,            # Domain size
     Ly=3.0,
     Lz=3.0,
@@ -18,8 +20,8 @@ param = parameters(
     # Discretization inputs
     Nx=10,           # Number of grid cells
     Ny=10,
-    Nz=2,
-    stepMax=5,   # Maximum number of timesteps
+    Nz=1,
+    stepMax=50,   # Maximum number of timesteps
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
@@ -61,7 +63,7 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    fill!(VF,0.2)
+    fill!(VF,0.0)
 
     return nothing    
 end

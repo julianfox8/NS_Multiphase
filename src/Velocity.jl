@@ -1,19 +1,22 @@
 
-function corrector!(uf,vf,wf,P,dt,param,mesh)
-    @unpack rho_liq = param
+function corrector!(uf,vf,wf,P,dt,VF,param,mesh)
+    @unpack rho_liq,rho_gas = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1
+        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
         dp_dx = ( P[i,j,k] - P[i-1,j,k] )/(dx)
-        uf[i,j,k] = uf[i,j,k] - dt/rho_liq * dp_dx
+        uf[i,j,k] = uf[i,j,k] - dt/rho * dp_dx
     end
     for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_
+        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
         dp_dy = ( P[i,j,k] - P[i,j-1,k] )/(dy)
-        vf[i,j,k] = vf[i,j,k] - dt/rho_liq * dp_dy
+        vf[i,j,k] = vf[i,j,k] - dt/rho * dp_dy
     end
     for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_
+        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
         dp_dz = ( P[i,j,k] - P[i,j,k-1] )/(dz)
-        wf[i,j,k] = wf[i,j,k] - dt/rho_liq * dp_dz
+        wf[i,j,k] = wf[i,j,k] - dt/rho * dp_dz
     end
 
     return nothing

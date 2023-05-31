@@ -1,8 +1,8 @@
 
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,dt,band,param,mesh,par_env)
-    @unpack rho_liq = param
+function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env)
+    @unpack rho_liq,rho_gas = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
@@ -13,21 +13,23 @@ function pressure_solver!(P,uf,vf,wf,dt,band,param,mesh,par_env)
 
     sig=0.1
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
+
         # RHS
-        RHS[i,j,k]= rho_liq/dt * ( 
+        RHS[i,j,k]= rho/dt * ( 
             ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
             ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
             ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
     end
 
-    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
+    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env)
 
     return iter
 end
 
 
 
-function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
+function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
@@ -37,7 +39,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_
     elseif pressureSolver == "ConjugateGradient"
         iter = conjgrad!(P,RHS,param,mesh,par_env)
     elseif pressureSolver == "NLsolve"
-        iter = computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
+        iter = computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env)
     else
         error("Unknown pressure solver $pressureSolver")
     end
@@ -58,8 +60,8 @@ function lap!(L,P,param,mesh)
 end
 
 # LHS of pressure poisson equation
-function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-    @unpack rho_liq= param
+function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
+    @unpack rho_liq,rho_gas= param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -71,27 +73,30 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
 
     #suspect that the correct gradient is being calculate due to loop
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
-        gradx[i,j,k]=(P[i,j,k]-P[i-1,j,k])/dx
+        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
+        gradx[i,j,k]=dt/rho*(P[i,j,k]-P[i-1,j,k])/dx
     end
 
     for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
-        grady[i,j,k]=(P[i,j,k]-P[i,j-1,k])/dy
+        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
+        grady[i,j,k]=dt/rho*(P[i,j,k]-P[i,j-1,k])/dy
     end
 
     for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
-        gradz[i,j,k]=(P[i,j,k]-P[i,j,k-1])/dz
+        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
+        gradz[i,j,k]=dt/rho*(P[i,j,k]-P[i,j,k-1])/dz
     end
 
-    uf1 = uf-dt/rho_liq*gradx
-    vf1 = vf-dt/rho_liq*grady
-    wf1 = wf-dt/rho_liq*gradz
+    uf1 = uf-gradx
+    vf1 = vf-grady
+    wf1 = wf-gradz
 
 
 
     fill!(LHS,0.0)
 
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        if abs(band[i,j,k]) <= 1
+        if abs(band[i,j,k]) <= 3
             tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
             if any(isnan,tets)
                 error("Nan in tets at ", i,j,k)
@@ -110,7 +115,7 @@ end
 
 
 # NLsolve Library
-function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
+function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -121,7 +126,7 @@ function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par
 
     # println(uf)
     function f!(LHS, P)
-        A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
+        A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
         # println("maxRes=",maximum(abs.(F)))
         return LHS
     end
