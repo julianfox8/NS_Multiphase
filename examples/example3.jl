@@ -34,7 +34,7 @@ param = parameters(
     # Periodicity
     xper = false,
     yper = false,
-    zper = false,
+    zper = true,
 
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
@@ -62,7 +62,7 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    fill!(VF,0.2)
+    fill!(VF,1.0)
 
     return nothing    
 end
