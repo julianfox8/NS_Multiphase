@@ -70,6 +70,8 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
     fill!(grady,0.0)
     fill!(gradz,0.0)
 
+    Neumann!(P,mesh,par_env)
+    update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
 
     #suspect that the correct gradient is being calculate due to loop
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
@@ -102,8 +104,11 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
             v1 = tets_vol(tets)
             LHS[i,j,k] = (v2-v1) /̂ v2 /̂ dt
         else 
-            lap!(LHS,P,param,mesh)
-            LHS[i,j,k] = RHS[i,j,k] - LHS[i,j,k]
+            # Calculate divergence with finite differnce
+            du_dx = ( uf1[i+1,j,k] - uf1[i,j,k] )/(dx)
+            dv_dy = ( vf1[i,j+1,k] - vf1[i,j,k] )/(dy)
+            dw_dz = ( wf1[i,j,k+1] - wf1[i,j,k] )/(dz)
+            LHS[i,j,k] = du_dx + dv_dy + dw_dz
         end
     end
     return nothing
