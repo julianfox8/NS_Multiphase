@@ -20,10 +20,10 @@ param = parameters(
     tFinal=1.0,      # Simulation time
     
     # Discretization inputsc
-    Nx=25,           # Number of grid cells
-    Ny=25,
+    Nx=20,           # Number of grid cells
+    Ny=20,
     Nz=1,
-    stepMax=50,   # Maximum number of timesteps
+    stepMax=100,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
