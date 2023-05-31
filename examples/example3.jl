@@ -7,8 +7,8 @@ using NavierStokes_Parallel
 # Define parameters 
 param = parameters(
     # Constants
-    mu=10.0,       # Dynamic viscosity
-    rho=1.0,           # Density
+    mu=1e-6,       # Dynamic viscosity
+    rho=1e-3,           # Density
     sigma = 0.1, #surface tension coefficient
     Lx=3.0,            # Domain size
     Ly=3.0,
@@ -18,8 +18,9 @@ param = parameters(
     # Discretization inputs
     Nx=10,           # Number of grid cells
     Ny=10,
-    Nz=2,
-    stepMax=5,   # Maximum number of timesteps
+    Nz=1,
+    stepMax=15,   # Maximum number of timesteps
+    # max_dt = 0.01,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
@@ -40,7 +41,7 @@ param = parameters(
     # pressureSolver = "Secant",
     pressureSolver = "NLsolve",
     iter_type = "standard",
-    # VTK_dir= "VTK_example_3_25_semi_lag"
+    VTK_dir= "VTK_example_3"
 
 )
 

@@ -150,17 +150,21 @@ end
 
 
 #//* want to implement bubble rising in 2-D so provide outflow correction for top of container
-function outflowCorrection!(AP,uf,vf,wf)
+#! currently correcting for example 3 flow out the right side
+function outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
+    @unpack jmin_,jmax_ = mesh
+    @unpack tol = param
     iter = 0; maxIter=100
     d = sum(AP)
     while abs(d) >tol*1e-1
         iter += 1
-        #need to compute correction for 3D and not specific to right side outflow
-        #do we actully need to create a more generalized outflow correction?
-        #determine largest velocity component and the orientation(negative or positive)
-        #divide sum of A(P) by dt and size of grid in the two smaller velocity component directions
-        #substract correction from the cell 
+
         #check divergence
+        correction = d/((jmax_-jmin_))
+        #? maybe only need to correct for lower half of right side
+        uf[end,:] .-= 0.5correction
+        A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
+        d = sum(AP)
 
         if iter == maxIter
             @warn("outflowCorrection did not converge!")
@@ -227,9 +231,10 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
-
-
     AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
+    # fill!(AP,0.0)
+
     A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
 
     # Iterate 
@@ -239,21 +244,25 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
 
         # compute jacobian
         J = computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
-
+        #? seems like jacobian compute is incorrect
+        println(J)
         # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P_int
-        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= AP/J
+        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= AP./J
 
-        P .-=mean(P)
-
+        ##! need to deal with pressure field that is all zeros 
+        # P .-=mean(P)
+        # println(P)
+        # error("stop")
         #compute new Ap
-        A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
+        # A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
 
 
         #Need to introduce outflow correction
-        outflowCorrection!(AP,uf,vf,wf,tol,dt)
+        outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
         #update new Ap
         A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-
+        println(AP)
+        error("stop") 
         res = maximum(abs.(AP))
         if res < tol
             return P

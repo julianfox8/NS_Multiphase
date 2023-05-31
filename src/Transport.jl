@@ -27,7 +27,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     #we can determine whether we or in the bubble dependent on the liquid volume fraction
     rho = rho
 
-
+    
     #need to introduce gravity term into the transport
 
 
