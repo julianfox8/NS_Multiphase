@@ -65,11 +65,13 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
-    # println(uf)
+
     fill!(gradx,0.0)
     fill!(grady,0.0)
     fill!(gradz,0.0)
 
+    Neumann!(P,mesh,par_env)
+    update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
 
     #suspect that the correct gradient is being calculate due to loop
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
@@ -96,7 +98,7 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
     fill!(LHS,0.0)
 
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        if abs(band[i,j,k]) <= 3
+        if abs(band[i,j,k]) <= 1
             tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
             if any(isnan,tets)
                 error("Nan in tets at ", i,j,k)
@@ -105,8 +107,11 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
             v1 = tets_vol(tets)
             LHS[i,j,k] = (v2-v1) /̂ v2 /̂ dt
         else 
-            lap!(LHS,P,param,mesh)
-            LHS[i,j,k] = RHS[i,j,k] - LHS[i,j,k]
+            # Calculate divergence with finite differnce
+            du_dx = ( uf1[i+1,j,k] - uf1[i,j,k] )/(dx)
+            dv_dy = ( vf1[i,j+1,k] - vf1[i,j,k] )/(dy)
+            dw_dz = ( wf1[i,j,k+1] - wf1[i,j,k] )/(dz)
+            LHS[i,j,k] = du_dx + dv_dy + dw_dz
         end
     end
     return nothing

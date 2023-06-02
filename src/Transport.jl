@@ -1,5 +1,5 @@
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz)
-    @unpack rho_liq,mu_liq,rho_gas,mu_gas = param
+    @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Create band around interface 
@@ -203,7 +203,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k] +
-                sfy[i,j,k] - 0.000981
+                sfy[i,j,k] - gravity
             )
         end
 

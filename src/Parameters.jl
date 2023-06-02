@@ -7,6 +7,7 @@ using Parameters
     rho_liq :: Float64
     rho_gas :: Float64
     sigma :: Float64
+    gravity :: Float64
 
     # Domain size
     Lx  :: Float64
