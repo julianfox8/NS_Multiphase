@@ -176,10 +176,10 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             us[i,j,k] = us[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] +
-                sfx[i,j,k]
+                Fz[i,j,k+1] - Fz[i,j,k]) +
+                dt*sfx[i,j,k]
 
-            )
+            
         end
         # //! need to properly define the gravity term (use difference between water and air density)
         # v: y-velocity
@@ -202,9 +202,9 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] +
-                sfy[i,j,k] - gravity
-            )
+                Fz[i,j,k+1] - Fz[i,j,k]) +
+                dt*(sfy[i,j,k] - gravity)
+            
         end
 
 
@@ -230,9 +230,9 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             ws[i,j,k] = ws[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k] +
-                sfz[i,j,k] 
-            )
+                Fz[i,j,k+1] - Fz[i,j,k]) +
+                dt*sfz[i,j,k] 
+            
         end
         
     end # Domain loop

@@ -129,7 +129,7 @@ function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,
 
     LHS = OffsetArray{Float64}(undef, gx,gy,gz)
 
-    # println(uf)
+
     function f!(LHS, P)
         A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
         # println("maxRes=",maximum(abs.(F)))
@@ -147,7 +147,7 @@ function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,
 
     # Get output
     P .= out.zero
-
+    println(P[:,1,:]-P[:,end,:])
     return out.iterations
 end
 
@@ -233,8 +233,10 @@ function conjgrad!(P,RHS,param,mesh,par_env)
         Neumann!(p,mesh,par_env)   
         update_borders!(p,mesh,par_env) # (overwrites BCs if periodic)
         rsold = rsnew
-    end
-    isroot && println("Failed to converged Poisson equation rsnew = $rsnew")
 
+    end
+    
+    isroot && println("Failed to converged Poisson equation rsnew = $rsnew")
+    
     return length(RHS)
 end

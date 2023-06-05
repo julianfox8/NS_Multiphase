@@ -6,15 +6,16 @@ using NavierStokes_Parallel
 using Random
 
 #Domain set up similar to "Numerical simulation of a single rising bubble by VOF with surface compression"
-# Define parameters 
+# Define parameters
+#? Noticed that as we deviate from dP = 1 we need some sort of correction also for dP = 1 we get 0.95 
 param = parameters(
     # Constants
     mu_liq=1e-6,       # Dynamic viscosity
     mu_gas = 1e-9,
     rho_liq= 1.0,           # Density
     rho_gas =0.0001, 
-    sigma = 0.0, #0.000072, #surface tension coefficient
-    gravity = 1e-6,
+    sigma = 0.000072, #surface tension coefficient
+    gravity = 1.0,
     Lx=5.0,            # Domain size
     Ly=5.0,
     Lz=1/50,
@@ -25,12 +26,12 @@ param = parameters(
     Nx=20,           # Number of grid cells
     Ny=20,
     Nz=1,
-    stepMax=50,   # Maximum number of timesteps
-    max_dt = 1e-3,
-    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    stepMax=15,   # Maximum number of timesteps
+    max_dt = 1e-2,
+    CFL=0.3,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-5,
+    tol = 1e-10,
 
     # Processors 
     nprocx = 1,
@@ -66,14 +67,14 @@ function IC!(P,u,v,w,VF,mesh)
         w[i,j,k] = 0.0
     end
 
-    fill!(VF,1.0)
+    # fill!(VF,1.0)
     # Volume Fraction
-    # rad=0.5
-    # xo=2.5
-    # yo=1.5
-    # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-    #     VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
-    # end
+    rad=0.5
+    xo=2.5
+    yo=2.5
+    for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+        VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+    end
 
     return nothing    
 end
