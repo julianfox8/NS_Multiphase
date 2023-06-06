@@ -12,7 +12,7 @@ param = parameters(
     sigma = 0.1, #surface tension coefficient
     Lx=3.0,            # Domain size
     Ly=3.0,
-    Lz=3.0,
+    Lz=1/50,
     tFinal=1.0,      # Simulation time
     
     # Discretization inputs
@@ -21,10 +21,10 @@ param = parameters(
     Nz=1,
     stepMax=15,   # Maximum number of timesteps
     # max_dt = 0.01,
-    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    CFL=0.3,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-8,
 
     # Processors 
     nprocx = 1,
@@ -38,8 +38,8 @@ param = parameters(
 
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
-    # pressureSolver = "Secant",
-    pressureSolver = "NLsolve",
+    pressureSolver = "Secant",
+    # pressureSolver = "NLsolve",
     iter_type = "standard",
     VTK_dir= "VTK_example_3"
 
