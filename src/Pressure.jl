@@ -145,7 +145,7 @@ function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_en
     # println(P[i,j,k-1])
     # println(gradz[i,j,k])
     # println(gradx)
-    
+
     for ii = i:i+1
         gradx[ii,j,k]=(P[ii,j,k]-P[ii-1,j,k])/̂dx
     end
@@ -237,15 +237,24 @@ function computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par
     dp = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    println(dp)
 
     delta = 1.0
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         fill!(LHS1,0.0)
         fill!(LHS2,0.0)
+        # fill!(dp,0.0)
         dp[i,j,k] += delta
+        println(dp)
+        error("dp wrong")
+        # println(A!(i,j,k,RHS,LHS2,uf,vf,wf,P.-delta,dt,gradx,grady,gradz,band,param,mesh,par_env))
+        # println(A!(i,j,k,RHS,LHS2,uf,vf,wf,P.+delta,dt,gradx,grady,gradz,band,param,mesh,par_env))
+        # println(P.+delta)
+        # error("stop")
+        #? do we want to add/subtract delta at each point in P or just P @ i,j,k
         J[i,j,k] = (
-            (A!(i,j,k,RHS,LHS1,uf,vf,wf,P+dp,dt,gradx,grady,gradz,band,param,mesh,par_env)
-            - A!(i,j,k,RHS,LHS2,uf,vf,wf,P-dp,dt,gradx,grady,gradz,band,param,mesh,par_env))
+            (A!(i,j,k,RHS,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,param,mesh,par_env)
+            - A!(i,j,k,RHS,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,param,mesh,par_env))
             ./̂2delta)
     end
     return J 
@@ -291,28 +300,21 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
     @unpack dx,dy,dz = mesh
     AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-    # fill!(AP,0.0)
 
     A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-
     # Iterate 
     iter=0
     while true
         iter += 1
 
+   
         # compute jacobian
         J = computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
-        #? seems like jacobian compute is incorrect
-        # # println(J)
-        # println(AP./̂J)
-        # println(P)
-        # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P_int
+
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= AP./̂J
-        # println(P)
-        # println(mean(P))
-        ##! need to deal with pressure field that is all zeros 
+
         P .-=mean(P)
-        println(mean(P))
+        # println(mean(P))
         # println(P)
         # error("stop")
         #compute new Ap
@@ -323,7 +325,11 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
         outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
         #update new Ap
         A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-        # println(AP)
+        if iter == 100
+            println(AP)
+            println(sum(AP))
+            error("stop")
+        end
         
         res = maximum(abs.(AP))
         if res < tol
