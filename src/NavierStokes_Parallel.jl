@@ -136,6 +136,7 @@ function run_solver(param, IC!, BC!)
         
         # # Check divergence
         divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
+        println("mean of dP = ",mean(P[:,begin,:]-P[:,end,:]))
 
         # Check semi-lagrangian divergence
         # divg = semi_lag_divergence(uf,vf,wf,dt,mesh,par_env)

@@ -9,28 +9,28 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=1e-6,       # Dynamic viscosity
+    mu_liq=10,       # Dynamic viscosity
     mu_gas = 1e-9,
     rho_liq= 1.0,           # Density
     rho_gas =0.0001, 
     sigma = 0.0, #0.000072, #surface tension coefficient
-    gravity = 9e-7,
-    Lx=5.0,            # Domain size
-    Ly=5.0,
+    gravity = 1.0,
+    Lx=5.0,            # Domain size 
+    Ly=1.0,
     Lz=1/50,
     tFinal=1.0,      # Simulation time
 
     
     # Discretization inputsc
-    Nx=20,           # Number of grid cells
-    Ny=20,
+    Nx=10,           # Number of grid cells
+    Ny=10,
     Nz=1,
-    stepMax=50,   # Maximum number of timesteps
+    stepMax=2,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-5,
+    tol = 1e-10,
 
     # Processors 
     nprocx = 1,

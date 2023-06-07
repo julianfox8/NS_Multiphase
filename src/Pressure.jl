@@ -147,7 +147,7 @@ function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,
 
     # Get output
     P .= out.zero
-    println(P[:,1,:]-P[:,end,:])
+
     return out.iterations
 end
 
