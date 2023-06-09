@@ -193,13 +193,13 @@ function outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,me
 
         #check divergence
         xcorrection = d/̂((jmax_-jmin_))
-        ycorrection = d/̂((imax_-imin_))
-        zcorrection = d/̂((kmax_-kmin_))
+        # ycorrection = d/̂((imax_-imin_))
+        # zcorrection = d/̂((kmax_-kmin_))
     
         #? maybe only need to correct for lower half of right side
         uf[end,end,:] .-= 0.5xcorrection
-        vf[end,end,:] .-= 0.5ycorrection
-        wf[:,:,:] .-= 0.5zcorrection
+        # vf[end,end,:] .-= 0.5ycorrection
+        # wf[:,:,:] .-= 0.5zcorrection
         A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
         d = sum(AP)
 
@@ -284,16 +284,21 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
    
         # compute jacobian
         J = computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env,iter)
-        # if iter >= 350
+        # if iter >= 475
         #     println(J)
         # end
-        # if iter == 360
+        # if iter == 480
         #     error("stop")
         # end
-        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= AP./̂J
+        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= 0.9AP./̂J
 
         P .-=mean(P)
-
+        # if iter >= 475
+        #     println(AP./J)
+        # end
+        # if iter == 480
+        #     error("stop")
+        # end
 
         # if iter == 350
         #     #Need to introduce outflow correction
