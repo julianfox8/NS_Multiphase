@@ -21,10 +21,10 @@ param = parameters(
     Nz=1,
     stepMax=15,   # Maximum number of timesteps
     # max_dt = 0.01,
-    CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-10,
 
     # Processors 
     nprocx = 1,
@@ -81,9 +81,9 @@ function BC!(u,v,w,mesh,par_env)
         i = imin-1
         for j=jmin_:jmax_
             if ym[j] <= 1.5 
-                uleft = 1.0
-            else
                 uleft = 0.0
+            else
+                uleft = 1.0
             end
             u[i,j,:] .= 2uleft .- u[imin,j,:]
         end

@@ -129,44 +129,29 @@ function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_en
     
     #probably dont need to calculate every pt but need a 3x3 stencil for velocity projection with i,j,k being in a corner
     #maybe want to use diff finite difference approx
-    # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
-    #     gradx[i,j,k]=(P[i,j,k]-P[i-1,j,k])/̂dx
-    # end
+    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+        gradx[i,j,k]=(P[i,j,k]-P[i-1,j,k])/̂dx
+    end
     
-    # for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
-    #     grady[i,j,k]=(P[i,j,k]-P[i,j-1,k])/̂dy
+    for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+        grady[i,j,k]=(P[i,j,k]-P[i,j-1,k])/̂dy
+    end
+
+    for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+        gradz[i,j,k]=(P[i,j,k]-P[i,j,k-1])/̂dz
+    end
+
+    #? might want to use these smaller loops
+    # for ii = i:i+1
+    #     gradx[ii,j,k]=(P[ii,j,k]-P[ii-1,j,k])/̂dx
+    # end
+    # for jj = j:j+1
+    #     grady[i,jj,k]=(P[i,jj,k]-P[i,jj-1,k])/̂dy
+    # end
+    # for kk = k:k+1
+    #     gradz[i,j,kk]=(P[i,j,kk]-P[i,j,kk-1])/̂dz
     # end
 
-    # for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
-    #     gradz[i,j,k]=(P[i,j,k]-P[i,j,k-1])/̂dz
-    # end
-    # println(dz)
-    # println(P[i,j,k])
-    # println(P[i,j,k-1])
-    # println(gradz[i,j,k])
-    # println(gradx)
-
-    for ii = i:i+1
-        gradx[ii,j,k]=(P[ii,j,k]-P[ii-1,j,k])/̂dx
-    end
-    for jj = j:j+1
-        grady[i,jj,k]=(P[i,jj,k]-P[i,jj-1,k])/̂dy
-    end
-    for kk = k:k+1
-        gradz[i,j,kk]=(P[i,j,kk]-P[i,j,kk-1])/̂dz
-        if any(isnan,gradz)
-            println(dz)
-            println(P[i,j,k])
-            println(P[i,j,k-1])
-            println(gradz[i,j,k])
-        end
-
-    end
-    # if any(isnan,gradz)
-    #     println(gradz)
-    #     println(gradx)
-    #     error("Nan in gradz at ", i,j,k)
-    # end
     uf1 = uf-dt/̂rho*gradx
     vf1 = vf-dt/̂rho*grady
     wf1 = wf-dt/̂rho*gradz
@@ -187,18 +172,6 @@ function A!(i,j,k,RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_en
         dv_dy = ( vf1[i,j+1,k] - vf1[i,j,k] )/̂(dy)
         dw_dz = ( wf1[i,j,k+1] - wf1[i,j,k] )/̂(dz)
         LHS[i,j,k] = du_dx + dv_dy + dw_dz
-        if any(isnan,du_dx)
-            println(du_dx)
-            error("Nan in du_dx at ", i,j,k)
-        end
-        if any(isnan,dv_dy)
-            println(dv_dy)
-            error("Nan in dv_dy at ", i,j,k)
-        end
-        if any(isnan,dw_dz)
-            println(dw_dz)
-            error("Nan in dw_dz at ", i,j,k)
-        end
     end
     return LHS[i,j,k]
 end
@@ -208,17 +181,25 @@ end
 #//* want to implement bubble rising in 2-D so provide outflow correction for top of container
 #! currently correcting for example 3 flow out the right side
 function outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-    @unpack jmin_,jmax_ = mesh
+    @unpack imin_,imax_,jmin_,jmax_,kmax_,kmin_,dx,dy,dz = mesh
     @unpack tol = param
     iter = 0; maxIter=100
     d = sum(AP)
+    # println(d)
+    # println(abs(d))
+    # error("stop")
     while abs(d) >tol*1e-1
         iter += 1
 
         #check divergence
-        correction = d./̂((jmax_-jmin_))
+        xcorrection = d/̂((jmax_-jmin_))
+        ycorrection = d/̂((imax_-imin_))
+        zcorrection = d/̂((kmax_-kmin_))
+    
         #? maybe only need to correct for lower half of right side
-        uf[end,0:5,:] .-= 0.5correction
+        uf[end,end,:] .-= 0.5xcorrection
+        vf[end,end,:] .-= 0.5ycorrection
+        wf[:,:,:] .-= 0.5zcorrection
         A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
         d = sum(AP)
 
@@ -229,7 +210,7 @@ function outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,me
     end
 end
 
-function computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
+function computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env,iter)
     @unpack Nx,Ny,Nz = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -237,21 +218,13 @@ function computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par
     dp = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    println(dp)
 
     delta = 1.0
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         fill!(LHS1,0.0)
         fill!(LHS2,0.0)
-        # fill!(dp,0.0)
+        fill!(dp,0.0)
         dp[i,j,k] += delta
-        println(dp)
-        error("dp wrong")
-        # println(A!(i,j,k,RHS,LHS2,uf,vf,wf,P.-delta,dt,gradx,grady,gradz,band,param,mesh,par_env))
-        # println(A!(i,j,k,RHS,LHS2,uf,vf,wf,P.+delta,dt,gradx,grady,gradz,band,param,mesh,par_env))
-        # println(P.+delta)
-        # error("stop")
-        #? do we want to add/subtract delta at each point in P or just P @ i,j,k
         J[i,j,k] = (
             (A!(i,j,k,RHS,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,param,mesh,par_env)
             - A!(i,j,k,RHS,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,param,mesh,par_env))
@@ -299,6 +272,7 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
     AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    fill!(AP,0.0)
     outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
 
     A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
@@ -309,27 +283,25 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
 
    
         # compute jacobian
-        J = computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env)
-
+        J = computeJacobian(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_env,iter)
+        # if iter >= 350
+        #     println(J)
+        # end
+        # if iter == 360
+        #     error("stop")
+        # end
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= AP./̂J
 
         P .-=mean(P)
-        # println(mean(P))
-        # println(P)
-        # error("stop")
-        #compute new Ap
-        # A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
 
 
-        #Need to introduce outflow correction
+        # if iter == 350
+        #     #Need to introduce outflow correction
         outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-        #update new Ap
+        # end
+            #update new Ap
         A!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-        if iter == 100
-            println(AP)
-            println(sum(AP))
-            error("stop")
-        end
+
         
         res = maximum(abs.(AP))
         if res < tol
