@@ -9,14 +9,14 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=10,       # Dynamic viscosity
+    mu_liq=1e-6,       # Dynamic viscosity
     mu_gas = 1e-9,
-    rho_liq= 1.0,           # Density
-    rho_gas =0.0001, 
-    sigma = 0.0, #0.000072, #surface tension coefficient
-    gravity = 1.0,
+    rho_liq= 0.0001,           # Density
+    rho_gas =1.0, 
+    sigma = 0.0,#0.000072, #surface tension coefficient
+    gravity = 1e-7,
     Lx=5.0,            # Domain size 
-    Ly=1.0,
+    Ly=5.0,
     Lz=1/50,
     tFinal=1.0,      # Simulation time
 
@@ -25,7 +25,7 @@ param = parameters(
     Nx=10,           # Number of grid cells
     Ny=10,
     Nz=1,
-    stepMax=2,   # Maximum number of timesteps
+    stepMax=500,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -66,14 +66,14 @@ function IC!(P,u,v,w,VF,mesh)
         w[i,j,k] = 0.0
     end
 
-    fill!(VF,1.0)
+    # fill!(VF,1.0)
     # Volume Fraction
-    # rad=0.5
-    # xo=2.5
-    # yo=1.5
-    # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-    #     VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
-    # end
+    rad=0.5
+    xo=2.5
+    yo=2.5
+    for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+        VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+    end
 
     return nothing    
 end
