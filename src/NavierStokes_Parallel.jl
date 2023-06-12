@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, VFcircle, VFsphere, @unpack
+export run_solver, parameters, VFcircle, VFsphere, VFbubble2d, @unpack
 
 using MPI
 using UnPack
@@ -57,6 +57,7 @@ function run_solver(param, IC!, BC!)
     # update_borders!(w,mesh,par_env)
     # update_borders!(VF,mesh,par_env)
 
+
     # Create face velocities
     interpolateFace!(u,v,w,uf,vf,wf,mesh)
 
@@ -75,6 +76,7 @@ function run_solver(param, IC!, BC!)
 
     # Check semi-lagrangian divergence
     divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
+
     
     # Initialize VTK outputs
     pvd,pvd_PLIC = VTK_init(param,par_env)
@@ -105,26 +107,19 @@ function run_solver(param, IC!, BC!)
 
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz)
-
+  
         if solveNS
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
-
-    
             # # Call pressure Solver (handles processor boundaries for P)
             iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env)
-
- 
+            
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,VF,param,mesh)
 
-            
-
             # Interpolate velocity to cell centers (keeping BCs from predictor)
             interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
-
-
 
 
             # Update Processor boundaries
