@@ -310,10 +310,10 @@ function Secant_jacobian!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,pa
         
         res = maximum(abs.(AP))
         if res < tol
-            return P
+            return iter
         end
 
-        @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
+        # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
 
     end    
     
