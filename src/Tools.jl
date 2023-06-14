@@ -85,6 +85,9 @@ macro loop(args...)
     end
 end
 
+struct vec_floats
+    value::Vector{Float64}
+end
 
 function initArrays(mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -114,19 +117,27 @@ function initArrays(mesh)
     sfx = OffsetArray{Float64}(undef, imino_:imaxo_+1,jmino_:jmaxo_,kmino_:kmaxo_); fill!(sfx,0.0)
     sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_+1,kmino_:kmaxo_); fill!(sfy,0.0)
     sfz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_+1); fill!(sfz,0.0)
+    den = OffsetArray{vec_floats}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_) ; fill!(den, vec_floats(zeros(3)))
+    visc = OffsetArray{vec_floats}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_) ; fill!(visc, vec_floats(zeros(3)))
+    # for k = kmino_:kmaxo_
+    #     for j = jmino_:jmaxo_
+    #         for i = imino_:imaxo_
+    #             den[i, j, k] = [0.0, 0.0, 0.0]
+    #             visc[i, j, k] = [0.0, 0.0, 0.0]
+    #         end
+    #     end
+    # end
 
-    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz
+    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,den,visc
 end
 
 """
 Compute timestep 
 """
 function compute_dt(u,v,w,param,mesh,par_env)
-    @unpack mu_liq,mu_gas,CFL,max_dt = param
+    @unpack CFL,max_dt,mu_liq = param
     @unpack dx,dy,dz = mesh
 
-    #need to do this calc elsewhere
-    # mu = 1/(VF[i,j,k]/mu_liq+((1-VF[i,j,k])/mu_gas))
 
     # Convective Δt
     local_min_dx_vel = minimum([dx/maximum(abs.(u)),dy/maximum(abs.(v)),dz/maximum(abs.(w))])
@@ -134,6 +145,7 @@ function compute_dt(u,v,w,param,mesh,par_env)
     convec_dt = min_dx_vel
 
     # Viscous Δt 
+    #? do we want to use a different vicosity
     viscous_dt = minimum([dx,dy,dz])/mu_liq
     
     # Timestep
@@ -626,8 +638,8 @@ function VFbubble(xmin,xmax,ymin,ymax,rad,xo,yo)
             if rad^2-x_min^2 > 0.0
                 yint=sqrt(rad^2-x_min^2)
                 if yint < y_min
-                    #  Cell in liquid phase
-                    VF += 1.0
+                    #  Cell in gas phase
+                    VF += 0.0
                     continue
                 elseif (yint < y_max) 
                     #  Intersection on left face
@@ -637,16 +649,16 @@ function VFbubble(xmin,xmax,ymin,ymax,rad,xo,yo)
                     x_1=sqrt(rad^2-y_max^2)
                 end
             else
-                #  Cell in liquid phase
-                VF += 1.0
+                #  Cell in gas phase
+                VF += 0.0
                 continue
             end
 
             if (rad^2-x_max^2 > 0.0) 
                 yint=sqrt(rad^2-x_max^2)
                 if (yint > y_max)  
-                    #  Cell in gas phase
-                    VF -= ((x_max-x_min)*(y_max-y_min))/((xmax-xmin)*(ymax-ymin))
+                    #  Cell in liquid phase
+                    VF += ((x_max-x_min)*(y_max-y_min))/((xmax-xmin)*(ymax-ymin))
                     continue
                 elseif (yint > y_min) 
                     #  Intersection on right face
@@ -694,9 +706,34 @@ function VFbubble2d(xmin,xmax,ymin,ymax,rad,xo,yo)
         xh = xmin + i/(nF+1)*(xmax-xmin)
         yh = ymin + j/(nF+1)*(ymax-ymin)
         G = rad^2 - ((xh-xo)^2 + (yh-yo)^2)
-        if G < 0.0
-            VF += VFsubcell
+        if G > 0.0
+            VF = 1.0
         end
     end
     return VF
+end
+
+"""
+Density/Viscosity calculation
+"""
+function compute_props!(den,visc,VF,param,mesh)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
+
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        # if i ==1 && j==1 && k==1
+        #     println((VF[i,j,k]+VF[i-1,j,k])/2)
+        #     println(VF[i,j,k])
+        #     println(VF[i-1,j,k])
+        # end
+        den[i,j,k].value[1] = rho_liq*((VF[i,j,k]+VF[i-1,j,k])/2) +rho_gas*((VF[i,j,k]+VF[i-1,j,k])/2)
+        visc[i,j,k].value[1] = 1/(((VF[i,j,k]+VF[i-1,j,k])/2)/mu_liq+((1-((VF[i,j,k]+VF[i-1,j,k])/2))/mu_gas))
+
+        den[i,j,k].value[2] = rho_liq*((VF[i,j,k]+VF[i,j-1,k])/2) +rho_gas*(1-((VF[i,j,k]+VF[i,j-1,k])/2))
+        visc[i,j,k].value[2] = 1/(((VF[i,j,k]-VF[i,j-1,k])/2)/mu_liq+((1-((VF[i,j,k]-VF[i,j-1,k])/2))/mu_gas))
+
+        den[i,j,k].value[3] = rho_liq*((VF[i,j,k]+VF[i,j,k-1])/2) +rho_gas*((VF[i,j,k]+VF[i,j,k-1])/2)
+        visc[i,j,k].value[3] = 1/(((VF[i,j,k]+VF[i,j,k-1])/2)/mu_liq+((1-((VF[i,j,k]+VF[i,j,k-1])/2))/mu_gas))
+    end
+    return nothing
 end

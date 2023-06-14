@@ -1,5 +1,5 @@
-function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz)
-    @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
+function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,den,visc)
+    @unpack gravity = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Create band around interface 
@@ -36,9 +36,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
 
-        # #need a method to determine the fluid properties along the interface
-        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
-        mu = 1/(VF[i,j,k]/mu_liq+((1-VF[i,j,k])/mu_gas))
 
 
         ## //? do we want to move allocation of surface tension here?
@@ -160,17 +157,17 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         fill!(Fx,0.0) 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
             dudx = (u[i,j,k] - u[i-1,j,k])/dx
-            Fx[i,j,k] = dy*dz*( mu/rho*dudx ) 
+            Fx[i,j,k] = dy*dz*( visc[i,j,k].value[1]/den[i,j,k].value[1]*dudx ) 
         end
         fill!(Fy,0.0)
         for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_ # Loop over faces 
             dudy = (u[i,j,k] - u[i,j-1,k])/dy
-            Fy[i,j,k] = dx*dz*( mu/rho*dudy )
+            Fy[i,j,k] = dx*dz*( visc[i,j,k].value[2]/den[i,j,k].value[2]*dudy )
         end
         fill!(Fz,0.0)
         for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_ # Loop over faces 
             dudz = (u[i,j,k] - u[i,j,k-1])/dz
-            Fz[i,j,k] = dx*dy*( mu/rho*dudz )
+            Fz[i,j,k] = dx*dy*( visc[i,j,k].value[3]/den[i,j,k].value[3]*dudz )
         end
 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
@@ -187,17 +184,17 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         fill!(Fx,0.0)
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
             dvdx = (v[i,j,k] - v[i-1,j,k])/dx
-            Fx[i,j,k] = dy*dz*( mu/rho*dvdx) 
+            Fx[i,j,k] = dy*dz*( visc[i,j,k].value[1]/den[i,j,k].value[1]*dvdx) 
         end
         fill!(Fy,0.0)
         for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_ # Loop over faces 
             dvdy = (v[i,j,k] - v[i,j-1,k])/dy
-            Fy[i,j,k] = dx*dz*( mu/rho*dvdy )
+            Fy[i,j,k] = dx*dz*( visc[i,j,k].value[2]/den[i,j,k].value[2]*dvdy )
         end
         fill!(Fz,0.0)
         for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_ # Loop over faces 
             dvdz = (v[i,j,k] - v[i,j,k-1])/dz
-            Fz[i,j,k] = dx*dy*( mu/rho*dvdz )
+            Fz[i,j,k] = dx*dy*( visc[i,j,k].value[3]/den[i,j,k].value[3]*dvdz )
         end
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
             vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
@@ -214,17 +211,17 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
 
             dwdx = (w[i,j,k] - w[i-1,j,k])/dx
-            Fx[i,j,k] = dy*dz*(mu/rho*dwdx ) # uf*uf or uf*uface ???
+            Fx[i,j,k] = dy*dz*(visc[i,j,k].value[1]/den[i,j,k].value[1]*dwdx ) # uf*uf or uf*uface ???
         end
         fill!(Fy,0.0)
         for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_ # Loop over faces 
             dwdy = (w[i,j,k] - w[i,j-1,k])/dy
-            Fy[i,j,k] = dx*dz*( mu/rho*dwdy )
+            Fy[i,j,k] = dx*dz*( visc[i,j,k].value[2]/den[i,j,k].value[2]*dwdy )
         end
         fill!(Fz,0.0)
         for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_ # Loop over faces 
             dwdz = (w[i,j,k] - w[i,j,k-1])/dz
-            Fz[i,j,k] = dx*dy*( mu/rho*dwdz )
+            Fz[i,j,k] = dx*dy*( visc[i,j,k].value[3]/den[i,j,k].value[3]*dwdz )
         end
  
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_

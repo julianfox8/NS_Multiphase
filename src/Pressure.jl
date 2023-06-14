@@ -1,8 +1,7 @@
 
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env)
-    @unpack rho_liq,rho_gas = param
+function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,den,visc)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
@@ -11,25 +10,23 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env)
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     #LHS = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
-    sig=0.1
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
+    # sig=0.1
+    # @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+    #     # RHS
+    #     RHS[i,j,k]= den[i,j,k]/dt * ( 
+    #         ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
+    #         ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
+    #         ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
+    # end
 
-        # RHS
-        RHS[i,j,k]= rho/dt * ( 
-            ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
-            ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
-            ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
-    end
-
-    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env)
+    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,den)
 
     return iter
 end
 
 
 
-function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env)
+function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,den)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
@@ -39,7 +36,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
     elseif pressureSolver == "ConjugateGradient"
         iter = conjgrad!(P,RHS,param,mesh,par_env)
     elseif pressureSolver == "NLsolve"
-        iter = computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env)
+        iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     else
         error("Unknown pressure solver $pressureSolver")
     end
@@ -60,8 +57,7 @@ function lap!(L,P,param,mesh)
 end
 
 # LHS of pressure poisson equation
-function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
-    @unpack rho_liq,rho_gas= param
+function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,den,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -74,19 +70,17 @@ function A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
     update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
 
     #suspect that the correct gradient is being calculate due to loop
+    #! need cell centered densities
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
-        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
-        gradx[i,j,k]=dt/rho*(P[i,j,k]-P[i-1,j,k])/dx
+        gradx[i,j,k]=dt/den[i,j,k].value[1]*(P[i,j,k]-P[i-1,j,k])/dx
     end
 
     for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
-        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
-        grady[i,j,k]=dt/rho*(P[i,j,k]-P[i,j-1,k])/dy
+        grady[i,j,k]=dt/den[i,j,k].value[2]*(P[i,j,k]-P[i,j-1,k])/dy
     end
 
     for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
-        rho = rho_liq*VF[i,j,k] +rho_gas*(1-VF[i,j,k])
-        gradz[i,j,k]=dt/rho*(P[i,j,k]-P[i,j,k-1])/dz
+        gradz[i,j,k]=dt/den[i,j,k].value[3]*(P[i,j,k]-P[i,j,k-1])/dz
     end
 
     uf1 = uf-gradx
@@ -120,7 +114,7 @@ end
 
 
 # NLsolve Library
-function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env)
+function computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -131,7 +125,7 @@ function computeNLsolve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,
 
 
     function f!(LHS, P)
-        A!(RHS,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,VF,param,mesh,par_env)
+        A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,den,mesh,par_env)
         # println("maxRes=",maximum(abs.(F)))
         return LHS
     end

@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, VFcircle, VFsphere, VFbubble2d, @unpack
+export run_solver, parameters, VFcircle, VFsphere, VFbubble2d, VFbubble, @unpack
 
 using MPI
 using UnPack
@@ -41,7 +41,7 @@ function run_solver(param, IC!, BC!)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,den,visc = initArrays(mesh)
 
     # Create initial condition
     t = 0.0 :: Float64
@@ -57,6 +57,8 @@ function run_solver(param, IC!, BC!)
     # update_borders!(w,mesh,par_env)
     # update_borders!(VF,mesh,par_env)
 
+    # Compute density and viscosity at intial conditions
+    compute_props!(den,visc,VF,param,mesh)
 
     # Create face velocities
     interpolateFace!(u,v,w,uf,vf,wf,mesh)
@@ -70,8 +72,6 @@ function run_solver(param, IC!, BC!)
     # Compute PLIC reconstruction 
     computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
-    # # Check divergence
-    # divg = divergence(uf,vf,wf,mesh,par_env)
     dt = compute_dt(u,v,w,param,mesh,par_env)
 
     # Check semi-lagrangian divergence
@@ -93,6 +93,11 @@ function run_solver(param, IC!, BC!)
 
     while nstep<stepMax && t<tFinal
 
+        # define density and viscosity for each iteration
+        if iter > 0 
+            compute_props!(den,visc,VF,param,mesh)
+        end
+
         # Update step counter
         nstep += 1
 
@@ -106,17 +111,17 @@ function run_solver(param, IC!, BC!)
         end
 
         # Predictor step (including VF transport)
-        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz)
-  
+        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,den,visc)
+
         if solveNS
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env)
-            
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,den,visc)
+   
             # Corrector face velocities
-            corrector!(uf,vf,wf,P,dt,VF,param,mesh)
+            corrector!(uf,vf,wf,P,dt,den,mesh)
 
             # Interpolate velocity to cell centers (keeping BCs from predictor)
             interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
@@ -141,7 +146,8 @@ function run_solver(param, IC!, BC!)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz)
 
     end
-    
+
+
     # Finalize
     #VTK_finalize(pvd) (called in VTK)
     #parallel_finalize()
