@@ -1,5 +1,7 @@
+
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz)
     @unpack gravity = param
+
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # Create band around interface 
@@ -14,6 +16,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
     # Transport velocity and volume fraction 
     fill!(VFnew,0.0)
+    fill!(Curve,0.0)
 
     # Preallocate for cutTet
     nLevel=100
@@ -22,6 +25,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     vert_ind = Array{Int64}(undef, 3, 8, 2,nLevel,nThread)
     d = Array{Float64}(undef, 4,nThread)
     newtet = Array{Float64}(undef, 3, 4,nThread)
+
 
 
 
@@ -46,6 +50,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         if abs(band[i,j,k]) <= 1
         # if abs(band[i,j,k]) <= 3
 
+            compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
             # Semi-Lagrangian near interface 
             # ------------------------------
             # From projected cell and break into tets using face velocities
@@ -79,7 +84,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             # --------------------------------------
             # VF (doesn't change)
             VFnew[i,j,k] = VF[i,j,k]
-
+        
             # u: x-velocity
             fill!(Fx,0.0) 
             for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
@@ -153,6 +158,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 )
             end
         end #end band conditional
+
         # if VFnew[i,j,k] ==1
         #     println(i,j,k)
         #     # println("u-star with inertia ", us[5,5,1])
@@ -162,7 +168,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-
 
         fill!(Fx,0.0) 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1 # Loop over faces 
@@ -190,6 +195,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fz[i,j,k+1] - Fz[i,j,k]) +
                 dt*sfx[i,j,k]
             
+
         end
 
         # v: y-velocity
@@ -214,7 +220,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k]) +
                 dt*(sfy[i,j,k] - gravity)
-            
         end
 
 
@@ -251,6 +256,9 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     #     println(VF)
     #     println(VFnew)
     # end
+
+    # println(Curve)
+    # error("check")
 
     # Finish updating VF 
     VF .= VFnew

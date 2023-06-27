@@ -1,7 +1,9 @@
 
 
 # Solve Poisson equation: δP form
+
 function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz)
+
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
@@ -9,7 +11,6 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,den
     grady = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     #LHS = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-
 
 
     iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz)
@@ -28,8 +29,10 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
         iter = GaussSeidel!(P,RHS,param,mesh,par_env)
     elseif pressureSolver == "ConjugateGradient"
         iter = conjgrad!(P,RHS,param,mesh,par_env)
+
     elseif pressureSolver == "Secant"
         iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,param,mesh,par_env)
+
     elseif pressureSolver == "NLsolve"
         iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     else
@@ -52,7 +55,9 @@ function lap!(L,P,param,mesh)
 end
 
 # LHS of pressure poisson equation
+
 function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
+
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -78,9 +83,11 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env
         gradz[i,j,k]=dt/denz[i,j,k]*(P[i,j,k]-P[i,j,k-1])/dz
     end
 
+
     uf1 = uf-gradx
     vf1 = vf-grady
     wf1 = wf-gradz
+
 
 
     fill!(LHS,0.0)
@@ -104,6 +111,7 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env
     end
     return nothing
 end
+
 
 #local A! matrix
 function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
@@ -188,6 +196,7 @@ function computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,de
     return J 
 end
 
+
 # Secant method
 function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,param,mesh,par_env)
     @unpack tol,Nx,Ny,Nz = param
@@ -264,6 +273,7 @@ function computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par
 
     return out.iterations
 end
+
 
 
 """

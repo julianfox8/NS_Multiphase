@@ -116,6 +116,7 @@ function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
 
+
     if abs(nx[i,j,k]) > abs(ny[i,j,k]) && abs(nx[i,j,k]) > abs(nz[i,j,k])
         hf = OffsetArray{Float64}(undef, j-1:j+1,k-1:k+1)
         fill!(hf,0.0)
