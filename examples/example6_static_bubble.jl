@@ -9,20 +9,25 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu=10.0,       # Dynamic viscosity
-    rho=1.0,           # Density
-    sigma = 0.1, #surface tension coefficient
-    Lx=1.0,            # Domain size
-    Ly=1.0,
+    mu_liq=0.01,       # Dynamic viscosity
+    mu_gas = 0.0001,
+    rho_liq= 1000,           # Density
+    rho_gas =0.1, 
+    sigma = 0.0,#0.0072, #surface tension coefficient
+    gravity = 1e-3,
+    Lx=5.0,            # Domain size 
+    Ly=5.0,
     Lz=1/50,
-    tFinal=1.0,      # Simulation time
+    tFinal=100.0,      # Simulation time
+ 
     
-    # Discretization inputs
-    Nx=50,           # Number of grid cells
-    Ny=50,
+    # Discretization inputsc
+    Nx=20,           # Number of grid cells
+    Ny=20,
     Nz=1,
-    stepMax=2,   # Maximum number of timesteps
-    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    stepMax=1000,   # Maximum number of timesteps
+    max_dt = 5e-3,
+    CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
     tol = 1e-3,
@@ -35,9 +40,10 @@ param = parameters(
     # Periodicity
     xper = false,
     yper = false,
-    zper = false,
+    zper = true,
 
-    pressureSolver = "NLsolve",
+    # pressureSolver = "NLsolve",
+    pressureSolver = "Secant",
     iter_type = "standard",
     VTK_dir= "VTK_example_static_bubble1"
 
@@ -61,12 +67,15 @@ function IC!(P,u,v,w,VF,mesh)
         w[i,j,k] = 0.0
     end
 
+    # fill!(VF,1.0)
     # Volume Fraction
-    rad=0.15
-    xo=0.5
-    yo=0.5
+    rad=0.5
+    xo=2.5
+    yo=2.5
+    zo = 2.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+        # VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+        VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end
 
     return nothing    
@@ -81,19 +90,19 @@ function BC!(u,v,w,mesh,par_env)
     @unpack jmin_,jmax_ = mesh
     @unpack xm,ym = mesh
     
-    vsides = 0.0
+
      # Left 
      if irankx == 0 
         i = imin-1
         u[i,:,:] = -u[imin,:,:] # No flux
-        v[i,:,:] = -v[imin,:,:] .+ vsides # slip
+        v[i,:,:] = -v[imin,:,:] # slip
         w[i,:,:] = -w[imin,:,:] # No slip
     end
     # Right
     if irankx == nprocx-1
         i = imax+1
         u[i,:,:] = -u[imax,:,:] # No flux
-        v[i,:,:] = -v[imax,:,:] .+ vsides # slip
+        v[i,:,:] = -v[imax,:,:] # slip
         w[i,:,:] = -w[imax,:,:] # No slip
     end
     # Bottom 
@@ -115,14 +124,14 @@ function BC!(u,v,w,mesh,par_env)
     if irankz == 0 
         k = kmin-1
         u[:,:,k] = -u[:,:,kmin] # No slip
-        v[:,:,k] = -v[:,:,kmin] .+ vsides # slip
+        v[:,:,k] = -v[:,:,kmin] # slip
         w[:,:,k] = -w[:,:,kmin] # No flux
     end
     # Front
     if irankz == nprocz-1
         k = kmax+1
         u[:,:,k] = -u[:,:,kmax] # No slip
-        v[:,:,k] = -v[:,:,kmax] .+ vsides # slip
+        v[:,:,k] = -v[:,:,kmax] # slip
         w[:,:,k] = -w[:,:,kmax] # No flux
     end
 
