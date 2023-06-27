@@ -18,17 +18,39 @@ function computeBand!(band,VF,param,mesh,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh 
 
     # Number of bands to create 
-    nband=2
+    nband=1
 
     # Sweep to set gas/liquid/interface cells 
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        # if VF[i,j,k] < VFlo
+        #     band[i,j,k] = -nband-1
+        # elseif VF[i,j,k] > VFhi 
+        #     band[i,j,k] = +nband+1
+        # else
+        #     band[i,j,k] = 0
+        # end
         if VF[i,j,k] < VFlo
-            band[i,j,k] = -nband-1
-        elseif VF[i,j,k] > VFhi 
-            band[i,j,k] = +nband+1
+            for kk=k-1:k+1,jj=j-1:j+1, ii=i-1:i+1
+                if VF[ii,jj,kk] >= VFhi
+                    band[i,j,k] = 0
+                    break
+                else 
+                    band[i,j,k] = -nband-1
+                end
+            end
+        elseif VF[i,j,k] > VFhi
+            for kk=k-1:k+1,jj=j-1:j+1, ii=i-1:i+1
+                if VF[ii,jj,kk] <= VFlo
+                    band[i,j,k] = 0
+                    break
+                else 
+                    band[i,j,k] = +nband+1
+                end
+            end 
         else
             band[i,j,k] = 0
         end
+        
         # TODO: Add check for implicit interfaces between cells (only will matter for test cases)
     end
     Neumann!(band,mesh,par_env)

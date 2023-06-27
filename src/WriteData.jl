@@ -52,7 +52,7 @@ function format(iter)
     return @sprintf("%05i",iter)
 end
 
-function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz)
+function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
     @unpack VTK_dir = param
 
     # Check if should write output
@@ -95,6 +95,9 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_
             pvtk["SFx"] = @views sfx[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["SFy"] = @views sfy[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["SFz"] = @views sfz[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["rho_x"] = @views denx[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["rho_y"] = @views deny[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["rho_z"] = @views denz[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             # Indices for debugging
             for i=imin_:imax_; tmp[i,:,:] .= i; end
             pvtk["i_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
