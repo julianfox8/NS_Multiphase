@@ -203,11 +203,10 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,pa
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
     println("test poisson structure")
-    P = Poisson(P,uf,vf,wf,param,mesh,par_env)
-    m,n,o = size(P.f[1])
-    for ii in 1:length(P.f)
-        @loop param for k=1:o-1, j=1:n-1, i=1:m-1 
-            P.f[ii][i,j,k] += del(i,I,p.p,p.f,den,dt)
+    Pois = Poisson(P,uf,vf,wf,param,mesh,par_env)
+    for ii in 1:length(Pois.f)
+        @loop param for I in CartesianIndices(Pois.f[ii])
+            Pois.f[ii][I] += del(i,I,Pois.p,Pois.f,denx,dt)
         end
     end
 

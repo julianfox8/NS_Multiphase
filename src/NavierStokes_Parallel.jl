@@ -65,7 +65,7 @@ function run_solver(param, IC!, BC!)
 
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
-    println(band)
+
 
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
