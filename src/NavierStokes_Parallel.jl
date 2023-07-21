@@ -65,7 +65,7 @@ function run_solver(param, IC!, BC!)
 
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
-    println(band)
+
 
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
@@ -151,11 +151,10 @@ function run_solver(param, IC!, BC!)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
 
     end
-    println(VF)
-    println(band)
+
     # Finalize
     #VTK_finalize(pvd) (called in VTK)
-    #parallel_finalize()
+    parallel_finalize()
 
 end # run_solver
 

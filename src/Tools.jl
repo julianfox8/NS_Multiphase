@@ -64,12 +64,12 @@ macro loop(args...)
                 $(esc(lbody))
             end
 
-        # elseif $(esc(p)).iter_type == "threads"
-        #     # Threads
-        #     @threads for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
-        #         $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
-        #         $(esc(lbody))
-        #     end
+        elseif $(esc(p)).iter_type == "threads"
+            # Threads
+            @threads for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
+                $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
+                $(esc(lbody))
+            end
 
         elseif $(esc(p)).iter_type == "floop"
             # FLoops
