@@ -6,7 +6,6 @@ function Neumann!(A,mesh,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack nprocx,nprocy,nprocz,irankx,iranky,irankz = par_env
 
-
     irankx == 0        ? A[imin_-1,:,:]=A[imin_,:,:] : nothing # Left 
     irankx == nprocx-1 ? A[imax_+1,:,:]=A[imax_,:,:] : nothing # Right
 
@@ -17,6 +16,9 @@ function Neumann!(A,mesh,par_env)
     irankz == nprocz-1 ? A[:,:,kmax_+1]=A[:,:,kmax_] : nothing # Front
     return nothing
 end
+
+# @inline inside(a::AbstractArray) = CartesianIndices(map(ax->first(ax)+1:last(ax)-1,axes(a)))
+
 
 """ 
 Macro to easily change looping behavior throughout code 
@@ -30,7 +32,7 @@ macro loop(args...)
     # Extract iterator and body of loop
     iter = ex.args[1]
     lbody = ex.args[2]
-
+    # println(iter)
 
     # Check iterator has three arguments
     if length(iter.args)==3 # || error("Missing iterator")
@@ -84,12 +86,19 @@ macro loop(args...)
 
             nothing
         end
-    elseif iter.head == :(=) && iter.args[1] == :I && iter.args[2].head == :call && iter.args[2].args[1] == :CartesianIndices
+    # elseif iter.head == :(=) && iter.args[1] == :I && iter.args[2].head == :call && iter.args[2].args[1] == :CartesianIndices
+    elseif iter.args[2].head == :call       
         # Handle I = CartesianIndices(P.f[ii]) iterator
-        indices_arg = iter.args[2].args[2:end]
+        indices_arg = iter.args[2].args[2]
+        println("here")
+        # println(indices_arg[1])
+        # println(iter.args[2].args[1])
+        # i = iter.args[1]
         quote
-            for I in CartesianIndices($(esc(indices_arg)))
-                #I = ind
+            indices_iter = CartesianIndices(inside($(esc(indices_arg))))
+            $I = @index(Global,Cartesian)
+            for $I in indices_iter
+                # $(esc(i)) = I
                 $(esc(lbody))
             end
         end
@@ -206,6 +215,13 @@ function /̂(a,b)
     return abs(b)<=eps() ? typemax(Float64) : a/b
 end
 
+function *̂(a, b)
+    if abs(a) <= eps() || abs(b) <= eps()
+        return 0.0  # If either a or b is close to zero, the result will be zero
+    else
+        return a * b
+    end
+end
 
 """ 
 Determine which cell (index) a point 
