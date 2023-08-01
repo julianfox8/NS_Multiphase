@@ -66,7 +66,6 @@ function run_solver(param, IC!, BC!)
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
 
-
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
@@ -115,15 +114,12 @@ function run_solver(param, IC!, BC!)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz)
         # println("u-star after transport ", us[5,5,1])
         if solveNS
-            # if iter > 0
-                # Create face velocities
-                # println(us)
+  
+            # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-                # println(uf)
-            # end
 
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz)
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,iter)
 
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
@@ -151,11 +147,10 @@ function run_solver(param, IC!, BC!)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
 
     end
-    println(VF)
-    println(band)
+
     # Finalize
     #VTK_finalize(pvd) (called in VTK)
-    #parallel_finalize()
+    # parallel_finalize()
 
 end # run_solver
 

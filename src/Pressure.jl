@@ -277,8 +277,8 @@ function A!(P::Poisson{T},delta=0.0) where {T}
     Neumann!(P.p,mesh,P.par)
     update_borders!(P.p,mesh,P.par) # (overwrites BCs if periodic)
 
-    p = copy(P.p)
-    p[I] += delta
+    # p = copy(P.p)
+    # p[I] += delta
     v_fields = (copy(P.f[1]), copy(P.f[2]), copy(P.f[3]))
     for ii in 1:length(P.f)
         for I in inside(P.f[ii])
@@ -390,8 +390,10 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,pa
         if res < tol
             return iter
         end
-    
-        # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
+        
+        if iter % 1000 == 0
+            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
+        end
     end    
 end
 
@@ -545,21 +547,76 @@ function Jacobi!(P::Poisson,tol=1e-4)
         # check residual to tol for new A(P)
         res = maximum(abs.(z))
      
-        # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",n,res,sum(z))
         if res < tol
             return n
+        end
+        if n % 1000 == 0
+            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",n,res,sum(z))
         end  
     end
 end
 
-#! need to think about how to construct the domain wide line search 
-function arm_gold(P::Poisson, del = 0.5, c=1e-4)
+function guided_Jacobi!(P::Poisson,tol=1e-4)
+    p,z,e,n = P.p,P.z,P.e,P.n
+    # calc A(P) as p.z
+    A!(P)
+
+    n = 0
+    alpha = similar(p)
+    fill!(alpha,0.0)
+    while true 
+        n +=1
+        # calc jacobian
+        Jacobian!(P)
+
+        #! compute alpha at each point in the domain
+
+        for I in inside(p)
+            alpha[I] = arm_gold(P,I)
+        end
+        # println(alpha)
+        for I in inside(p)
+            P.p[I] -= alpha[I]*z[I]/e[I]
+        end
+
+        # avoid drift
+        p .-=mean(p)
+
+        # calc A(P)
+        fill!(z,0.0)
+        A!(P)
+
+        # check residual to tol for new A(P)
+        res = maximum(abs.(z))
+     
+        if res < tol
+            return n
+        end
+        if n % 500 == 0
+            println(alpha)
+            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",n,res,sum(z))
+        end  
+    end
+end
+
+#! need to think about how to construct the domain wide line search for the armijo-goldstein condition
+function arm_gold(P::Poisson, I::CartesianIndex,del = 0.5, c=1000)
     f,x,d = P.z,P.p,P.e
     g = copy(d)
     f1 = copy(f)
     t = 1.0
     delta = t*d
-    while A!(P,delta) > f1 + c*t*dot(d,g)
+    A!(P,I,delta[I])
+    # println(f[I])
+    # println(f1[I] )
+    # println(c*t*d[I]^2)
+    while abs(f[I]) < abs(f1[I]) + abs(c*t*g[I]^2)
+        # println("made it here")
+        
         t *= del
+        delta = t*d
+        A!(P,I,delta[I])
+
     end
+    return t
 end
