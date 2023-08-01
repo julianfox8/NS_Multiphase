@@ -1,4 +1,6 @@
-# NavierStokes_Parallel
+
+# NS_Multiphase
+
 
 [![Build Status](https://github.com/markowkes/NavierStokes_Parallel.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/markowkes/NavierStokes_Parallel.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
@@ -23,3 +25,4 @@ also using thread based parallelism
 ```
 mpiexecjl --project=. -np 4 julia --optimize=3 --math-mode=fast --check-bounds=no --threads 10 examples/example5_deformation3D.jl
 ```
+>>>>>>> master

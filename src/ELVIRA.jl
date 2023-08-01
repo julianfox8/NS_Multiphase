@@ -116,6 +116,7 @@ function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
 
+
     if abs(nx[i,j,k]) > abs(ny[i,j,k]) && abs(nx[i,j,k]) > abs(nz[i,j,k])
         hf = OffsetArray{Float64}(undef, j-1:j+1,k-1:k+1)
         fill!(hf,0.0)
@@ -175,7 +176,7 @@ function compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
     fill!(sfz,0.0)
 
 
-    for k = 1, j = jmin_:jmax_, i = imin_:imax_
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
         sfx[i,j,k] = -sigma/2/dx*(VF[i+1,j,k]-VF[i,j,k])*(Curve[i+1,j,k]-Curve[i,j,k])
         sfy[i,j,k] = -sigma/2/dy*(VF[i,j+1,k]-VF[i,j,k])*(Curve[i,j+1,k]-Curve[i,j,k])
         sfz[i,j,k] = -sigma/2/dz*(VF[i,j,k+1]-VF[i,j,k])*(Curve[i,j,k+1]-Curve[i,j,k])

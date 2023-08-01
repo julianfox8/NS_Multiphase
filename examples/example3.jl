@@ -1,4 +1,4 @@
-"""
+    """
 Example using inflow/outflow
 """
 
@@ -39,7 +39,7 @@ param = parameters(
 
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
-    # pressureSolver = "Secant",
+    pressureSolver = "Secant",
     pressureSolver = "NLsolve",
     iter_type = "standard",
     VTK_dir= "VTK_example_3"
