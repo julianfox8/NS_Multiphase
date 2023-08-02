@@ -209,6 +209,7 @@ function computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,de
         fill!(LHS1,0.0)
         fill!(LHS2,0.0)
         fill!(dp,0.0)
+        dp[i,j,k] += delta
         J[i,j,k] = (
             (A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
             - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env))
