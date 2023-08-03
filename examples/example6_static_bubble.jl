@@ -146,7 +146,7 @@ function outflow_correction!(correction,uf,vf,wf,mesh,par_env)
     @unpack iranky,nprocy = par_env
     # Top is the outflow
     if iranky == nprocy-1
-        vf[:,jmax_,:] .-= correction 
+        vf[:,jmax_+1,:] .+= correction 
     end
 end
 

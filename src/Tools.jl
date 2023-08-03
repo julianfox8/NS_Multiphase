@@ -791,23 +791,22 @@ Correct outflow such that sum(divg)=0
 - outflow assumed to be at +x boundary
 """
 function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
-    @unpack Lx,Ly,Lz = mesh
+    @unpack dx,dy,dz = mesh
     @unpack tol = param
     iter=0; maxIter=100
     
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
-    d = sum(AP)
+    d = sum(AP*dx*dy*dz)
     while abs(d) > 1e-1*tol
         iter += 1
         # Correct outflow 
-        correction = -d*Lx*Ly*Lz/outflow.area(mesh,par_env)
+        correction = -0.5d/outflow.area(mesh,par_env)
         outflow.correction(correction,uf,vf,wf,mesh,par_env)
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
-        dnew = sum(AP)
-        println("correction = $correction, d = $dnew, area = $(outflow.area(mesh,par_env))")
+        dnew = sum(AP*dx*dy*dz)
         d=dnew
         if iter == maxIter
-            error("outflowCorrection did not converge!")
+            warn("outflowCorrection did not converge!")
             return
         end
     end
