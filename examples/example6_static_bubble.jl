@@ -14,10 +14,10 @@ param = parameters(
     rho_liq= 1000,           # Density
     rho_gas =0.1, 
     sigma = 0.0,#0.0072, #surface tension coefficient
-    gravity = 1e-3,
+    gravity = 1e-4,
     Lx=5.0,            # Domain size 
     Ly=5.0,
-    Lz=1/50,
+    Lz=1.0,
     tFinal=100.0,      # Simulation time
  
     
@@ -26,7 +26,7 @@ param = parameters(
     Ny=20,
     Nz=1,
     stepMax=1000,   # Maximum number of timesteps
-    max_dt = 5e-3,
+    max_dt = 5e-2,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
@@ -138,5 +138,28 @@ function BC!(u,v,w,mesh,par_env)
     return nothing
 end
 
+"""
+Apply outflow correction to region
+"""
+function outflow_correction!(correction,uf,vf,wf,mesh,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack iranky,nprocy = par_env
+    # Top is the outflow
+    if iranky == nprocy-1
+        vf[:,jmax_,:] .-= correction 
+    end
+end
+
+"""
+Define area of outflow region
+"""
+function outflow_area(mesh,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack x,z = mesh 
+    myArea = (x[imax_+1]-x[imin_]) * (z[kmax_+1]-z[kmin_])
+    return NavierStokes_Parallel.parallel_sum_all(myArea,par_env)
+end
+outflow =(area=outflow_area,correction=outflow_correction!)
+
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!)
+run_solver(param, IC!, BC!,outflow)

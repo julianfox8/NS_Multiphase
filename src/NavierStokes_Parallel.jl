@@ -26,7 +26,7 @@ include("VFgeom.jl")
 include("ELVIRA.jl")
 include("WriteData.jl")
 
-function run_solver(param, IC!, BC!)
+function run_solver(param, IC!, BC!, outflow)
     @unpack stepMax,tFinal,solveNS = param
 
     # Create parallel environment
@@ -93,11 +93,6 @@ function run_solver(param, IC!, BC!)
 
     while nstep<stepMax && t<tFinal
 
-        # define density and viscosity for each iteration
-        if iter > 0 
-            compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
-        end
-
         # Update step counter
         nstep += 1
 
@@ -112,6 +107,12 @@ function run_solver(param, IC!, BC!)
         # println("u-star before transport ", us[5,5,1])
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz)
+
+        # Update density and viscosity with transported VF
+        if iter > 0 
+            compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+        end
+        
         # println("u-star after transport ", us[5,5,1])
         if solveNS
   
@@ -119,7 +120,7 @@ function run_solver(param, IC!, BC!)
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,iter)
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow,iter)
 
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)

@@ -1,6 +1,6 @@
 # Solve Poisson equation: δP form
 
-function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,step)
+function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow,step)
 
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -10,14 +10,14 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,den
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     #LHS = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
-    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,step)
+    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,outflow,step)
 
     return iter
 end
 
 
 
-function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,step)
+function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,outflow,step)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
@@ -27,7 +27,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
     elseif pressureSolver == "ConjugateGradient"
         iter = conjgrad!(P,RHS,param,mesh,par_env)
     elseif pressureSolver == "Secant"
-        iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,param,mesh,par_env,step)
+        iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
     elseif pressureSolver == "NLsolve"
         iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     elseif pressureSolver == "Jacobi"
@@ -269,43 +269,43 @@ function A!(P::Poisson{T}) where {T}
         end
     end
 end
-# non local A! matrix with delta
-function A!(P::Poisson{T},delta=0.0) where {T}
-    param,mesh = P.param,P.mesh
-    @unpack dx,dy,dz = mesh
-    d_step = dx,dy,dz
+# # non local A! matrix with delta
+# function A!(P::Poisson{T},delta=0.0) where {T}
+#     param,mesh = P.param,P.mesh
+#     @unpack dx,dy,dz = mesh
+#     d_step = dx,dy,dz
 
-    Neumann!(P.p,mesh,P.par)
-    update_borders!(P.p,mesh,P.par) # (overwrites BCs if periodic)
+#     Neumann!(P.p,mesh,P.par)
+#     update_borders!(P.p,mesh,P.par) # (overwrites BCs if periodic)
 
-    # p = copy(P.p)
-    # p[I] += delta
-    v_fields = (copy(P.f[1]), copy(P.f[2]), copy(P.f[3]))
-    for ii in 1:length(P.f)
-        for I in inside(P.f[ii])
-            v_fields[ii][I] -= P.step/P.den[ii][I]*del(ii,I,P.p)/d_step[ii]
-        end
-    end
-    # println("made it through")
+#     # p = copy(P.p)
+#     # p[I] += delta
+#     v_fields = (copy(P.f[1]), copy(P.f[2]), copy(P.f[3]))
+#     for ii in 1:length(P.f)
+#         for I in inside(P.f[ii])
+#             v_fields[ii][I] -= P.step/P.den[ii][I]*del(ii,I,P.p)/d_step[ii]
+#         end
+#     end
+#     # println("made it through")
 
-    for I in inside(P.band)
-        if abs(P.band[I]) <= 1
-            tets, inds = cell2tets_withProject_uvwf(I[1],I[2],I[3],v_fields[1],v_fields[2],v_fields[3],P.step,mesh)
-            if any(isnan,tets)
-                error("Nan in tets at ", I)
-            end
-            v2 = dx*dy*dz
-            v1 = tets_vol(tets)
-            P.z[I] = (v2-v1) /̂ v2 /̂ P.step
-        else 
-            # Calculate divergence with finite differnce
-            du_dx = (v_fields[1][I+step(1,I)]-v_fields[1][I])/(dx)
-            dv_dy = (v_fields[2][I+step(2,I)]-v_fields[2][I])/(dy)
-            dw_dz = (v_fields[3][I+step(3,I)]-v_fields[3][I])/(dz)
-            P.z[I] = du_dx + dv_dy + dw_dz
-        end
-    end
-end
+#     for I in inside(P.band)
+#         if abs(P.band[I]) <= 1
+#             tets, inds = cell2tets_withProject_uvwf(I[1],I[2],I[3],v_fields[1],v_fields[2],v_fields[3],P.step,mesh)
+#             if any(isnan,tets)
+#                 error("Nan in tets at ", I)
+#             end
+#             v2 = dx*dy*dz
+#             v1 = tets_vol(tets)
+#             P.z[I] = (v2-v1) /̂ v2 /̂ P.step
+#         else 
+#             # Calculate divergence with finite differnce
+#             du_dx = (v_fields[1][I+step(1,I)]-v_fields[1][I])/(dx)
+#             dv_dy = (v_fields[2][I+step(2,I)]-v_fields[2][I])/(dy)
+#             dw_dz = (v_fields[3][I+step(3,I)]-v_fields[3][I])/(dz)
+#             P.z[I] = du_dx + dv_dy + dw_dz
+#         end
+#     end
+# end
 
 # local A matrix that recieves Poisson struct and cartesian index
 function A!(P::Poisson{T}, I::CartesianIndex{d},delta) where {T,d}
@@ -358,14 +358,14 @@ function Jacobian!(P::Poisson)
 end
 
 # Secant method
-function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,param,mesh,par_env,step)
+function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
 
     AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     fill!(AP,0.0)
-    # outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
+    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
 
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
 
@@ -382,8 +382,8 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,pa
         P .-=mean(P)
 
         #Need to introduce outflow correction
-        # outflowCorrection!(RHS,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,param,mesh,par_env)
-        # end
+        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+        
         #update new Ap
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
         
