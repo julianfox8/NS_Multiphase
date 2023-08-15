@@ -288,11 +288,22 @@ function cell2tets_withProject_uvwf(i, j, k, uf, vf, wf, dt, mesh)
     for n = 1:8
         # Perform semi-Lagrangian projection
         p[:, n] = project_uvwf(p[:, n], i, j, k, uf, vf, wf, -dt, mesh)
-        # # Get cell index of projected vertex
+        # Get cell index of projected vertex
         I[:, n] = pt2index(p[:, n], i, j, k, mesh)
     end
+
+    tets = verts2tets(p)
+    inds = verts2tets(I)
+
+    return tets,inds
+end
+
+""" 
+Make 5 tets out of a polyhedron represented by 8 vertices
+"""
+function verts2tets(p)
     # Make five tets 
-    tets = Array{Float64}(undef, 3, 4, 5)
+    tets = Array{eltype(p)}(undef, 3, 4, 5)
     tets[:, 1, 1] = p[:, 1]
     tets[:, 2, 1] = p[:, 2]
     tets[:, 3, 1] = p[:, 4]
@@ -313,33 +324,235 @@ function cell2tets_withProject_uvwf(i, j, k, uf, vf, wf, dt, mesh)
     tets[:, 2, 5] = p[:, 4]
     tets[:, 3, 5] = p[:, 7]
     tets[:, 4, 5] = p[:, 6]
-
-    # Make five tets 
-    inds = Array{Int64}(undef, 3, 4, 5)
-    inds[:, 1, 1] = I[:, 1]
-    inds[:, 2, 1] = I[:, 2]
-    inds[:, 3, 1] = I[:, 4]
-    inds[:, 4, 1] = I[:, 6]
-    inds[:, 1, 2] = I[:, 1]
-    inds[:, 2, 2] = I[:, 4]
-    inds[:, 3, 2] = I[:, 3]
-    inds[:, 4, 2] = I[:, 7]
-    inds[:, 1, 3] = I[:, 1]
-    inds[:, 2, 3] = I[:, 5]
-    inds[:, 3, 3] = I[:, 6]
-    inds[:, 4, 3] = I[:, 7]
-    inds[:, 1, 4] = I[:, 4]
-    inds[:, 2, 4] = I[:, 7]
-    inds[:, 3, 4] = I[:, 6]
-    inds[:, 4, 4] = I[:, 8]
-    inds[:, 1, 5] = I[:, 1]
-    inds[:, 2, 5] = I[:, 4]
-    inds[:, 3, 5] = I[:, 7]
-    inds[:, 4, 5] = I[:, 6]
-
-    return tets,inds
+    return tets
 end
 
+"""
+Add correction tets on to semi-Lagrangian cell
+- assumes tets were created using the ordering in verts2tets!
+"""
+function add_correction_tets(tets, inds, i, j, k, uf, vf, wf, dt, mesh)
+
+    function add_correction_tets_xm(tets)
+        @unpack x, y, z, dy, dz = mesh
+        # Flux vertices from cell face and projected vertices (within tets array)
+        p = Matrix{Float64}(undef, (3, 8))
+        p[:, 1] = tets[:,1,1] # 1
+        p[:, 2] = [x[i], y[j], z[k]]
+        p[:, 3] = tets[:,3,2] # 3
+        p[:, 4] = [x[i], y[j+1], z[k]]
+        p[:, 5] = tets[:,2,3] # 5
+        p[:, 6] = [x[i], y[j], z[k+1]]
+        p[:, 7] = tets[:,4,2] # 7
+        p[:, 8] = [x[i], y[j+1], z[k+1]]
+        # Create tets from vertices
+        flux_tets = verts2tets(p)
+        # Compute flux volume 
+        flux_vol = tets_vol(flux_tets)
+        # Compute required volume 
+        divg_vol = dt*dy*dz*uf[i,j,k]
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        newtets[:,:,ntets+1:ntets+2] = correction_tets_x(p[:,1],p[:,5],p[:,7],p[:,3],divg_vol - flux_vol)
+        return newtets
+    end
+
+    function add_correction_tets_xp(tets)
+        @unpack x, y, z, dy, dz = mesh
+        # Flux vertices from cell face and projected vertices (within tets array)
+        p = Matrix{Float64}(undef, (3, 8))
+        p[:, 1] = [x[i+1], y[j], z[k]]
+        p[:, 2] = tets[:,2,1] # 2
+        p[:, 3] = [x[i+1], y[j+1], z[k]]
+        p[:, 4] = tets[:,3,1] # 4
+        p[:, 5] = [x[i+1], y[j], z[k+1]]
+        p[:, 6] = tets[:,4,1] # 6
+        p[:, 7] = [x[i+1], y[j+1], z[k+1]]
+        p[:, 8] = tets[:,4,4] # 8
+        # Create tets from vertices
+        flux_tets = verts2tets(p)
+        # Compute flux volume 
+        flux_vol = -tets_vol(flux_tets)
+        # Compute required volume 
+        divg_vol = dt*dy*dz*uf[i+1,j,k]
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        newtets[:,:,ntets+1:ntets+2] = correction_tets_x(p[:,2],p[:,6],p[:,8],p[:,4],divg_vol - flux_vol)
+        return newtets
+    end
+
+    function add_correction_tets_ym(tets)
+        @unpack x, y, z, dx, dz = mesh
+        # Flux vertices from cell face and projected vertices (within tets array)
+        p = Matrix{Float64}(undef, (3, 8))
+        p[:, 1] = tets[:,1,1] # 1
+        p[:, 2] = tets[:,2,1] # 2
+        p[:, 3] = [x[i  ], y[j], z[k  ]]
+        p[:, 4] = [x[i+1], y[j], z[k  ]]
+        p[:, 5] = tets[:,2,3]  # 5
+        p[:, 6] = tets[:,4,1]  # 6
+        p[:, 7] = [x[i  ], y[j], z[k+1]]
+        p[:, 8] = [x[i+1], y[j], z[k+1]]
+        # Create tets from vertices
+        flux_tets = verts2tets(p)
+        # Compute flux volume 
+        flux_vol = tets_vol(flux_tets)
+        # Compute required volume 
+        divg_vol = dt*dx*dz*vf[i,j,k]
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        newtets[:,:,ntets+1:ntets+2] = correction_tets_y(p[:,6],p[:,5],p[:,1],p[:,2],divg_vol - flux_vol)
+        return newtets
+    end
+
+    function add_correction_tets_yp(tets)
+        @unpack x, y, z, dx, dz = mesh
+        # Flux vertices from cell face and projected vertices (within tets array)
+        p = Matrix{Float64}(undef, (3, 8))
+        p[:, 1] = [x[i  ], y[j+1], z[k  ]]
+        p[:, 2] = [x[i+1], y[j+1], z[k  ]]
+        p[:, 3] = tets[:,3,2] # 3
+        p[:, 4] = tets[:,3,1] # 4
+        p[:, 5] = [x[i  ], y[j+1], z[k+1]]
+        p[:, 6] = [x[i+1], y[j+1], z[k+1]]
+        p[:, 7] = tets[:,4,2]  # 7
+        p[:, 8] = tets[:,4,4]  # 8
+        # Create tets from vertices
+        flux_tets = verts2tets(p)
+        # Compute flux volume 
+        flux_vol = -tets_vol(flux_tets)
+        # Compute required volume 
+        divg_vol = dt*dx*dz*vf[i,j+1,k]
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        newtets[:,:,ntets+1:ntets+2] = correction_tets_y(p[:,8],p[:,7],p[:,3],p[:,4],divg_vol - flux_vol)
+        return newtets
+    end
+
+    function add_correction_tets_zm(tets)
+        @unpack x, y, z, dx, dy = mesh
+        # Flux vertices from cell face and projected vertices (within tets array)
+        p = Matrix{Float64}(undef, (3, 8))
+        p[:, 1] = tets[:,1,1] # 1
+        p[:, 2] = tets[:,2,1] # 2
+        p[:, 3] = tets[:,3,2] # 3
+        p[:, 4] = tets[:,3,1] # 4
+        p[:, 5] = [x[i  ], y[j  ], z[k]]
+        p[:, 6] = [x[i+1], y[j  ], z[k]]
+        p[:, 7] = [x[i  ], y[j+1], z[k]]
+        p[:, 8] = [x[i+1], y[j+1], z[k]]
+        # Create tets from vertices
+        flux_tets = verts2tets(p)
+        # Compute flux volume 
+        flux_vol = tets_vol(flux_tets)
+        # Compute required volume 
+        divg_vol = dt*dx*dy*wf[i,j,k]
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        newtets[:,:,ntets+1:ntets+2] = correction_tets_z(p[:,2],p[:,1],p[:,3],p[:,4],divg_vol - flux_vol)
+        return newtets
+    end
+
+    function add_correction_tets_zp(tets)
+        @unpack x, y, z, dx, dy = mesh
+        # Flux vertices from cell face and projected vertices (within tets array)
+        p = Matrix{Float64}(undef, (3, 8))
+        p[:, 1] = tets[:,1,1] # 1
+        p[:, 2] = tets[:,2,1] # 2
+        p[:, 3] = tets[:,3,2] # 3
+        p[:, 4] = tets[:,3,1] # 4
+        p[:, 5] = [x[i  ], y[j  ], z[k]]
+        p[:, 6] = [x[i+1], y[j  ], z[k]]
+        p[:, 7] = [x[i  ], y[j+1], z[k]]
+        p[:, 8] = [x[i+1], y[j+1], z[k]]
+        # Create tets from vertices
+        flux_tets = verts2tets(p)
+        # Compute flux volume 
+        flux_vol = -tets_vol(flux_tets)
+        # Compute required volume 
+        divg_vol = dt*dx*dy*wf[i,j,k+1]
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        newtets[:,:,ntets+1:ntets+2] = correction_tets_z(p[:,6],p[:,5],p[:,7],p[:,8],divg_vol - flux_vol)
+        return newtets
+    end
+
+    function correction_tets_x(a,b,c,d,vol)
+        tets = Array{eltype(tets)}(undef, 3, 4, 2)
+        e = 0.25*(a+b+c+d)
+        e[1] = ( (6.0*vol + a[1]*b[2]*d[3] - a[1]*b[3]*d[2] - a[2]*b[1]*d[3] + a[2]*b[3]*d[1] + a[3]*b[1]*d[2]
+               - a[3]*b[2]*d[1] - a[1]*b[2]*e[3] + a[1]*b[3]*e[2] + a[2]*b[1]*e[3] - a[3]*b[1]*e[2] + b[1]*c[2]*d[3] 
+               - b[1]*c[3]*d[2] - b[2]*c[1]*d[3] + b[2]*c[3]*d[1] + b[3]*c[1]*d[2] - b[3]*c[2]*d[1] + a[1]*d[2]*e[3] 
+               - a[1]*d[3]*e[2] - a[2]*d[1]*e[3] + a[3]*d[1]*e[2] - b[1]*c[2]*e[3] + b[1]*c[3]*e[2] + b[2]*c[1]*e[3] 
+               - b[3]*c[1]*e[2] - c[1]*d[2]*e[3] + c[1]*d[3]*e[2] + c[2]*d[1]*e[3] - c[3]*d[1]*e[2]) 
+               / (a[2]*b[3] - a[3]*b[2] - a[2]*d[3] + a[3]*d[2] + b[2]*c[3] - b[3]*c[2] + c[2]*d[3] - c[3]*d[2]) )
+        tets[:,1,1]=a; tets[:,2,1]=b; tets[:,3,1]=d; tets[:,4,1]=e;
+        tets[:,1,2]=b; tets[:,2,2]=c; tets[:,3,2]=d; tets[:,4,2]=e;
+        return tets
+    end
+    function correction_tets_y(a,b,c,d,vol)
+        tets = Array{eltype(tets)}(undef, 3, 4, 2)
+        e=0.25*(a+b+c+d)
+        e[2] = ( -(6.0*vol + a[1]*b[2]*d[3] - a[1]*b[3]*d[2] - a[2]*b[1]*d[3] + a[2]*b[3]*d[1] + a[3]*b[1]*d[2] 
+               - a[3]*b[2]*d[1] - a[1]*b[2]*e[3] + a[2]*b[1]*e[3] - a[2]*b[3]*e[1] + a[3]*b[2]*e[1] + b[1]*c[2]*d[3] 
+               - b[1]*c[3]*d[2] - b[2]*c[1]*d[3] + b[2]*c[3]*d[1] + b[3]*c[1]*d[2] - b[3]*c[2]*d[1] + a[1]*d[2]*e[3] 
+               - a[2]*d[1]*e[3] + a[2]*d[3]*e[1] - a[3]*d[2]*e[1] - b[1]*c[2]*e[3] + b[2]*c[1]*e[3] - b[2]*c[3]*e[1] 
+               + b[3]*c[2]*e[1] - c[1]*d[2]*e[3] + c[2]*d[1]*e[3] - c[2]*d[3]*e[1] + c[3]*d[2]*e[1]) 
+               / (a[1]*b[3] - a[3]*b[1] - a[1]*d[3] + a[3]*d[1] + b[1]*c[3] - b[3]*c[1] + c[1]*d[3] - c[3]*d[1]) )
+        tets[:,1,1]=a; tets[:,2,1]=b; tets[:,3,1]=d; tets[:,4,1]=e;
+        tets[:,1,2]=b; tets[:,2,2]=c; tets[:,3,2]=d; tets[:,4,2]=e;
+        return tets
+    end
+    function correction_tets_z(a,b,c,d,vol)
+        tets = Array{eltype(tets)}(undef, 3, 4, 2)
+        e=0.25*(a+b+c+d)
+        e[3] = ( (6.0*vol + a[1]*b[2]*d[3] - a[1]*b[3]*d[2] - a[2]*b[1]*d[3] + a[2]*b[3]*d[1] + a[3]*b[1]*d[2] 
+               - a[3]*b[2]*d[1] + a[1]*b[3]*e[2] - a[2]*b[3]*e[1] - a[3]*b[1]*e[2] + a[3]*b[2]*e[1] + b[1]*c[2]*d[3] 
+               - b[1]*c[3]*d[2] - b[2]*c[1]*d[3] + b[2]*c[3]*d[1] + b[3]*c[1]*d[2] - b[3]*c[2]*d[1] - a[1]*d[3]*e[2] 
+               + a[2]*d[3]*e[1] + a[3]*d[1]*e[2] - a[3]*d[2]*e[1] + b[1]*c[3]*e[2] - b[2]*c[3]*e[1] - b[3]*c[1]*e[2] 
+               + b[3]*c[2]*e[1] + c[1]*d[3]*e[2] - c[2]*d[3]*e[1] - c[3]*d[1]*e[2] + c[3]*d[2]*e[1]) 
+               / (a[1]*b[2] - a[2]*b[1] - a[1]*d[2] + a[2]*d[1] + b[1]*c[2] - b[2]*c[1] + c[1]*d[2] - c[2]*d[1]) )
+        tets[:,1,1]=a; tets[:,2,1]=b; tets[:,3,1]=d; tets[:,4,1]=e;
+        tets[:,1,2]=b; tets[:,2,2]=c; tets[:,3,2]=d; tets[:,4,2]=e;
+        return tets
+    end
+
+    # Add 2 tets to correct flux on each face 
+    new_tets = tets
+    new_tets = add_correction_tets_xm(new_tets)
+    new_tets = add_correction_tets_xp(new_tets)
+    new_tets = add_correction_tets_ym(new_tets)
+    new_tets = add_correction_tets_yp(new_tets)
+    new_tets = add_correction_tets_zm(new_tets)
+    new_tets = add_correction_tets_zp(new_tets)
+    # Compute indices of new tets 
+    new_inds = Array{eltype(inds)}(undef, size(new_tets))
+    new_inds[:,:,1:5] = inds # transfer original indices 
+    for n = 6:size(new_tets,3)
+        for v = 1:4
+            new_inds[:,v,n] = pt2index( new_tets[:,v,n], i, j, k, mesh)
+        end
+    end
+    return new_tets, new_inds
+end
 
 """
 Computes volume of tet
