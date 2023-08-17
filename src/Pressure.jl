@@ -28,6 +28,8 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
         iter = conjgrad!(P,RHS,param,mesh,par_env)
     elseif pressureSolver == "Secant"
         iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
+    elseif pressureSolver == "sparseSecant"
+        iter = Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
     elseif pressureSolver == "NLsolve"
         iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     elseif pressureSolver == "Jacobi"
@@ -47,8 +49,8 @@ struct Poisson{T<:AbstractArray,T16<:AbstractArray,parameters,par_env_struct,mes
     band :: T16
     step:: Float64
     z :: T # source
-    e :: T # error #? do these also need to be of type T or just a float value?
-    r :: T # residual
+    j :: T # Jacobian
+    r :: T # Jacobian residual
     n :: Int16 # iterations
     param :: parameters # param object
     par :: par_env_struct # parallel environement structure
@@ -60,9 +62,9 @@ struct Poisson{T<:AbstractArray,T16<:AbstractArray,parameters,par_env_struct,mes
         step,band = dt,_band
         #want to compute grad(u*-dt/rho) in each direction and store it in f 
         r = similar(p); fill!(r,0.0)
-        z,e = copy(r),copy(r)
+        z,j = copy(r),copy(r)
         n = Int16(0)
-        new{T,T16,typeof(param),typeof(par),typeof(mesh)}(p,f,den,band,step,z,e,r,n,param,par,mesh)
+        new{T,T16,typeof(param),typeof(par),typeof(mesh)}(p,f,den,band,step,z,j,r,n,param,par,mesh)
     end
 end
 
@@ -218,6 +220,95 @@ function computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,de
     return J 
 end
 
+
+function n(i,j,k,Ny,Nz) 
+    val = i + (j-1)*Ny + (k-1)*Nz
+    # @show i,j,k,Ny,Nz,val
+    return val
+end 
+
+function compute_sparse_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+    @unpack Nx,Ny,Nz = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+
+    J = OffsetArray{Float64}(undef,1:Nx*Ny*Nz,1:Nx*Ny*Nz)
+    dp = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+
+    delta = 1.0
+    fill!(J,0.0)
+
+
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        for kk=max(1,k-1):min(Nz,j+1), jj=max(1,j-1):min(Ny,j+1), ii=max(1,i-1):min(Nx,i+1)
+            fill!(LHS1,0.0)
+            fill!(LHS2,0.0)
+            fill!(dp,0.0)
+            dp[ii,jj,kk] += delta
+            J[n(i,j,k,Ny,Nz),n(ii,jj,kk,Ny,Nz)] = (
+                (A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
+                - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env))
+                ./̂2delta)
+        end
+    end
+    return J 
+end
+
+function compute_sparse2_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+    @unpack Nx,Ny,Nz = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+
+    diags = OffsetArray{Float64}(undef,1:Nx*Ny*Nz,9)
+    dp = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+
+    delta = 1.0
+    fill!(diags,0.0)
+    offset=[-(Nx+1), -Nx, -(Nx-1), -1, 0, 1, Nx-1, Nx, Nx+1]
+
+
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        nNeigh = 0
+
+        for kk = 1 ,jj = j-1:j+1, ii = i-1:i+1
+            if jj < 1 || jj > Nx || ii < 1 || ii > Nx
+                # Outside domain 
+                nNeigh += 1
+            elseif kk < 1 || kk > Nz
+                nNeigh += 0
+            else
+                fill!(LHS1,0.0)
+                fill!(LHS2,0.0)
+                fill!(dp,0.0)
+                dp[ii,jj,kk] += delta
+                J = ((A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
+                    - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env))
+                    ./̂2delta)
+                nNeigh +=1 
+                row = n(ii,jj,kk,Ny,Nz)-max(0,offset[nNeigh]) # Row in diagonal array
+                # println(n(ii,jj,kk,Ny,Nz))
+                # println(max(0,offset[nNeigh])) 
+                # @show i,j,ii,jj,nNeigh, row,n(ii,jj,kk,Ny,Nz),max(0,offset[nNeigh])
+                diags[row,nNeigh] = J
+            end
+        end
+    end
+    J = diagm(
+        offset[1] => diags[1:Nx*Ny*Nz-abs(offset[1]),1],
+        offset[2] => diags[1:Nx*Ny*Nz-abs(offset[2]),2],
+        offset[3] => diags[1:Nx*Ny*Nz-abs(offset[3]),3],
+        offset[4] => diags[1:Nx*Ny*Nz-abs(offset[4]),4],
+        offset[5] => diags[1:Nx*Ny*Nz-abs(offset[5]),5],
+        offset[6] => diags[1:Nx*Ny*Nz-abs(offset[6]),6],
+        offset[7] => diags[1:Nx*Ny*Nz-abs(offset[7]),7],
+        offset[8] => diags[1:Nx*Ny*Nz-abs(offset[8]),8],
+        offset[9] => diags[1:Nx*Ny*Nz-abs(offset[9]),9]
+    )
+    return J 
+end
+
 #want to define step and del operators
 CI(a...) = CartesianIndex(a...)
 step(i,::Val{N}) where N = CI(ntuple(j -> j==i ? 1 : 0, N))
@@ -308,6 +399,7 @@ end
 # end
 
 # local A matrix that recieves Poisson struct and cartesian index
+# A! matrix for the jacobian calculation at P+/-dP acts on Jacobian residual field
 function A!(P::Poisson{T}, I::CartesianIndex{d},delta) where {T,d}
     param,mesh,par_env = P.param,P.mesh,P.par
     @unpack dx,dy,dz = mesh
@@ -353,8 +445,34 @@ function Jacobian!(P::Poisson)
         A!(P,I,ndelta)
         A_neg = P.r[I]
         #! calc jacobian at each pt in mesh
-        P.e[I] = (A_pos-A_neg)/̂2delta        
+        P.j[I] = (A_pos-A_neg)/̂2delta        
     end
+end
+
+function full_Jacobian!(P::Poisson)
+    delta = 1.0
+    ndelta = -1.0
+
+    #! need to loop over p-field
+    for I in inside(P.p)
+        A!(P,I,delta)
+        A_pos = P.r[I]
+        fill!(P.r,0.0)
+        A!(P,I,ndelta)
+        A_neg = P.r[I]
+        #! calc jacobian at each pt in mesh
+        P.j[I] = (A_pos-A_neg)/̂2delta        
+    end
+end
+
+function convert3d_1d(matrix)
+    m1D = reshape(matrix,size(matrix,1)*size(matrix,2),size(matrix,3))
+    return m1D
+end
+
+function convert1d_3d(matrix,x,y,z)
+    m3D = reshape(matrix,(x,y,z))
+    return m3D
 end
 
 # Secant method
@@ -375,7 +493,7 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,ou
         iter += 1
 
         # compute jacobian
-        J = computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+        J = compute_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
 
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= 0.8AP./̂J
 
@@ -398,6 +516,50 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,ou
     end    
 end
 
+function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
+    @unpack tol,Nx,Ny,Nz = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack dx,dy,dz = mesh
+
+    AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    fill!(AP,0.0)
+    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+
+    # Iterate 
+    iter=0
+    while true
+        iter += 1
+
+        # compute jacobian
+        J = compute_sparse2_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+        Pv = convert3d_1d(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        APv = convert3d_1d(AP)
+
+
+        Pv -= J\APv
+
+        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = convert1d_3d(Pv,Nx,Ny,Nz)
+
+        P .-=mean(P)
+
+        #Need to introduce outflow correction
+        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+        
+        #update new Ap
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+        
+        res = maximum(abs.(AP))
+        if res < tol
+            return iter
+        end
+        
+        if iter % 1000 == 0
+            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
+        end
+    end    
+end
 
 # NLsolve Library
 function computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
@@ -524,7 +686,9 @@ end
 
 
 function Jacobi!(P::Poisson,tol=1e-4)
-    p,z,e,n = P.p,P.z,P.e,P.n
+    p,z,j,n = P.p,P.z,P.j,P.n
+    #!apply outflow correction to P.p calc A! using P.z
+
     # calc A(P) as p.z
     A!(P)
 
@@ -535,11 +699,13 @@ function Jacobi!(P::Poisson,tol=1e-4)
         Jacobian!(P)
 
         for I in inside(p)
-            P.p[I] -= 0.8z[I]/e[I]
+            P.p[I] -= 0.8z[I]/j[I]
         end
 
         # avoid drift
         p .-=mean(p)
+
+        #!add outlfow correction to P.p
 
         # calc A(P)
         fill!(z,0.0)
@@ -606,14 +772,9 @@ function arm_gold(P::Poisson, I::CartesianIndex,del = 0.5, c=1000)
     g = copy(d)
     f1 = copy(f)
     t = 1.0
-    delta = t*d
+    delta = -t*d
     A!(P,I,delta[I])
-    # println(f[I])
-    # println(f1[I] )
-    # println(c*t*d[I]^2)
-    while abs(f[I]) < abs(f1[I]) + abs(c*t*g[I]^2)
-        # println("made it here")
-        
+    while f[I] < f1[I] + c*t*g[I]^2
         t *= del
         delta = t*d
         A!(P,I,delta[I])
