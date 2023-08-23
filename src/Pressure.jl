@@ -1,5 +1,6 @@
-# Solve Poisson equation: δP form
+using SparseArrays
 
+# Solve Poisson equation: δP form
 function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow,step)
 
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -295,7 +296,7 @@ function compute_sparse2_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,den
             end
         end
     end
-    J = diagm(
+    J = spdiagm(
         offset[1] => diags[1:Nx*Ny*Nz-abs(offset[1]),1],
         offset[2] => diags[1:Nx*Ny*Nz-abs(offset[2]),2],
         offset[3] => diags[1:Nx*Ny*Nz-abs(offset[3]),3],
