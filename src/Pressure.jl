@@ -12,7 +12,14 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,den
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     #LHS = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
-
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        # RHS
+        RHS[i,j,k]= 1/dt * ( 
+            ( uf[i+1,j,k] - uf[i,j,k] )*denx[i,j,k]/(dx) +
+            ( vf[i,j+1,k] - vf[i,j,k] )*deny[i,j,k]/(dy) +
+            ( wf[i,j,k+1] - wf[i,j,k] )*denz[i,j,k]/(dz) )
+    end
+    
     iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz)
 
     return iter
@@ -302,7 +309,7 @@ function GaussSeidel!(P,RHS,param,mesh,par_env)
         Neumann!(P,mesh,par_env)
         # Check if converged
         if iter == 10
-            print(max_update)
+            println(max_update)
         end
         max_update = parallel_max_all(max_update,par_env)
         max_update < tol && return iter # Converged

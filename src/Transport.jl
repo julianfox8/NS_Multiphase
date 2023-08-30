@@ -66,7 +66,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             vV   = 0.0
             vW   = 0.0
             for tet in eachindex(view(tets,1,1,:))
-                @show tet
+                # @show tet
                 tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tets[:,:,tet],inds[:,:,tet],
                                     u,v,w,
                                     false,false,false,nx,ny,nz,D,mesh,
