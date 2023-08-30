@@ -755,7 +755,7 @@ function VFbubble3d(xmin,xmax,ymin,ymax,zmin,zmax,rad,xo,yo,zo)
         zh = zmin + k/(nF+1)*(zmax-zmin)
         G = rad^2 - ((xh-xo)^2 + (yh-yo)^2 + (zh-zo)^2)
         if G > 0.0
-            VF = 0.0
+            VF -= VFsubcell
         end
     end
     return VF

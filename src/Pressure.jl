@@ -1,4 +1,5 @@
 using SparseArrays
+using LinearAlgebra
 
 # Solve Poisson equation: δP form
 function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow,step)
@@ -223,7 +224,7 @@ end
 
 
 function n(i,j,k,Ny,Nz) 
-    val = i + (j-1)*Ny + (k-1)*Nz
+    val = i + (j-1)*Ny + (k-1)*Nz*Ny
     # @show i,j,k,Ny,Nz,val
     return val
 end 
@@ -256,7 +257,7 @@ function compute_sparse_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx
     return J 
 end
 
-function compute_sparse2_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+function compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
     @unpack Nx,Ny,Nz = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -265,7 +266,7 @@ function compute_sparse2_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,den
     LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
 
-    delta = 1.0
+    delta = 100000
     fill!(diags,0.0)
     offset=[-(Nx+1), -Nx, -(Nx-1), -1, 0, 1, Nx-1, Nx, Nx+1]
 
@@ -306,6 +307,80 @@ function compute_sparse2_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,den
         offset[7] => diags[1:Nx*Ny*Nz-abs(offset[7]),7],
         offset[8] => diags[1:Nx*Ny*Nz-abs(offset[8]),8],
         offset[9] => diags[1:Nx*Ny*Nz-abs(offset[9]),9]
+    )
+    return J 
+end
+
+
+function compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+    @unpack Nx,Ny,Nz = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+
+    diags = OffsetArray{Float64}(undef,1:Nx*Ny*Nz,27)
+    dp = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+
+    delta = 1.0
+    fill!(diags,0.0)
+    offset=[-Nx*Ny-Nx-1,-Nx*Ny-Nx,-Nx*Ny-Nx+1,-Nx*Ny-1,-Nx*Ny,-Nx*Ny+1,-Nx*Ny+Nx-1,
+            -Nx*Ny+Nx,-Nx*Ny+Nx+1,-(Nx+1), -Nx, -(Nx-1), -1, 0, 1, Nx-1, Nx, Nx+1,
+            Nx*Ny-Nx-1, Nx*Ny-Nx, Nx*Ny-Nx+1, Nx*Ny-1, Nx*Ny, Nx*Ny+1,Nx*Ny+Nx-1,
+            Nx*Ny+Nx,Nx*Ny+Nx+1]
+
+
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        nNeigh = 0
+
+        for kk = k-1:k+1 ,jj = j-1:j+1, ii = i-1:i+1
+            if jj < 1 || jj > Nx || ii < 1 || ii > Nx || kk < 1 || kk > Nz
+                # Outside domain 
+                nNeigh += 1
+            else
+                fill!(LHS1,0.0)
+                fill!(LHS2,0.0)
+                fill!(dp,0.0)
+                dp[ii,jj,kk] += delta
+                J = ((A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
+                    - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env))
+                    ./̂2delta)
+                nNeigh +=1 
+                row = n(ii,jj,kk,Ny,Nz)-max(0,offset[nNeigh]) # Row in diagonal array
+                # println(n(ii,jj,kk,Ny,Nz))
+                # println(max(0,offset[nNeigh])) 
+                # @show i,j,ii,jj,nNeigh, row,n(ii,jj,kk,Ny,Nz),max(0,offset[nNeigh])
+                diags[row,nNeigh] = J
+            end
+        end
+    end
+    J = spdiagm(
+        offset[1] => diags[1:Nx*Ny*Nz-abs(offset[1]),1],
+        offset[2] => diags[1:Nx*Ny*Nz-abs(offset[2]),2],
+        offset[3] => diags[1:Nx*Ny*Nz-abs(offset[3]),3],
+        offset[4] => diags[1:Nx*Ny*Nz-abs(offset[4]),4],
+        offset[5] => diags[1:Nx*Ny*Nz-abs(offset[5]),5],
+        offset[6] => diags[1:Nx*Ny*Nz-abs(offset[6]),6],
+        offset[7] => diags[1:Nx*Ny*Nz-abs(offset[7]),7],
+        offset[8] => diags[1:Nx*Ny*Nz-abs(offset[8]),8],
+        offset[9] => diags[1:Nx*Ny*Nz-abs(offset[9]),9],
+        offset[10] => diags[1:Nx*Ny*Nz-abs(offset[10]),10],
+        offset[11] => diags[1:Nx*Ny*Nz-abs(offset[11]),11],
+        offset[12] => diags[1:Nx*Ny*Nz-abs(offset[12]),12],
+        offset[13] => diags[1:Nx*Ny*Nz-abs(offset[13]),13],
+        offset[14] => diags[1:Nx*Ny*Nz-abs(offset[14]),14],
+        offset[15] => diags[1:Nx*Ny*Nz-abs(offset[15]),15],
+        offset[16] => diags[1:Nx*Ny*Nz-abs(offset[16]),16],
+        offset[17] => diags[1:Nx*Ny*Nz-abs(offset[17]),17],
+        offset[18] => diags[1:Nx*Ny*Nz-abs(offset[18]),18],
+        offset[19] => diags[1:Nx*Ny*Nz-abs(offset[19]),19],
+        offset[20] => diags[1:Nx*Ny*Nz-abs(offset[20]),20],
+        offset[21] => diags[1:Nx*Ny*Nz-abs(offset[21]),21],
+        offset[22] => diags[1:Nx*Ny*Nz-abs(offset[22]),22],
+        offset[23] => diags[1:Nx*Ny*Nz-abs(offset[23]),23],
+        offset[24] => diags[1:Nx*Ny*Nz-abs(offset[24]),24],
+        offset[25] => diags[1:Nx*Ny*Nz-abs(offset[25]),25],
+        offset[26] => diags[1:Nx*Ny*Nz-abs(offset[26]),26],
+        offset[27] => diags[1:Nx*Ny*Nz-abs(offset[27]),27]
     )
     return J 
 end
@@ -467,7 +542,7 @@ function full_Jacobian!(P::Poisson)
 end
 
 function convert3d_1d(matrix)
-    m1D = reshape(matrix,size(matrix,1)*size(matrix,2),size(matrix,3))
+    m1D = reshape(matrix,size(matrix,1)*size(matrix,2)*size(matrix,3),1)
     return m1D
 end
 
@@ -494,8 +569,13 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,ou
         iter += 1
 
         # compute jacobian
-        J = compute_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
-
+        J = computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+        jacobian_2d = reshape(J, :, size(J, 3))
+        cond_num = cond(jacobian_2d,2)
+        println(cond_num)
+        println(size(J))
+        println(size(AP))
+        println("determinant of J : ",det(Array(J)))
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= 0.8AP./̂J
 
         P .-=mean(P)
@@ -534,13 +614,27 @@ function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
         iter += 1
 
         # compute jacobian
-        J = compute_sparse2_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+        J = compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
         Pv = convert3d_1d(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
         APv = convert3d_1d(AP)
+        cond_num = cond(Array(J),2)
+        println(cond_num)
+        determ = det(J)
+        println("J determinant : ",determ)
+        # println(size(J))
+        # println(size(APv))
+        # println(size(Pv))
+        # error("stop")
 
+        #! attempt Tikhonov Regularization (Ridge Regression)
+        alpha = 100000.0
+        reg_term = alpha*I(size(J,1))
+        reg_J = J + reg_term
+        reg_determ = det(reg_J)
+        println("Regularized J determinant : ",determ)
 
         Pv -= J\APv
-
+        
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = convert1d_3d(Pv,Nx,Ny,Nz)
 
         P .-=mean(P)
