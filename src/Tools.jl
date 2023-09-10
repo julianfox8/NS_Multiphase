@@ -756,3 +756,22 @@ function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
     end
     return nothing
 end
+
+
+function outflowCorrection!(RHS,P,uf,vf,wf,denx,deny,denz,param,mesh,par_env)
+    @unpack x,z,imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mesh
+    @unpack tol = param
+    iter=0; maxIter=100
+
+
+
+    while !all(abs.(vf[:, jmin_, :] - vf[:, jmax_+1, :]) .< tol*1e-1)
+        iter +=1
+        correction = abs.(vf[:, jmin_, :] - vf[:, jmax_+1, :])/((x[imax_+1]-x[imin_]) * (z[kmax_+1]-z[kmin_]))
+        vf[:,end,:] .-= correction
+        if iter == maxIter
+            @warn("outflowCorrection did not converge!")
+            return
+        end
+    end
+end

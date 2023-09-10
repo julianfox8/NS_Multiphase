@@ -142,7 +142,7 @@ function run_solver(param, IC!, BC!)
         # # Check divergence
         divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
         # println("mean of dP = ",mean(P[:,begin,:]-P[:,end,:]))
-
+        # println(sum(divg))
         # Check semi-lagrangian divergence
         # divg = semi_lag_divergence(uf,vf,wf,dt,mesh,par_env)
 
@@ -151,8 +151,7 @@ function run_solver(param, IC!, BC!)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
 
     end
-    println(VF)
-    println(band)
+
     # Finalize
     #VTK_finalize(pvd) (called in VTK)
     #parallel_finalize()

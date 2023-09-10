@@ -9,32 +9,44 @@ using NavierStokes_Parallel
 # Define parameters 
 param = parameters(
     # Constants
-    mu=0.1,       # Dynamic viscosity
-    rho=1.0,           # Density
-    Lx=3.0,            # Domain size
-    Ly=3.0,
-    Lz=3.0,
-    tFinal=100.0,      # Simulation time
+    # mu_liq=0.01,       # Dynamic viscosity 
+    # mu_gas = 0.0001,
+    # rho_liq= 1000,           # Density
+    # rho_gas =0.1, 
+    mu_liq=1.0,       # Dynamic viscosity 
+    mu_gas = 1.0,
+    rho_liq= 1.0,           # Density
+    rho_gas =1.0, 
+    sigma = 1.0,#0.0072, #surface tension coefficient
+    gravity = 1e-3,
+    Lx=5.0,            # Domain size 
+    Ly=5.0,
+    Lz=1/50,
+    tFinal=100.0,  
     
     # Discretization inputs
-    Nx=25,           # Number of grid cells
-    Ny=25,
+    Nx=10,           # Number of grid cells
+    Ny=10,
     Nz=1,
-    stepMax=20,   # Maximum number of timesteps
+    stepMax=2,   # Maximum number of timesteps
+    max_dt = 5e-3,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-6,
 
     # Processors 
-    nprocx = 2,
+    nprocx = 1,
     nprocy = 1,
     nprocz = 1,
 
     # Periodicity
     xper = false,
     yper = false,
-    zper = false,
+    zper = true,
     # VTK_dir= "VTK_example_2"
+
+    pressureSolver = "GaussSeidel",
 )
 
 """

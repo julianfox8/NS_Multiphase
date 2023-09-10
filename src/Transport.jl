@@ -58,7 +58,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
             # Add correction tets 
             tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
-            
+
             # Compute VF in semi-Lagrangian cell 
             vol  = 0.0
             vLiq = 0.0

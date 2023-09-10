@@ -22,15 +22,15 @@ param = parameters(
  
     
     # Discretization inputsc
-    Nx=20,           # Number of grid cells
-    Ny=20,
+    Nx=10,           # Number of grid cells
+    Ny=10,
     Nz=1,
-    stepMax=30,   # Maximum number of timesteps
+    stepMax=3,   # Maximum number of timesteps
     max_dt = 5e-3,
-    CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-6,
+    tol = 1e-3,
 
     # Processors 
     nprocx = 1,
@@ -44,6 +44,7 @@ param = parameters(
 
     # pressureSolver = "NLsolve",
     pressureSolver = "GaussSeidel",
+    # pressureSolver = "ConjugateGradient",
     iter_type = "standard",
     VTK_dir= "VTK_example_static_bubble1"
 
