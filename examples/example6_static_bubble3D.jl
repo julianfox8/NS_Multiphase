@@ -14,23 +14,23 @@ param = parameters(
     rho_liq= 1000,           # Density
     rho_gas =0.1, 
     sigma = 0.0072, #surface tension coefficient
-    gravity = 1e-2,
+    gravity = 1e-3,
     Lx=5.0,            # Domain size 
     Ly=5.0,
-    Lz=1.0,
+    Lz=5.0,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputsc
-    Nx=5,           # Number of grid cells
-    Ny=5,
-    Nz=5,
-    stepMax=10,   # Maximum number of timesteps
-    max_dt = 5e-2,
+    Nx=20,           # Number of grid cells
+    Ny=20,
+    Nz=20,
+    stepMax=50,   # Maximum number of timesteps
+    max_dt = 1e-2,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-6,
+    tol = 1e-3,
 
     # Processors 
     nprocx = 1,
@@ -45,7 +45,7 @@ param = parameters(
     # pressureSolver = "NLsolve",
     pressureSolver = "sparseSecant",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble2"
+    VTK_dir= "VTK_example_static_bubble_3D"
 
 )
 

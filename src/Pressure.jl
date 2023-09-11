@@ -617,21 +617,21 @@ function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
         J = compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
         Pv = convert3d_1d(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
         APv = convert3d_1d(AP)
-        cond_num = cond(Array(J),2)
-        println(cond_num)
-        determ = det(J)
-        println("J determinant : ",determ)
+        # cond_num = cond(Array(J),2)
+        # println(cond_num)
+        # determ = det(J)
+        # println("J determinant : ",determ)
         # println(size(J))
         # println(size(APv))
         # println(size(Pv))
         # error("stop")
 
-        #! attempt Tikhonov Regularization (Ridge Regression)
-        alpha = 100000.0
-        reg_term = alpha*I(size(J,1))
-        reg_J = J + reg_term
-        reg_determ = det(reg_J)
-        println("Regularized J determinant : ",determ)
+        # #! attempt Tikhonov Regularization (Ridge Regression)
+        # alpha = 100000.0
+        # reg_term = alpha*I(size(J,1))
+        # reg_J = J + reg_term
+        # reg_determ = det(reg_J)
+        # println("Regularized J determinant : ",determ)
 
         Pv -= J\APv
         
