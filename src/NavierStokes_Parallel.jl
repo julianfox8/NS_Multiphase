@@ -12,6 +12,7 @@ using FLoops
 using .Threads
 using NLsolve
 using Statistics
+using LinearAlgebra
 
 include("Parameters.jl")
 include("Mesh.jl")
@@ -140,9 +141,10 @@ function run_solver(param, IC!, BC!)
 
         
         # # Check divergence
-        divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
+        divg = divergence(u,v,w,dt,band,mesh,par_env)
         # println("mean of dP = ",mean(P[:,begin,:]-P[:,end,:]))
-        # println(sum(divg))
+        println("Max divergence occurs at ",argmax(divg), " with value ", maximum(abs.(divg))) 
+        println(jmin_," ",jmax_)
         # Check semi-lagrangian divergence
         # divg = semi_lag_divergence(uf,vf,wf,dt,mesh,par_env)
 
