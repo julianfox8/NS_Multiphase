@@ -290,83 +290,11 @@ end
 
 
 
-# """
-# GaussSeidel Poisson Solver
-# """
-# function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
-#     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-#     @unpack isroot = par_env
-#     @unpack tol = param
-#     maxIter=100
-#     iter = 0
-
-#     # println(vf[:, jmin_+1, :]) 
-#     # println(vf[:, jmax_-1, :])
-#     #apply outflow correction
-#     # outflowCorrection!(RHS,P,uf,vf,wf,denx,deny,denz,param,mesh,par_env)
-#     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-#         # RHS
-#         RHS[i,j,k]=  ( 
-#             ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
-#             ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
-#             ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
-#     end
-    
-#     while true
-#         iter += 1
-#         max_update::Float64 = 0.0
-#         for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-            
-#             Pnew = ( (RHS[i,j,k]
-#                     - (P[i-1,j,k]-2P[i,j,k]+P[i+1,j,k])/̂dx^2
-#                     - (P[i,j-1,k]-2P[i,j,k]+P[i,j+1,k])/̂dy^2 
-#                     - (P[i,j,k-1]-2P[i,j,k]+P[i,j,k+1])/̂dz^2) 
-#                     /̂ (-2.0/dx^2 - 2.0/dy^2 - 2.0/dz^2) )
-#             max_update=max(max_update,norm(Pnew-P[i,j,k]))
-#             # println(Pnew)
-#             P[i,j,k] = Pnew
-#         end
-#         # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-#         #     res_factor = (-denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * RHS[i,j,k] * dx^2 * dy^2 * dz^2)
-#         #     Pk_pos = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * dt * dx^2 * dy^2)
-#         #     Pk_neg = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k+1] * dt * dx^2 * dy^2)
-#         #     Pj_pos = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dx^2 * dz^2)
-#         #     Pj_neg = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dx^2 * dz^2)
-#         #     Pi_pos = (denx[i,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dy^2 * dz^2)
-#         #     Pi_neg = (denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dy^2 * dz^2)
-#         #     Pnew = (res_factor + Pk_pos*P[i,j,k+1] + Pk_neg*P[i,j,k-1] + Pj_pos*P[i,j+1,k] + Pj_neg*P[i,j-1,k] + Pi_pos*P[i+1,j,k] + Pi_neg*P[i-1,j,k])/̂
-#         #             dt*(Pk_pos + Pk_neg + Pj_pos + Pj_neg + Pi_pos + Pi_neg)
-#         #     # println(Pnew)
-#         #     max_update=max(max_update,abs(Pnew-P[i,j,k]))
-#         #     P[i,j,k] = Pnew 
-#         # end
-#         # # error("stop")
-#         update_borders!(P,mesh,par_env)
-#         Neumann!(P,mesh,par_env)
-#         println("Max update = ",max_update)
-#         max_update = parallel_max_all(max_update,par_env)
-
-#         max_update < tol && return iter # Converged
-#         # Check if hit max iteration
-#         if iter == maxIter 
-#             isroot && println("Failed to converged Poisson equation max_upate = $max_update")
-#             return iter
-#         end
-#     end
-# end
-
-
-function n(i,j,k,Ny,Nz) 
-    val = i + (j-1)*Ny + (k-1)*Nz
-    # @show i,j,k,Ny,Nz,val
-    return val
-end 
-
 """
-GaussSeidel Poisson Solver( update)
+GaussSeidel Poisson Solver
 """
 function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
-    @unpack Nx,Ny,Nz,dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack isroot = par_env
     @unpack tol = param
     maxIter=100
@@ -383,31 +311,20 @@ function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
             ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
             ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
     end
-
-    A_lap = OffsetArray{Float64}(undef,1:Nx*Ny*Nz,1:Nx*Ny*Nz)
-    LHS = OffsetArray{Float64}(undef, 1:Nx,1:Ny,1:Nz)
-    fill!(A_lap,0.0)
     
-    for k = kmin_:kmax_,j = jmin_:jmax_,i = imin_:imax_
-        Pi = zeros(0:Nx+1,0:Ny+1,0:Nz+1)
-        Pi[i,j,k] += 1.0
-        A_lap[n(i,i,j,Ny,Nz),:] .= (
-            (Pi[i-1,j,k] - 2Pi[i,j,k] + Pi[i+1,j,k]) /̂ dx^2 +
-            (Pi[i,j-1,k] - 2Pi[i,j,k] + Pi[i,j+1,k]) /̂ dy^2 +
-            (Pi[i,j,k-1] - 2Pi[i,j,k] + Pi[i,j,k+1]) /̂ dz^2 )
-    end
-
-
     while true
         iter += 1
         max_update::Float64 = 0.0
-        P_old = P
-        lap!(LHS,P,param,mesh)
-        for i= 1:Nx*Ny*Nz
-            P[i] = (RHS[i] - LHS1[i] + A[i,i]*P[i])/A[i,i]
-        end
-        if norm(P-P_old)/norm(P) > tol
-            return iter
+        for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+            
+            Pnew = ( (RHS[i,j,k]
+                    - (P[i-1,j,k]-2P[i,j,k]+P[i+1,j,k])/̂dx^2
+                    - (P[i,j-1,k]-2P[i,j,k]+P[i,j+1,k])/̂dy^2 
+                    - (P[i,j,k-1]-2P[i,j,k]+P[i,j,k+1])/̂dz^2) 
+                    /̂ (-2.0/dx^2 - 2.0/dy^2 - 2.0/dz^2) )
+            max_update=max(max_update,norm(Pnew-P[i,j,k]))
+            # println(Pnew)
+            P[i,j,k] = Pnew
         end
         # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         #     res_factor = (-denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * RHS[i,j,k] * dx^2 * dy^2 * dz^2)
@@ -426,17 +343,102 @@ function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
         # # error("stop")
         update_borders!(P,mesh,par_env)
         Neumann!(P,mesh,par_env)
-        # println("Max update = ",max_update)
-        # max_update = parallel_max_all(max_update,par_env)
+        println("Max update = ",max_update)
+        max_update = parallel_max_all(max_update,par_env)
 
-        # max_update < tol && return iter # Converged
+        max_update < tol && return iter # Converged
         # Check if hit max iteration
         if iter == maxIter 
-            isroot && println("Failed to converged Poisson equation")
+            isroot && println("Failed to converged Poisson equation max_upate = $max_update")
             return iter
         end
     end
 end
+
+
+function n(i,j,k,Ny,Nz) 
+    val = i + (j-1)*Ny + (k-1)*Nz*Ny
+    # @show i,j,k,Ny,Nz,val
+    return val
+end 
+
+"""
+ GaussSeidel Poisson Solver( update)
+"""
+# function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
+#     @unpack Nx,Ny,Nz,dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+#     @unpack isroot = par_env
+#     @unpack tol = param
+#     maxIter=100
+#     iter = 0
+
+#     # println(vf[:, jmin_+1, :]) 
+#     # println(vf[:, jmax_-1, :])
+#     #apply outflow correction
+#     # outflowCorrection!(RHS,P,uf,vf,wf,denx,deny,denz,param,mesh,par_env)
+#     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+#         # RHS
+#         RHS[i,j,k]=  ( 
+#             ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
+#             ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
+#             ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
+#     end
+
+#     A_lap = OffsetArray{Float64}(undef,1:Nx*Ny*Nz,1:Nx*Ny*Nz)
+#     LHS = OffsetArray{Float64}(undef, 1:Nx,1:Ny,1:Nz)
+#     fill!(A_lap,0.0)
+    
+#     for k = kmin_:kmax_,j = jmin_:jmax_,i = imin_:imax_
+#         Pi = zeros(0:Nx+1,0:Ny+1,0:Nz+1)
+#         Pi[i,j,k] += 1.0
+#         for kk = kmin_:kmax_, jj = jmin_:jmax_, ii = imin_:imax_
+#             A_lap[n(i,j,k,Ny,Nz),n(ii,jj,kk,Ny,Nz)] = (
+#                 (Pi[ii-1,jj,kk] - 2Pi[ii,jj,kk] + Pi[ii+1,jj,kk]) /̂ dx^2 +
+#                 (Pi[ii,jj-1,kk] - 2Pi[ii,jj,kk] + Pi[ii,jj+1,kk]) /̂ dy^2 +
+#                 (Pi[ii,jj,kk-1] - 2Pi[ii,jj,kk] + Pi[ii,jj,kk+1]) /̂ dz^2 )
+#         end
+#     end
+
+
+#     while true
+#         iter += 1
+#         max_update::Float64 = 0.0
+#         P_old = P
+#         lap!(LHS,P,param,mesh)
+#         for i= 1:Nx*Ny*Nz
+#             P[i] = (RHS[i] - LHS[i] + A_lap[i,i]*P[i])/A_lap[i,i]
+#         end
+#         if norm(P-P_old)/norm(P) > tol
+#             return iter
+#         end
+#         # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+#         #     res_factor = (-denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * RHS[i,j,k] * dx^2 * dy^2 * dz^2)
+#         #     Pk_pos = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * dt * dx^2 * dy^2)
+#         #     Pk_neg = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k+1] * dt * dx^2 * dy^2)
+#         #     Pj_pos = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dx^2 * dz^2)
+#         #     Pj_neg = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dx^2 * dz^2)
+#         #     Pi_pos = (denx[i,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dy^2 * dz^2)
+#         #     Pi_neg = (denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dy^2 * dz^2)
+#         #     Pnew = (res_factor + Pk_pos*P[i,j,k+1] + Pk_neg*P[i,j,k-1] + Pj_pos*P[i,j+1,k] + Pj_neg*P[i,j-1,k] + Pi_pos*P[i+1,j,k] + Pi_neg*P[i-1,j,k])/̂
+#         #             dt*(Pk_pos + Pk_neg + Pj_pos + Pj_neg + Pi_pos + Pi_neg)
+#         #     # println(Pnew)
+#         #     max_update=max(max_update,abs(Pnew-P[i,j,k]))
+#         #     P[i,j,k] = Pnew 
+#         # end
+#         # # error("stop")
+#         update_borders!(P,mesh,par_env)
+#         Neumann!(P,mesh,par_env)
+#         # println("Max update = ",max_update)
+#         # max_update = parallel_max_all(max_update,par_env)
+
+#         # max_update < tol && return iter # Converged
+#         # Check if hit max iteration
+#         if iter == maxIter 
+#             isroot && println("Failed to converged Poisson equation")
+#             return iter
+#         end
+#     end
+# end
 
 """
 Conjugate gradient
