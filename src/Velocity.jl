@@ -63,7 +63,7 @@ function divergence(uf,vf,wf,dt,band,mesh,par_env)
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
 
         # Check if near interface
-        if abs(band[i,j,k]) >=10 
+        if false #abs(band[i,j,k]) <=1
             # Calculate divergence with semi-lagrangian scheme
             tets, inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
             if any(isnan,tets)
