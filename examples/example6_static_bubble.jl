@@ -26,11 +26,11 @@ param = parameters(
     Ny=10,
     Nz=1,
     stepMax=3,   # Maximum number of timesteps
-    max_dt = 5e-3,
+    max_dt = 1e-2,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-6,
 
     # Processors 
     nprocx = 1,
@@ -140,4 +140,4 @@ function BC!(u,v,w,mesh,par_env)
 end
 
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!)
+@time run_solver(param, IC!, BC!)

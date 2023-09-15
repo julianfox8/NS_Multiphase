@@ -15,7 +15,7 @@ param = parameters(
     # rho_gas =0.1, 
     mu_liq=1.0,       # Dynamic viscosity 
     mu_gas = 1.0,
-    rho_liq= 1.0,           # Density
+    rho_liq= 11.0,           # Density
     rho_gas =1.0, 
     sigma = 1.0,#0.0072, #surface tension coefficient
     gravity = 1e-3,
@@ -46,7 +46,8 @@ param = parameters(
     zper = true,
     # VTK_dir= "VTK_example_2"
 
-    pressureSolver = "GaussSeidel",
+    # pressureSolver = "GaussSeidel",
+    pressureSolver = "ConjugateGradient",
 )
 
 """

@@ -41,7 +41,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
     if pressureSolver == "GaussSeidel"
         iter = GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
     elseif pressureSolver == "ConjugateGradient"
-        iter = conjgrad!(P,RHS,param,mesh,par_env)
+        iter = conjgrad!(P,RHS,denx,deny,denz,param,mesh,par_env)
 
     elseif pressureSolver == "Secant"
         iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,param,mesh,par_env)
@@ -56,14 +56,14 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
 end
 
 
-function lap!(L,P,param,mesh)
+function lap!(L,P,denx,deny,denz,param,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     fill!(L,0.0)
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         L[i,j,k] = (
-            (P[i-1,j,k] - 2P[i,j,k] + P[i+1,j,k]) /̂ dx^2 +
-            (P[i,j-1,k] - 2P[i,j,k] + P[i,j+1,k]) /̂ dy^2 +
-            (P[i,j,k-1] - 2P[i,j,k] + P[i,j,k+1]) /̂ dz^2 )
+            (P[i-1,j,k] - 2P[i,j,k] + P[i+1,j,k]) /̂ (denx[i,j,k]*dx^2) +
+            (P[i,j-1,k] - 2P[i,j,k] + P[i,j+1,k]) /̂ (deny[i,j,k]*dy^2) +
+            (P[i,j,k-1] - 2P[i,j,k] + P[i,j,k+1]) /̂ (denz[i,j,k]*dz^2) )
     end
     return nothing
 end
@@ -315,25 +315,15 @@ function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
     while true
         iter += 1
         max_update::Float64 = 0.0
-        for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-            
-            Pnew = ( (RHS[i,j,k]
-                    - (P[i-1,j,k]+P[i+1,j,k])/̂dx^2
-                    - (P[i,j-1,k]+P[i,j+1,k])/̂dy^2 
-                    - (P[i,j,k-1]+P[i,j,k+1])/̂dz^2) 
-                    /̂ (-2.0/dx^2 - 2.0/dy^2 - 2.0/dz^2) )
-            max_update=max(max_update,norm(Pnew-P[i,j,k]))
-            # println(Pnew)
-            P[i,j,k] = Pnew
-        end
         # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        #     # Pnew = (-denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*RHS[i,j,k]*dx^2*dy^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dt*dx^2*dy^2*P[i,j,k+1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dt*dx^2*dy^2*P[i,j,k-1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dx^2*dz^2*P[i,j+1,k] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dx^2*dz^2*P[i,j-1,k] + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dy^2*dz^2*P[i+1,j,k] + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dy^2*dz^2*P[i-1,j,k])/(dt*(denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2 + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2))
-        #     Pnew = (-denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*RHS[i,j,k]*dx^2*dy^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2*P[i,j,k+1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2*P[i,j,k-1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2*P[i,j+1,k] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2*P[i,j-1,k] + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2*P[i+1,j,k] + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2*P[i-1,j,k])/(denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2 + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2)
-        #     # # println(Pnew)
-        #     max_update=max(max_update,abs(Pnew-P[i,j,k]))
-        #     P[i,j,k] = Pnew 
-        # end
-        # # error("stop")
+        for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+            # Pnew = (-denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*RHS[i,j,k]*dx^2*dy^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dt*dx^2*dy^2*P[i,j,k+1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dt*dx^2*dy^2*P[i,j,k-1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dx^2*dz^2*P[i,j+1,k] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dx^2*dz^2*P[i,j-1,k] + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dy^2*dz^2*P[i+1,j,k] + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dy^2*dz^2*P[i-1,j,k])/(dt*(denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2 + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2))
+            Pnew = (-denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*RHS[i,j,k]*dx^2*dy^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2*P[i,j,k+1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2*P[i,j,k-1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2*P[i,j+1,k] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2*P[i,j-1,k] + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2*P[i+1,j,k] + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2*P[i-1,j,k])/(denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2 + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2)
+            # # println(Pnew)
+            max_update=max(max_update,abs(Pnew-P[i,j,k]))
+            P[i,j,k] = Pnew 
+        end
+
         update_borders!(P,mesh,par_env)
         Neumann!(P,mesh,par_env)
         # if iter % 1000 == 0
@@ -438,7 +428,7 @@ end
 """
 Conjugate gradient
 """
-function conjgrad!(P,RHS,param,mesh,par_env)
+function conjgrad!(P,RHS,denx,deny,denz,param,mesh,par_env)
     @unpack dx,dy,dz = mesh
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -455,15 +445,15 @@ function conjgrad!(P,RHS,param,mesh,par_env)
     p  = OffsetArray{Float64}(undef, gx,gy,gz)
     Ap = OffsetArray{Float64}(undef, gx,gy,gz)
 
-    lap!(r,P,param,mesh)
+    lap!(r,P,denx,deny,denz,param,mesh)
     r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
     Neumann!(r,mesh,par_env)
     update_borders!(r,mesh,par_env) # (overwrites BCs if periodic)
     p .= r
     rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
     rsnew = 0.0
-    for iter = 1:length(RHS)
-        lap!(Ap,p,param,mesh)
+    for iter = 1:10
+        lap!(Ap,p,denx,deny,denz,param,mesh)
 
         sum = parallel_sum_all(p[ix,iy,iz].*Ap[ix,iy,iz],par_env)
         alpha = rsold /̂ sum
