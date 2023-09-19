@@ -26,7 +26,7 @@ include("VFgeom.jl")
 include("ELVIRA.jl")
 include("WriteData.jl")
 
-function run_solver(param, IC!, BC!)
+function run_solver(param, IC!, BC!, outflow)
     @unpack stepMax,tFinal,solveNS = param
 
     # Create parallel environment
@@ -65,7 +65,10 @@ function run_solver(param, IC!, BC!)
 
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
+<<<<<<< HEAD
 
+=======
+>>>>>>> surface_tension_tester
 
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
@@ -94,11 +97,6 @@ function run_solver(param, IC!, BC!)
 
     while nstep<stepMax && t<tFinal
 
-        # define density and viscosity for each iteration
-        if iter > 0 
-            compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
-        end
-
         # Update step counter
         nstep += 1
 
@@ -113,17 +111,20 @@ function run_solver(param, IC!, BC!)
         # println("u-star before transport ", us[5,5,1])
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz)
+
+        # Update density and viscosity with transported VF
+        if iter > 0 
+            compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+        end
+        
         # println("u-star after transport ", us[5,5,1])
         if solveNS
-            # if iter > 0
-                # Create face velocities
-                # println(us)
+  
+            # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-                # println(uf)
-            # end
 
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz)
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow,iter)
 
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
@@ -154,7 +155,11 @@ function run_solver(param, IC!, BC!)
 
     # Finalize
     #VTK_finalize(pvd) (called in VTK)
+<<<<<<< HEAD
     parallel_finalize()
+=======
+    # parallel_finalize()
+>>>>>>> surface_tension_tester
 
 end # run_solver
 

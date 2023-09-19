@@ -6,7 +6,6 @@ function Neumann!(A,mesh,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack nprocx,nprocy,nprocz,irankx,iranky,irankz = par_env
 
-
     irankx == 0        ? A[imin_-1,:,:]=A[imin_,:,:] : nothing # Left 
     irankx == nprocx-1 ? A[imax_+1,:,:]=A[imax_,:,:] : nothing # Right
 
@@ -17,6 +16,9 @@ function Neumann!(A,mesh,par_env)
     irankz == nprocz-1 ? A[:,:,kmax_+1]=A[:,:,kmax_] : nothing # Front
     return nothing
 end
+
+# @inline inside(a::AbstractArray) = CartesianIndices(map(ax->first(ax)+1:last(ax)-1,axes(a)))
+
 
 """ 
 Macro to easily change looping behavior throughout code 
@@ -30,24 +32,20 @@ macro loop(args...)
     # Extract iterator and body of loop
     iter = ex.args[1]
     lbody = ex.args[2]
+    # println(iter)
 
     # Check iterator has three arguments
-    length(iter.args)==3 || error("Missing iterator")
+    if length(iter.args)==3 # || error("Missing iterator")
 
-    # Pull out iterator ids (names) and rages
-    id1 = iter.args[1].args[1]; range1=iter.args[1].args[2]
-    id2 = iter.args[2].args[1]; range2=iter.args[2].args[2]
-    id3 = iter.args[3].args[1]; range3=iter.args[3].args[2]
+        # Pull out iterator ids (names) and rages
+        id1 = iter.args[1].args[1]; range1=iter.args[1].args[2]
+        id2 = iter.args[2].args[1]; range2=iter.args[2].args[2]
+        id3 = iter.args[3].args[1]; range3=iter.args[3].args[2]
 
-    # Check id ordering
-    if  id1 == :i && 
-        id2 == :j && 
-        id3 == :k
-        idx = id1; rangex = range1
-        idy = id2; rangey = range2
-        idz = id3; rangez = range3
-    elseif  id1 == :k && 
+        # Check id ordering
+        if  id1 == :i && 
             id2 == :j && 
+<<<<<<< HEAD
             id3 == :i
         idx = id3; rangex = range3
         idy = id2; rangey = range2
@@ -77,11 +75,67 @@ macro loop(args...)
                 $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
                 $(esc(lbody))
             end
+=======
+            id3 == :k
+            idx = id1; rangex = range1
+            idy = id2; rangey = range2
+            idz = id3; rangez = range3
+        elseif  id1 == :k && 
+                id2 == :j && 
+                id3 == :i
+            idx = id3; rangex = range3
+            idy = id2; rangey = range2
+            idz = id1; rangez = range1
+>>>>>>> surface_tension_tester
         else
-            error("Unknown iterator type specificed")
-        end 
+            error("Must provide i,j,k or k,j,i iterators")
+        end
 
-        nothing
+
+        quote
+            if eval($(esc(p))).iter_type == "standard"
+                # Standard for loops k,j,i
+                for $(esc(idz)) = $(esc(rangez)),$(esc(idy)) = $(esc(rangey)),$(esc(idx)) = $(esc(rangex))
+                    $(esc(lbody))
+                end
+
+            # elseif $(esc(p)).iter_type == "threads"
+            #     # Threads
+            #     @threads for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
+            #         $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
+            #         $(esc(lbody))
+            #     end
+
+            elseif $(esc(p)).iter_type == "floop"
+                # FLoops
+                @floop for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
+                    $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
+                    $(esc(lbody))
+                end
+            else
+                error("Unknown iterator type specificed")
+            end 
+
+            nothing
+        end
+    # elseif iter.head == :(=) && iter.args[1] == :I && iter.args[2].head == :call && iter.args[2].args[1] == :CartesianIndices
+    elseif iter.args[2].head == :call       
+        # Handle I = CartesianIndices(P.f[ii]) iterator
+        indices_arg = iter.args[2].args[2]
+        println("here")
+        # println(indices_arg[1])
+        # println(iter.args[2].args[1])
+        # i = iter.args[1]
+        quote
+            indices_iter = CartesianIndices(inside($(esc(indices_arg))))
+            $I = @index(Global,Cartesian)
+            for $I in indices_iter
+                # $(esc(i)) = I
+                $(esc(lbody))
+            end
+        end
+    else 
+        error("Missing iterator")
     end
 end
 
@@ -193,6 +247,13 @@ function /̂(a,b)
     return abs(b)<=eps() ? typemax(Float64) : a/b
 end
 
+function *̂(a, b)
+    if abs(a) <= eps() || abs(b) <= eps()
+        return 0.0  # If either a or b is close to zero, the result will be zero
+    else
+        return a * b
+    end
+end
 
 """ 
 Determine which cell (index) a point 
@@ -699,14 +760,14 @@ VF values for 2D Bubble
 function VFbubble2d(xmin,xmax,ymin,ymax,rad,xo,yo)
     nF = 20
     VF=1.0
-    VFsubcell = 1.0/nF^3
+    VFsubcell = 1.0/nF^2
     # Loop over finer grid to evaluate VF 
     for j=1:nF, i=1:nF
         xh = xmin + i/(nF+1)*(xmax-xmin)
         yh = ymin + j/(nF+1)*(ymax-ymin)
         G = rad^2 - ((xh-xo)^2 + (yh-yo)^2 )
         if G > 0.0
-            VF = 0.0
+            VF -= VFsubcell
         end
     end
     return VF
@@ -726,7 +787,7 @@ function VFbubble3d(xmin,xmax,ymin,ymax,zmin,zmax,rad,xo,yo,zo)
         zh = zmin + k/(nF+1)*(zmax-zmin)
         G = rad^2 - ((xh-xo)^2 + (yh-yo)^2 + (zh-zo)^2)
         if G > 0.0
-            VF = 0.0
+            VF -= VFsubcell
         end
     end
     return VF
@@ -753,6 +814,33 @@ function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         denz[i,j,k] = rho_liq*(vfz) +rho_gas*(1-vfz)
         viscz[i,j,k] = vfz*mu_liq+(1-vfz)*mu_gas
 
+    end
+    return nothing
+end
+
+"""
+Correct outflow such that sum(divg)=0 
+- outflow assumed to be at +x boundary
+"""
+function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+    @unpack dx,dy,dz = mesh
+    @unpack tol = param
+    iter=0; maxIter=100
+    
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+    d = sum(AP*dx*dy*dz)
+    while abs(d) > 1e-1*tol
+        iter += 1
+        # Correct outflow 
+        correction = -0.5d/outflow.area(mesh,par_env)
+        outflow.correction(correction,uf,vf,wf,mesh,par_env)
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+        dnew = sum(AP*dx*dy*dz)
+        d=dnew
+        if iter == maxIter
+            warn("outflowCorrection did not converge!")
+            return
+        end
     end
     return nothing
 end
