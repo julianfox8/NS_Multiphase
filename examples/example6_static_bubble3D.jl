@@ -22,10 +22,10 @@ param = parameters(
  
     
     # Discretization inputsc
-    Nx=20,           # Number of grid cells
-    Ny=20,
-    Nz=20,
-    stepMax=50,   # Maximum number of timesteps
+    Nx=10,           # Number of grid cells
+    Ny=10,
+    Nz=10,
+    stepMax=3,   # Maximum number of timesteps
     max_dt = 1e-2,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -162,4 +162,4 @@ end
 outflow =(area=outflow_area,correction=outflow_correction!)
 
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!,outflow)
+@time run_solver(param, IC!, BC!,outflow)

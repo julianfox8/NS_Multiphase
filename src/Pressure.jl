@@ -83,7 +83,7 @@ end
 
 # LHS of pressure poisson equation
 
-function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
 
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -97,16 +97,15 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env
     update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
 
     #suspect that the correct gradient is being calculate due to loop
-    #! need cell centered densities
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
         gradx[i,j,k]=dt/denx[i,j,k]*(P[i,j,k]-P[i-1,j,k])/dx
     end
 
-    for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
         grady[i,j,k]=dt/deny[i,j,k]*(P[i,j,k]-P[i,j-1,k])/dy
     end
 
-    for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
         gradz[i,j,k]=dt/denz[i,j,k]*(P[i,j,k]-P[i,j,k-1])/dz
     end
 
@@ -116,7 +115,7 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env
 
     fill!(LHS,0.0)
 
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         if abs(band[i,j,k]) <= 1
             tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
             if any(isnan,tets)
@@ -140,7 +139,7 @@ end
 
 
 #local A! matrix
-function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
+function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     fill!(gradx,0.0)
@@ -152,15 +151,15 @@ function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,p
 
     #probably dont need to calculate every pt but need a 3x3 stencil for velocity projection with i,j,k being in a corner
     #maybe want to use diff finite difference approx
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
         gradx[i,j,k]=dt/denx[i,j,k]*(P[i,j,k]-P[i-1,j,k])/̂dx
     end
     
-    for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
         grady[i,j,k]=dt/deny[i,j,k]*(P[i,j,k]-P[i,j-1,k])/̂dy
     end
 
-    for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
         gradz[i,j,k]=dt/denz[i,j,k]*(P[i,j,k]-P[i,j,k-1])/̂dz
     end
 
@@ -215,8 +214,8 @@ function computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,de
         fill!(dp,0.0)
         dp[i,j,k] += delta
         J[i,j,k] = (
-            (A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
-            - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env))
+            (A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+            - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env))
             ./̂2delta)
     end
     return J 
@@ -249,8 +248,8 @@ function compute_sparse_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx
             fill!(dp,0.0)
             dp[ii,jj,kk] += delta
             J[n(i,j,k,Ny,Nz),n(ii,jj,kk,Ny,Nz)] = (
-                (A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
-                - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env))
+                (A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+                - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env))
                 ./̂2delta)
         end
     end
@@ -285,8 +284,8 @@ function compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
                 fill!(LHS2,0.0)
                 fill!(dp,0.0)
                 dp[ii,jj,kk] += delta
-                J = ((A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
-                    - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env))
+                J = ((A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+                    - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env))
                     ./̂2delta)
                 nNeigh +=1 
                 row = n(ii,jj,kk,Ny,Nz)-max(0,offset[nNeigh]) # Row in diagonal array
@@ -341,8 +340,8 @@ function compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
                 fill!(LHS2,0.0)
                 fill!(dp,0.0)
                 dp[ii,jj,kk] += delta
-                J = ((A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env)
-                    - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env))
+                J = ((A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+                    - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env))
                     ./̂2delta)
                 nNeigh +=1 
                 row = n(ii,jj,kk,Ny,Nz)-max(0,offset[nNeigh]) # Row in diagonal array
@@ -561,7 +560,7 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,ou
     fill!(AP,0.0)
     outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
 
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,param,mesh,par_env)
 
     # Iterate 
     iter=0
@@ -606,7 +605,7 @@ function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
     fill!(AP,0.0)
     outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
 
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
 
     # Iterate 
     iter=0
@@ -643,7 +642,7 @@ function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
         outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
         
         #update new Ap
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
         
         res = maximum(abs.(AP))
         if res < tol

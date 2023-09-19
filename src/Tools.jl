@@ -795,14 +795,14 @@ function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,de
     @unpack tol = param
     iter=0; maxIter=100
     
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
     d = sum(AP*dx*dy*dz)
     while abs(d) > 1e-1*tol
         iter += 1
         # Correct outflow 
         correction = -0.5d/outflow.area(mesh,par_env)
         outflow.correction(correction,uf,vf,wf,mesh,par_env)
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
         dnew = sum(AP*dx*dy*dz)
         d=dnew
         if iter == maxIter
