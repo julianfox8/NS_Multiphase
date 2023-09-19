@@ -12,6 +12,7 @@ using FLoops
 using .Threads
 using NLsolve
 using Statistics
+using LinearAlgebra
 
 include("Parameters.jl")
 include("Mesh.jl")
@@ -124,6 +125,7 @@ function run_solver(param, IC!, BC!, outflow)
 
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
+            # divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
 
             # Interpolate velocity to cell centers (keeping BCs from predictor)
             interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
@@ -138,8 +140,7 @@ function run_solver(param, IC!, BC!, outflow)
         
         # # Check divergence
         divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
-        # println("mean of dP = ",mean(P[:,begin,:]-P[:,end,:]))
-
+        
         # Check semi-lagrangian divergence
         # divg = semi_lag_divergence(uf,vf,wf,dt,mesh,par_env)
 

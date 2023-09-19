@@ -55,14 +55,18 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             # ------------------------------
             # From projected cell and break into tets using face velocities
             tets,inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
-            
+
+            # Add correction tets 
+            tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
+
             # Compute VF in semi-Lagrangian cell 
             vol  = 0.0
             vLiq = 0.0
             vU   = 0.0
             vV   = 0.0
             vW   = 0.0
-            for tet=1:5
+            for tet in eachindex(view(tets,1,1,:))
+                # @show tet
                 tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tets[:,:,tet],inds[:,:,tet],
                                     u,v,w,
                                     false,false,false,nx,ny,nz,D,mesh,

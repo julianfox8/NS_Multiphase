@@ -37,12 +37,12 @@ param = parameters(
     yper = false,
     zper = false,
 
-    # pressureSolver = "GaussSeidel",
+    pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
-    pressureSolver = "Secant",
-    pressureSolver = "NLsolve",
+    # pressureSolver = "Secant",
+    # pressureSolver = "NLsolve",
     iter_type = "standard",
-    VTK_dir= "VTK_example_3"
+    # VTK_dir= "VTK_example_3"
 
 )
 

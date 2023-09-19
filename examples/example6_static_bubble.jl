@@ -44,6 +44,8 @@ param = parameters(
 
     # pressureSolver = "NLsolve",
     pressureSolver = "sparseSecant",
+    # pressureSolver = "GaussSeidel",
+    # pressureSolver = "ConjugateGradient",
     iter_type = "standard",
     VTK_dir= "VTK_example_static_bubble2"
 

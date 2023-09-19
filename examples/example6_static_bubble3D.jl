@@ -30,7 +30,7 @@ param = parameters(
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-6,
 
     # Processors 
     nprocx = 1,
@@ -90,7 +90,6 @@ function BC!(u,v,w,mesh,par_env)
     @unpack jmin_,jmax_ = mesh
     @unpack xm,ym = mesh
     
-
      # Left 
      if irankx == 0 
         i = imin-1
