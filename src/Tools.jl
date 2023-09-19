@@ -45,37 +45,6 @@ macro loop(args...)
         # Check id ordering
         if  id1 == :i && 
             id2 == :j && 
-<<<<<<< HEAD
-            id3 == :i
-        idx = id3; rangex = range3
-        idy = id2; rangey = range2
-        idz = id1; rangez = range1
-    else
-        error("Must provide i,j,k or k,j,i iterators")
-    end
-
-
-    quote
-        if eval($(esc(p))).iter_type == "standard"
-            # Standard for loops k,j,i
-            for $(esc(idz)) = $(esc(rangez)),$(esc(idy)) = $(esc(rangey)),$(esc(idx)) = $(esc(rangex))
-                $(esc(lbody))
-            end
-
-        elseif $(esc(p)).iter_type == "threads"
-            # Threads
-            @threads for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
-                $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
-                $(esc(lbody))
-            end
-
-        elseif $(esc(p)).iter_type == "floop"
-            # FLoops
-            @floop for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
-                $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
-                $(esc(lbody))
-            end
-=======
             id3 == :k
             idx = id1; rangex = range1
             idy = id2; rangey = range2
@@ -86,7 +55,6 @@ macro loop(args...)
             idx = id3; rangex = range3
             idy = id2; rangey = range2
             idz = id1; rangez = range1
->>>>>>> surface_tension_tester
         else
             error("Must provide i,j,k or k,j,i iterators")
         end

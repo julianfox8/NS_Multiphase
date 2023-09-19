@@ -65,10 +65,6 @@ function run_solver(param, IC!, BC!, outflow)
 
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
-<<<<<<< HEAD
-
-=======
->>>>>>> surface_tension_tester
 
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
@@ -155,11 +151,7 @@ function run_solver(param, IC!, BC!, outflow)
 
     # Finalize
     #VTK_finalize(pvd) (called in VTK)
-<<<<<<< HEAD
     parallel_finalize()
-=======
-    # parallel_finalize()
->>>>>>> surface_tension_tester
 
 end # run_solver
 
