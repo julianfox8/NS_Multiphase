@@ -8,25 +8,29 @@ using Random
 #Domain set up similar to "Numerical simulation of a single rising bubble by VOF with surface compression"
 # Define parameters 
 param = parameters(
-    # Constants
-    mu=10.0,       # Dynamic viscosity
-    rho=1.0,           # Density
-    sigma = 0.1, #surface tension coefficient
-    Lx=1.0,            # Domain size
-    Ly=2.0,
-    Lz=1.0,
-    tFinal=1.0,      # Simulation time
+    # Constans
+    mu_liq=0.01,       # Dynamic viscosity
+    mu_gas = 0.0001,
+    rho_liq= 1000,           # Density
+    rho_gas =0.1, 
+    sigma = 0.0072, #surface tension coefficient
+    gravity = 1e-3,
+    Lx=5.0,            # Domain size 
+    Ly=5.0,
+    Lz=5.0,
+    tFinal=100.0,      # Simulation time
+ 
     
-    # Discretization inputs
+    # Discretization inputsc
     Nx=10,           # Number of grid cells
     Ny=10,
-    Nz=1,
-    max_dt = 1.0/64/2.0*0.9,
-    stepMax=5,   # Maximum number of timesteps
-    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    Nz=10,
+    stepMax=3,   # Maximum number of timesteps
+    max_dt = 1e-2,
+    CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-6,
 
     # Processors 
     nprocx = 1,
@@ -68,7 +72,7 @@ function IC!(P,u,v,w,VF,mesh)
     yo=0.5
     zo=0.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        VF[i,j,k]=VFsphere(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+        VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
     end
     return nothing    
 end
@@ -82,7 +86,7 @@ function BC!(u,v,w,mesh,par_env)
     @unpack jmin_,jmax_ = mesh
     @unpack xm,ym = mesh
     
-    vsides = 1.0
+    vsides = 0.0
      # Left 
      if irankx == 0 
         i = imin-1
@@ -132,4 +136,4 @@ function BC!(u,v,w,mesh,par_env)
 end
 
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!)
+@time run_solver(param, IC!, BC!)
