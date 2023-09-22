@@ -50,6 +50,7 @@ using Parameters
     # pressureSolver :: String = "ConjugateGradient"
     pressureSolver :: String = "Secant" 
     tol :: Float64
+    pressure_scheme :: String = "semi-lagrangian"
 
     # Interface solver
     VFlo :: Float64 = 1e-10 

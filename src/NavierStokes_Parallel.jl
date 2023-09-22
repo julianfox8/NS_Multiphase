@@ -76,7 +76,7 @@ function run_solver(param, IC!, BC!, outflow)
     dt = compute_dt(u,v,w,param,mesh,par_env)
 
     # Check semi-lagrangian divergence
-    divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
+    divg = divergence(uf,vf,wf,dt,band,mesh,param,par_env)
 
     
     # Initialize VTK outputs
@@ -105,7 +105,7 @@ function run_solver(param, IC!, BC!, outflow)
         if !solveNS
             defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         end
-        # println("u-star before transport ", us[5,5,1])
+ 
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz)
 
@@ -113,19 +113,17 @@ function run_solver(param, IC!, BC!, outflow)
         if iter > 0 
             compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         end
-        
-        # println("u-star after transport ", us[5,5,1])
+
         if solveNS
   
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow,iter)
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow)
 
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
-            # divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
 
             # Interpolate velocity to cell centers (keeping BCs from predictor)
             interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
@@ -139,11 +137,8 @@ function run_solver(param, IC!, BC!, outflow)
 
         
         # # Check divergence
-        divg = divergence(uf,vf,wf,dt,band,mesh,par_env)
+        divg = divergence(uf,vf,wf,dt,band,mesh,param,par_env)
         
-        # Check semi-lagrangian divergence
-        # divg = semi_lag_divergence(uf,vf,wf,dt,mesh,par_env)
-
         # Output
         std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
@@ -151,12 +146,12 @@ function run_solver(param, IC!, BC!, outflow)
     end
 
     # Finalize
-    #VTK_finalize(pvd) (called in VTK)
-    parallel_finalize()
+    # VTK_finalize(pvd) (called in VTK)
+    # parallel_finalize()
 
 end # run_solver
 
-# Precompile
-include("precompile.jl")
+# # Precompile
+# include("precompile.jl")
 
 end

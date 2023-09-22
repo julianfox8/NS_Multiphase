@@ -1,6 +1,6 @@
 
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz)
-    @unpack gravity = param
+    @unpack gravity,pressure_scheme = param
 
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -56,9 +56,11 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             # From projected cell and break into tets using face velocities
             tets,inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
 
-            # Add correction tets 
-            tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
-
+            if pressure_scheme == "finite_difference"
+                # Add correction tets 
+                tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
+            end
+            
             # Compute VF in semi-Lagrangian cell 
             vol  = 0.0
             vLiq = 0.0

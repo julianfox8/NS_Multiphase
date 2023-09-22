@@ -491,6 +491,8 @@ function VFcircle(xmin,xmax,ymin,ymax,rad,xo,yo)
     xcycl = 1
     while !xdone
         # Split cell into parts located within the 1st quadrant
+        #? the goal of these if statements is to orient xmax and xmin
+        #? occurs when x0 is between xmax and xmin
         if (xmax-xo)*(xmin-xo) < 0.0
             # Cell needs to be split into two
             if xcycl == 1
@@ -728,7 +730,7 @@ VF values for 2D Bubble
 function VFbubble2d(xmin,xmax,ymin,ymax,rad,xo,yo)
     nF = 20
     VF=1.0
-    VFsubcell = 1.0/nF^2
+    VFsubcell = 1.0/nF^3
     # Loop over finer grid to evaluate VF 
     for j=1:nF, i=1:nF
         xh = xmin + i/(nF+1)*(xmax-xmin)
@@ -790,7 +792,7 @@ end
 Correct outflow such that sum(divg)=0 
 - outflow assumed to be at +x boundary
 """
-function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
     @unpack dx,dy,dz = mesh
     @unpack tol = param
     iter=0; maxIter=100

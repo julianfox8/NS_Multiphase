@@ -2,8 +2,8 @@ using SparseArrays
 using LinearAlgebra
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow,step)
-
+function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow)
+    @unpack pressure_scheme = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
@@ -12,20 +12,14 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,den
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     #LHS = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
-    # @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-    #     # RHS
-    #     RHS[i,j,k]= 1/dt * ( 
-    #         ( uf[i+1,j,k] - uf[i,j,k] )*(denx[i+1,j,k]-denx[i,j,k])/(2dx) +
-    #         ( vf[i,j+1,k] - vf[i,j,k] )*(deny[i,j+1,k]-deny[i,j,k])/(2dy) +
-    #         ( wf[i,j,k+1] - wf[i,j,k] )*(denz[i,j,k+1]-denz[i,j,k])/(2dz) )
-    # end
-    
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        # RHS
-        RHS[i,j,k]= 1/dt* ( 
-            ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
-            ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
-            ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
+    if pressure_scheme == "finite_difference"
+        @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+            # RHS
+            RHS[i,j,k]= 1/dt* ( 
+                ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
+                ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
+                ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
+        end
     end
     iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,outflow)
 
@@ -33,7 +27,7 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,den
 end
 
 
-
+#? Would we want two separate poisson_solve! functions dependent upon the pressure_scheme tag
 function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,outflow)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
@@ -100,11 +94,8 @@ end
 # LHS of pressure poisson equation
 
 function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-
-    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-
-
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    
     fill!(gradx,0.0)
     fill!(grady,0.0)
     fill!(gradz,0.0)
@@ -281,7 +272,7 @@ function compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
     LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
 
-    delta = 100000
+    delta = 1.0
     fill!(diags,0.0)
     offset=[-(Nx+1), -Nx, -(Nx-1), -1, 0, 1, Nx-1, Nx, Nx+1]
 
@@ -289,7 +280,7 @@ function compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         nNeigh = 0
 
-        for kk = 1 ,jj = j-1:j+1, ii = i-1:i+1
+        for kk = k ,jj = j-1:j+1, ii = i-1:i+1
             if jj < 1 || jj > Nx || ii < 1 || ii > Nx
                 # Outside domain 
                 nNeigh += 1
@@ -574,9 +565,9 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,ou
 
     AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     fill!(AP,0.0)
-    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
 
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,param,mesh,par_env)
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
 
     # Iterate 
     iter=0
@@ -585,21 +576,15 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,ou
 
         # compute jacobian
         J = computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
-        jacobian_2d = reshape(J, :, size(J, 3))
-        cond_num = cond(jacobian_2d,2)
-        println(cond_num)
-        println(size(J))
-        println(size(AP))
-        println("determinant of J : ",det(Array(J)))
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= 0.8AP./̂J
 
         P .-=mean(P)
 
         #Need to introduce outflow correction
-        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
         
         #update new Ap
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,par_env,step)
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
         
         res = maximum(abs.(AP))
         if res < tol
@@ -619,7 +604,7 @@ function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
 
     AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     fill!(AP,0.0)
-    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
 
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
 
@@ -655,7 +640,7 @@ function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
         P .-=mean(P)
 
         #Need to introduce outflow correction
-        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env,step)
+        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
         
         #update new Ap
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
@@ -756,11 +741,7 @@ function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
 end
 
 
-function n(i,j,k,Ny,Nz) 
-    val = i + (j-1)*Ny + (k-1)*Nz*Ny
-    # @show i,j,k,Ny,Nz,val
-    return val
-end 
+
 
 """
  GaussSeidel Poisson Solver( update)

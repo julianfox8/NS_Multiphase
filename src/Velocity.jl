@@ -55,15 +55,16 @@ function interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
     return nothing
 end
 
-function divergence(uf,vf,wf,dt,band,mesh,par_env)
+function divergence(uf,vf,wf,dt,band,mesh,param,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack pressure_scheme = param
     
     divg = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
 
-    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+    @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
 
         # Check if near interface
-        if false #abs(band[i,j,k]) <=1
+        if pressure_scheme == "finite_difference" && abs(band[i,j,k]) <=1
             # Calculate divergence with semi-lagrangian scheme
             tets, inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
             if any(isnan,tets)
