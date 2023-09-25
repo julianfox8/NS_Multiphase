@@ -55,6 +55,18 @@ macro loop(args...)
             idx = id3; rangex = range3
             idy = id2; rangey = range2
             idz = id1; rangez = range1
+        elseif   id1 == :ii && 
+                 id2 == :jj && 
+                 id3 == :kk
+            idx = id1; rangex = range1
+            idy = id2; rangey = range2
+            idz = id3; rangez = range3
+        elseif  id1 == :kk && 
+                id2 == :jj && 
+                id3 == :ii
+            idx = id3; rangex = range3
+            idy = id2; rangey = range2
+            idz = id1; rangez = range1 
         else
             error("Must provide i,j,k or k,j,i iterators")
         end

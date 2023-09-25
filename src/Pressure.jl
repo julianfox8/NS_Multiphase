@@ -1,5 +1,3 @@
-using SparseArrays
-using LinearAlgebra
 
 # Solve Poisson equation: δP form
 function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow)
@@ -12,7 +10,7 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,den
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     #LHS = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
-    if pressure_scheme == "finite_difference"
+    if pressure_scheme == "finite-difference"
         @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
             # RHS
             RHS[i,j,k]= 1/dt* ( 
@@ -40,7 +38,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
     elseif pressureSolver == "Secant"
         iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
     elseif pressureSolver == "sparseSecant"
-        iter = Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
+        iter = Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
     elseif pressureSolver == "NLsolve"
         iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     elseif pressureSolver == "Jacobi"
@@ -147,43 +145,41 @@ end
 
 #local A! matrix
 function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack Nx,Ny,Nz,dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
-    fill!(gradx,0.0)
-    fill!(grady,0.0)
-    fill!(gradz,0.0)
+    gradx_new =gradx
+    grady_new = grady
+    gradz_new = gradz
+
 
     Neumann!(P,mesh,par_env)
     update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
 
-    #probably dont need to calculate every pt but need a 3x3 stencil for velocity projection with i,j,k being in a corner
-    #maybe want to use diff finite difference approx
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
-        gradx[i,j,k]=dt/denx[i,j,k]*(P[i,j,k]-P[i-1,j,k])/̂dx
-    end
-    
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
-        grady[i,j,k]=dt/deny[i,j,k]*(P[i,j,k]-P[i,j-1,k])/̂dy
-    end
-
-    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
-        gradz[i,j,k]=dt/denz[i,j,k]*(P[i,j,k]-P[i,j,k-1])/̂dz
-    end
-
-    #? might want to use these smaller loops
-    # for ii = i:i+1
-    #     gradx[ii,j,k]=(P[ii,j,k]-P[ii-1,j,k])/̂dx
+    # # #? might want to use these smaller loops
+    # for ii = max(i - 1, 1):min(i + 1, Nx)
+    #     gradx_new[ii,j,k]=dt/denx[ii,j,k]*(P[ii,j,k]-P[ii-1,j,k])/̂dx
     # end
-    # for jj = j:j+1
-    #     grady[i,jj,k]=(P[i,jj,k]-P[i,jj-1,k])/̂dy
+    # for jj = max(j - 1, 1):min(j + 1, Ny)
+    #     grady_new[i,jj,k]=dt/deny[i,jj,k]*(P[i,jj,k]-P[i,jj-1,k])/̂dy
     # end
-    # for kk = k:k+1
-    #     gradz[i,j,kk]=(P[i,j,kk]-P[i,j,kk-1])/̂dz
+    # for kk = max(k - 1, 1):min(k + 1, Nz)
+    #     gradz_new[i,j,kk]=dt/denz[i,j,kk]*(P[i,j,kk]-P[i,j,kk-1])/̂dz
     # end
 
-    uf1 = uf-gradx
-    vf1 = vf-grady
-    wf1 = wf-gradz
+    # apply 3x3x3 stencil around P to calculate local gradient x,y, and z changes
+    for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
+        gradx_new[ii,jj,kk]=dt/denx[ii,jj,kk]*(P[ii,jj,kk]-P[ii-1,jj,kk])/̂dx
+    end
+    for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
+        grady_new[ii,jj,kk]=dt/deny[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj-1,kk])/̂dy
+    end
+    for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
+        gradz_new[ii,jj,kk]=dt/denz[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
+    end
+
+    uf1 = uf-gradx_new
+    vf1 = vf-grady_new
+    wf1 = wf-gradz_new
 
     if abs(band[i,j,k]) <= 1
         tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
@@ -320,12 +316,25 @@ end
 
 function compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
     @unpack Nx,Ny,Nz = param
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     diags = OffsetArray{Float64}(undef,1:Nx*Ny*Nz,27)
     dp = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+
+    # #initial calculation of gradientsa
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+        gradx[i,j,k]=dt/denx[i,j,k]*(P[i,j,k]-P[i-1,j,k])/̂dx
+    end
+    
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+        grady[i,j,k]=dt/deny[i,j,k]*(P[i,j,k]-P[i,j-1,k])/̂dy
+    end
+
+    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+        gradz[i,j,k]=dt/denz[i,j,k]*(P[i,j,k]-P[i,j,k-1])/̂dz
+    end
 
     delta = 1.0
     fill!(diags,0.0)
@@ -338,6 +347,7 @@ function compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         nNeigh = 0
 
+        
         for kk = k-1:k+1 ,jj = j-1:j+1, ii = i-1:i+1
             if jj < 1 || jj > Nx || ii < 1 || ii > Nx || kk < 1 || kk > Nz
                 # Outside domain 
@@ -355,6 +365,7 @@ function compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
                 # println(n(ii,jj,kk,Ny,Nz))
                 # println(max(0,offset[nNeigh])) 
                 # @show i,j,ii,jj,nNeigh, row,n(ii,jj,kk,Ny,Nz),max(0,offset[nNeigh])
+                #? can we store this as a sparse vector as well?
                 diags[row,nNeigh] = J
             end
         end
@@ -388,7 +399,8 @@ function compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
         offset[26] => diags[1:Nx*Ny*Nz-abs(offset[26]),26],
         offset[27] => diags[1:Nx*Ny*Nz-abs(offset[27]),27]
     )
-    return J 
+    return J
+ 
 end
 
 #want to define step and del operators
@@ -573,7 +585,7 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,ou
     iter=0
     while true
         iter += 1
-
+        
         # compute jacobian
         J = computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= 0.8AP./̂J
@@ -597,7 +609,7 @@ function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,ou
     end    
 end
 
-function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
+function Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -614,7 +626,7 @@ function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
         iter += 1
 
         # compute jacobian
-        J = compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+        @time J = compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
         Pv = convert3d_1d(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
         APv = convert3d_1d(AP)
         # cond_num = cond(Array(J),2)
@@ -638,7 +650,7 @@ function Secant_full_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = convert1d_3d(Pv,Nx,Ny,Nz)
 
         P .-=mean(P)
-
+        # println(P)
         #Need to introduce outflow correction
         outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
         

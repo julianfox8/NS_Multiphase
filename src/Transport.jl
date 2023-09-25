@@ -56,7 +56,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             # From projected cell and break into tets using face velocities
             tets,inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
 
-            if pressure_scheme == "finite_difference"
+            if pressure_scheme == "finite-difference"
                 # Add correction tets 
                 tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
             end

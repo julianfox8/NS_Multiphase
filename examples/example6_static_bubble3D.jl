@@ -47,6 +47,7 @@ param = parameters(
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
     pressure_scheme = "semi-lagrangian",
+    # pressure_scheme = "finite-difference",
     iter_type = "standard",
     VTK_dir= "VTK_example_static_bubble_3D"
 

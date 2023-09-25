@@ -13,6 +13,8 @@ using .Threads
 using NLsolve
 using Statistics
 using LinearAlgebra
+using SparseArrays
+
 
 include("Parameters.jl")
 include("Mesh.jl")
