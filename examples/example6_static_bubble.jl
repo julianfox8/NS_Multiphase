@@ -22,19 +22,19 @@ param = parameters(
  
     
     # Discretization inputsc
-    Nx=10,           # Number of grid cells
-    Ny=10,
+    Nx=30,           # Number of grid cells
+    Ny=30,
     Nz=1,
-    stepMax=3,   # Maximum number of timesteps
-    max_dt = 1e-2,
+    stepMax=400,   # Maximum number of timesteps
+    max_dt = 5e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
     tol = 1e-6,
 
     # Processors 
-    nprocx = 2,
-    nprocy = 2,
+    nprocx = 1,
+    nprocy = 1,
     nprocz = 1,
 
     # Periodicity

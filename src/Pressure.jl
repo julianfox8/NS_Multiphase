@@ -1,16 +1,15 @@
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,outflow)
+function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow)
     @unpack pressure_scheme = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
-    RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    gradx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    grady = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
+    RHS = nothing
+
     #LHS = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
     if pressure_scheme == "finite-difference"
+        RHS = @view tmp4[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
             # RHS
             RHS[i,j,k]= 1/dt* ( 
@@ -19,14 +18,14 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,den
                 ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
         end
     end
-    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,outflow)
+    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow)
 
     return iter
 end
 
 
 #? Would we want two separate poisson_solve! functions dependent upon the pressure_scheme tag
-function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,outflow)
+function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
@@ -36,9 +35,9 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
         iter = conjgrad!(P,RHS,denx,deny,denz,param,mesh,par_env)
 
     elseif pressureSolver == "Secant"
-        iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
+        iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env)
     elseif pressureSolver == "sparseSecant"
-        iter = Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
+        iter = Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env)
     elseif pressureSolver == "NLsolve"
         iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     elseif pressureSolver == "Jacobi"
@@ -51,31 +50,6 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,VF,dt,param,mesh,p
     return iter
 end
 
-struct Poisson{T<:AbstractArray,T16<:AbstractArray,parameters,par_env_struct,mesh_struct}
-    p :: T # Pressure
-    f :: Tuple{T,T,T} # flow (can we store three objects of type T here or do we need individual face velocity arrays)
-    den :: Tuple{T,T,T}
-    band :: T16
-    step:: Float64
-    z :: T # source
-    j :: T # Jacobian
-    r :: T # Jacobian residual
-    n :: Int16 # iterations
-    param :: parameters # param object
-    par :: par_env_struct # parallel environement structure
-    mesh :: mesh_struct # mesh structure
-    function Poisson(p::T,uf::T,vf::T,wf::T,denx::T,deny::T,denz::T,_band::T16,dt::Float64,param::parameters,par::par_env_struct,mesh::mesh_struct) where {T,T16,parameters,par_env_struct,mesh_struct} #? is this where argument redundant
-        #need to initilize all types 
-        f = (uf,vf,wf)
-        den = (denx,deny,denz)
-        step,band = dt,_band
-        #want to compute grad(u*-dt/rho) in each direction and store it in f 
-        r = similar(p); fill!(r,0.0)
-        z,j = copy(r),copy(r)
-        n = Int16(0)
-        new{T,T16,typeof(param),typeof(par),typeof(mesh)}(p,f,den,band,step,z,j,r,n,param,par,mesh)
-    end
-end
 
 function lap!(L,P,denx,deny,denz,param,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
@@ -225,8 +199,8 @@ function computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,de
 end
 
 
-function n(i,j,k,Ny,Nz) 
-    val = i + (j-1)*Ny + (k-1)*Nz*Ny
+function n(i,j,k,Nx,Ny) 
+    val = i + (j-1)*Nx + (k-1)*Nx*Ny
     # @show i,j,k,Ny,Nz,val
     return val
 end 
@@ -250,7 +224,7 @@ function compute_sparse_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx
             fill!(LHS2,0.0)
             fill!(dp,0.0)
             dp[ii,jj,kk] += delta
-            J[n(i,j,k,Ny,Nz),n(ii,jj,kk,Ny,Nz)] = (
+            J[n(i,j,k,Nx,Ny),n(ii,jj,kk,Nx,Ny)] = (
                 (A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
                 - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env))
                 ./̂2delta)
@@ -259,14 +233,14 @@ function compute_sparse_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx
     return J 
 end
 
-function compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+function compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
     @unpack Nx,Ny,Nz = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     diags = OffsetArray{Float64}(undef,1:Nx*Ny*Nz,9)
-    dp = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
-    LHS1 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    LHS2 = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    dp = tmp2
+    LHS1 = @view tmp3[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+    LHS2 = @view tmp4[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
 
     delta = 1.0
     fill!(diags,0.0)
@@ -291,7 +265,7 @@ function compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
                     - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env))
                     ./̂2delta)
                 nNeigh +=1 
-                row = n(ii,jj,kk,Ny,Nz)-max(0,offset[nNeigh]) # Row in diagonal array
+                row = n(ii,jj,kk,Nx,Ny)-max(0,offset[nNeigh]) # Row in diagonal array
                 # println(n(ii,jj,kk,Ny,Nz))
                 # println(max(0,offset[nNeigh])) 
                 # @show i,j,ii,jj,nNeigh, row,n(ii,jj,kk,Ny,Nz),max(0,offset[nNeigh])
@@ -358,8 +332,8 @@ function compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
                 fill!(dp,0.0)
                 dp[ii,jj,kk] += delta
                 J = ((A!(i,j,k,LHS1,uf,vf,wf,P.+dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-                    - A!(i,j,k,LHS2,uf,vf,wf,P.-dp,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env))
-                    ./̂2delta)
+                    - AP[i,j,k])
+                    ./̂delta)
                 nNeigh +=1 
                 row = n(ii,jj,kk,Ny,Nz)-max(0,offset[nNeigh]) # Row in diagonal array
                 # println(n(ii,jj,kk,Ny,Nz))
@@ -402,6 +376,247 @@ function compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,de
     return J
  
 end
+
+function convert3d_1d(matrix)
+    m1D = reshape(matrix,size(matrix,1)*size(matrix,2)*size(matrix,3),1)
+    return m1D
+end
+
+function convert1d_3d(matrix,x,y,z)
+    m3D = reshape(matrix,(x,y,z))
+    return m3D
+end
+
+# Secant method
+function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env)
+    @unpack tol,Nx,Ny,Nz = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack dx,dy,dz = mesh
+
+    AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    fill!(AP,0.0)
+    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
+
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+
+    # Iterate 
+    iter=0
+    while true
+        iter += 1
+        
+        # compute jacobian
+        J = computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
+        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= 0.8AP./̂J
+
+        P .-=mean(P)
+
+        #Need to introduce outflow correction
+        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
+        
+        #update new Ap
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+        
+        res = maximum(abs.(AP))
+        if res < tol
+            return iter
+        end
+        
+        if iter % 1000 == 0
+            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
+        end
+    end    
+end
+
+function Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env)
+    @unpack tol,Nx,Ny,Nz = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack dx,dy,dz = mesh
+
+    AP = @view tmp1[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+    fill!(AP,0.0)
+    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
+
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+    J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
+    # Iterate 
+    iter=0
+    while true
+        iter += 1
+
+        # compute jacobian
+        
+        Pv = convert3d_1d(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        APv = convert3d_1d(AP)
+
+        Pv -= J\APv
+        
+        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = convert1d_3d(Pv,Nx,Ny,Nz)
+
+        P .-=mean(P)
+        # println(P)
+        #Need to introduce outflow correction
+        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
+        
+        #update new Ap
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+        
+        res = maximum(abs.(AP))
+        if res < tol
+            return iter
+        end
+        
+        if iter % 10 == 0
+            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
+            J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,mesh,par_env)
+        end
+    end    
+end
+
+# NLsolve Library
+function computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
+    @unpack tol,Nx,Ny,Nz = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+
+    # Ghost cell indices
+    gx = imino_:imaxo_; gy = jmino_:jmaxo_; gz = kmino_:kmaxo_
+
+    LHS = OffsetArray{Float64}(undef, gx,gy,gz)
+
+
+    function f!(LHS, P)
+        A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,den,mesh,par_env)
+        # println("maxRes=",maximum(abs.(F)))
+        return LHS
+    end
+
+    # Run solver
+    out = nlsolve(f!,P,
+        ftol = tol,
+        method = :trust_region, #default 
+        # method = :newton,
+        # method = :anderson, # diverges
+        # m=20,
+        )
+
+    # Get output
+    P .= out.zero
+
+    return out.iterations
+end
+
+
+
+"""
+GaussSeidel Poisson Solver
+"""
+function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack isroot = par_env
+    @unpack tol = param
+    maxIter=1000000
+    iter = 0
+
+
+    
+    while true
+        iter += 1
+        max_update::Float64 = 0.0
+        for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+            Pnew = (-denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*RHS[i,j,k]*dx^2*dy^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2*P[i,j,k+1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2*P[i,j,k-1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2*P[i,j+1,k] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2*P[i,j-1,k] + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2*P[i+1,j,k] + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2*P[i-1,j,k])/(denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2 + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2)
+            max_update=max(max_update,abs(Pnew-P[i,j,k]))
+            P[i,j,k] = Pnew 
+        end
+
+        update_borders!(P,mesh,par_env)
+        Neumann!(P,mesh,par_env)
+ 
+        max_update = parallel_max_all(max_update,par_env)
+
+        max_update < tol && return iter # Converged
+        # Check if hit max iteration
+        if iter == maxIter 
+            isroot && println("Failed to converged Poisson equation max_upate = $max_update")
+            return iter
+        end
+    end
+end
+
+"""
+Conjugate gradient
+"""
+function conjgrad!(P,RHS,denx,deny,denz,param,mesh,par_env)
+    @unpack dx,dy,dz = mesh
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack tol = param
+    @unpack irank,isroot = par_env
+
+    # Interior indices
+    ix = imin_:imax_; iy = jmin_:jmax_;  iz = kmin_:kmax_
+    # Ghost cell indices
+    gx = imino_:imaxo_; gy = jmino_:jmaxo_; gz = kmino_:kmaxo_
+    
+    # Allocat work arrays (with ghost cells for comm)
+    r  = OffsetArray{Float64}(undef, gx,gy,gz)
+    p  = OffsetArray{Float64}(undef, gx,gy,gz)
+    Ap = OffsetArray{Float64}(undef, gx,gy,gz)
+
+    lap!(r,P,denx,deny,denz,param,mesh)
+    r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
+    Neumann!(r,mesh,par_env)
+    update_borders!(r,mesh,par_env) # (overwrites BCs if periodic)
+    p .= r
+    rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
+    rsnew = 0.0
+    for iter = 1:10
+        lap!(Ap,p,denx,deny,denz,param,mesh)
+
+        sum = parallel_sum_all(p[ix,iy,iz].*Ap[ix,iy,iz],par_env)
+        alpha = rsold /̂ sum
+        P .+= alpha*p
+        r -= alpha * Ap
+        rsnew = parallel_sum_all(r[ix,iy,iz].^2,par_env)
+        if sqrt(rsnew) < tol
+            return iter
+        end
+        p = r + (rsnew /̂ rsold) * p
+        Neumann!(p,mesh,par_env)   
+        update_borders!(p,mesh,par_env) # (overwrites BCs if periodic)
+        rsold = rsnew
+
+    end
+    
+    isroot && println("Failed to converged Poisson equation rsnew = $rsnew")
+    
+    return length(RHS)
+end
+
+struct Poisson{T<:AbstractArray,T16<:AbstractArray,parameters,par_env_struct,mesh_struct}
+    p :: T # Pressure
+    f :: Tuple{T,T,T} # flow (can we store three objects of type T here or do we need individual face velocity arrays)
+    den :: Tuple{T,T,T}
+    band :: T16
+    step:: Float64
+    z :: T # source
+    j :: T # Jacobian
+    r :: T # Jacobian residual
+    n :: Int16 # iterations
+    param :: parameters # param object
+    par :: par_env_struct # parallel environement structure
+    mesh :: mesh_struct # mesh structure
+    function Poisson(p::T,uf::T,vf::T,wf::T,denx::T,deny::T,denz::T,_band::T16,dt::Float64,param::parameters,par::par_env_struct,mesh::mesh_struct) where {T,T16,parameters,par_env_struct,mesh_struct} #? is this where argument redundant
+        #need to initilize all types 
+        f = (uf,vf,wf)
+        den = (denx,deny,denz)
+        step,band = dt,_band
+        #want to compute grad(u*-dt/rho) in each direction and store it in f 
+        r = similar(p); fill!(r,0.0)
+        z,j = copy(r),copy(r)
+        n = Int16(0)
+        new{T,T16,typeof(param),typeof(par),typeof(mesh)}(p,f,den,band,step,z,j,r,n,param,par,mesh)
+    end
+end
+
 
 #want to define step and del operators
 CI(a...) = CartesianIndex(a...)
@@ -454,43 +669,7 @@ function A!(P::Poisson{T}) where {T}
         end
     end
 end
-# # non local A! matrix with delta
-# function A!(P::Poisson{T},delta=0.0) where {T}
-#     param,mesh = P.param,P.mesh
-#     @unpack dx,dy,dz = mesh
-#     d_step = dx,dy,dz
 
-#     Neumann!(P.p,mesh,P.par)
-#     update_borders!(P.p,mesh,P.par) # (overwrites BCs if periodic)
-
-#     # p = copy(P.p)
-#     # p[I] += delta
-#     v_fields = (copy(P.f[1]), copy(P.f[2]), copy(P.f[3]))
-#     for ii in 1:length(P.f)
-#         for I in inside(P.f[ii])
-#             v_fields[ii][I] -= P.step/P.den[ii][I]*del(ii,I,P.p)/d_step[ii]
-#         end
-#     end
-#     # println("made it through")
-
-#     for I in inside(P.band)
-#         if abs(P.band[I]) <= 1
-#             tets, inds = cell2tets_withProject_uvwf(I[1],I[2],I[3],v_fields[1],v_fields[2],v_fields[3],P.step,mesh)
-#             if any(isnan,tets)
-#                 error("Nan in tets at ", I)
-#             end
-#             v2 = dx*dy*dz
-#             v1 = tets_vol(tets)
-#             P.z[I] = (v2-v1) /̂ v2 /̂ P.step
-#         else 
-#             # Calculate divergence with finite differnce
-#             du_dx = (v_fields[1][I+step(1,I)]-v_fields[1][I])/(dx)
-#             dv_dy = (v_fields[2][I+step(2,I)]-v_fields[2][I])/(dy)
-#             dw_dz = (v_fields[3][I+step(3,I)]-v_fields[3][I])/(dz)
-#             P.z[I] = du_dx + dv_dy + dw_dz
-#         end
-#     end
-# end
 
 # local A matrix that recieves Poisson struct and cartesian index
 # A! matrix for the jacobian calculation at P+/-dP acts on Jacobian residual field
@@ -557,330 +736,6 @@ function full_Jacobian!(P::Poisson)
         #! calc jacobian at each pt in mesh
         P.j[I] = (A_pos-A_neg)/̂2delta        
     end
-end
-
-function convert3d_1d(matrix)
-    m1D = reshape(matrix,size(matrix,1)*size(matrix,2)*size(matrix,3),1)
-    return m1D
-end
-
-function convert1d_3d(matrix,x,y,z)
-    m3D = reshape(matrix,(x,y,z))
-    return m3D
-end
-
-# Secant method
-function Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
-    @unpack tol,Nx,Ny,Nz = param
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-    @unpack dx,dy,dz = mesh
-
-    AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    fill!(AP,0.0)
-    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
-
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-
-    # Iterate 
-    iter=0
-    while true
-        iter += 1
-        
-        # compute jacobian
-        J = computeJacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
-        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-= 0.8AP./̂J
-
-        P .-=mean(P)
-
-        #Need to introduce outflow correction
-        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
-        
-        #update new Ap
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-        
-        res = maximum(abs.(AP))
-        if res < tol
-            return iter
-        end
-        
-        if iter % 1000 == 0
-            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
-        end
-    end    
-end
-
-function Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,outflow,param,mesh,par_env,step)
-    @unpack tol,Nx,Ny,Nz = param
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-    @unpack dx,dy,dz = mesh
-
-    AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-    fill!(AP,0.0)
-    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
-
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-
-    # Iterate 
-    iter=0
-    while true
-        iter += 1
-
-        # compute jacobian
-        @time J = compute_sparse3D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,mesh,par_env)
-        Pv = convert3d_1d(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-        APv = convert3d_1d(AP)
-        # cond_num = cond(Array(J),2)
-        # println(cond_num)
-        # determ = det(J)
-        # println("J determinant : ",determ)
-        # println(size(J))
-        # println(size(APv))
-        # println(size(Pv))
-        # error("stop")
-
-        # #! attempt Tikhonov Regularization (Ridge Regression)
-        # alpha = 100000.0
-        # reg_term = alpha*I(size(J,1))
-        # reg_J = J + reg_term
-        # reg_determ = det(reg_J)
-        # println("Regularized J determinant : ",determ)
-
-        Pv -= J\APv
-        
-        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = convert1d_3d(Pv,Nx,Ny,Nz)
-
-        P .-=mean(P)
-        # println(P)
-        #Need to introduce outflow correction
-        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
-        
-        #update new Ap
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-        
-        res = maximum(abs.(AP))
-        if res < tol
-            return iter
-        end
-        
-        if iter % 1000 == 0
-            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res,sum(AP))
-        end
-    end    
-end
-
-# NLsolve Library
-function computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
-    @unpack tol,Nx,Ny,Nz = param
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-
-    # Ghost cell indices
-    gx = imino_:imaxo_; gy = jmino_:jmaxo_; gz = kmino_:kmaxo_
-
-    LHS = OffsetArray{Float64}(undef, gx,gy,gz)
-
-
-    function f!(LHS, P)
-        A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,den,mesh,par_env)
-        # println("maxRes=",maximum(abs.(F)))
-        return LHS
-    end
-
-    # Run solver
-    out = nlsolve(f!,P,
-        ftol = tol,
-        method = :trust_region, #default 
-        # method = :newton,
-        # method = :anderson, # diverges
-        # m=20,
-        )
-
-    # Get output
-    P .= out.zero
-
-    return out.iterations
-end
-
-
-
-"""
-GaussSeidel Poisson Solver
-"""
-function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
-    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack isroot = par_env
-    @unpack tol = param
-    maxIter=1000000
-    iter = 0
-
-    # println(vf[:, jmin_+1, :]) 
-    # println(vf[:, jmax_-1, :])
-    #apply outflow correction
-    # outflowCorrection!(RHS,P,uf,vf,wf,denx,deny,denz,param,mesh,par_env)
-    # @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-    #     # RHS
-    #     RHS[i,j,k]=  ( 
-    #         ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
-    #         ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
-    #         ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
-    # end
-    
-    while true
-        iter += 1
-        max_update::Float64 = 0.0
-        # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-            # Pnew = (-denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*RHS[i,j,k]*dx^2*dy^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dt*dx^2*dy^2*P[i,j,k+1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dt*dx^2*dy^2*P[i,j,k-1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dx^2*dz^2*P[i,j+1,k] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dx^2*dz^2*P[i,j-1,k] + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dy^2*dz^2*P[i+1,j,k] + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dt*dy^2*dz^2*P[i-1,j,k])/(dt*(denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2 + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2))
-            Pnew = (-denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*RHS[i,j,k]*dx^2*dy^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2*P[i,j,k+1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2*P[i,j,k-1] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2*P[i,j+1,k] + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2*P[i,j-1,k] + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2*P[i+1,j,k] + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2*P[i-1,j,k])/(denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k+1]*dx^2*dy^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*denx[i+1,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dx^2*dz^2 + denx[i,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2 + denx[i+1,j,k]*deny[i,j,k]*deny[i,j+1,k]*denz[i,j,k]*denz[i,j,k+1]*dy^2*dz^2)
-            # # println(Pnew)
-            max_update=max(max_update,abs(Pnew-P[i,j,k]))
-            P[i,j,k] = Pnew 
-        end
-
-        update_borders!(P,mesh,par_env)
-        Neumann!(P,mesh,par_env)
-        # if iter % 1000 == 0
-        #     println("Max updat = ",max_update)
-        # end    
-        max_update = parallel_max_all(max_update,par_env)
-
-        max_update < tol && return iter # Converged
-        # Check if hit max iteration
-        if iter == maxIter 
-            isroot && println("Failed to converged Poisson equation max_upate = $max_update")
-            return iter
-        end
-    end
-end
-
-
-
-
-"""
- GaussSeidel Poisson Solver( update)
-"""
-# function GaussSeidel!(P,RHS,uf,vf,wf,denx,deny,denz,dt,param,mesh,par_env)
-#     @unpack Nx,Ny,Nz,dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-#     @unpack isroot = par_env
-#     @unpack tol = param
-#     maxIter=100
-#     iter = 0
-
-#     # println(vf[:, jmin_+1, :]) 
-#     # println(vf[:, jmax_-1, :])
-#     #apply outflow correction
-#     # outflowCorrection!(RHS,P,uf,vf,wf,denx,deny,denz,param,mesh,par_env)
-#     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-#         # RHS
-#         RHS[i,j,k]=  ( 
-#             ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
-#             ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
-#             ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
-#     end
-
-#     A_lap = OffsetArray{Float64}(undef,1:Nx*Ny*Nz,1:Nx*Ny*Nz)
-#     LHS = OffsetArray{Float64}(undef, 1:Nx,1:Ny,1:Nz)
-#     fill!(A_lap,0.0)
-    
-#     for k = kmin_:kmax_,j = jmin_:jmax_,i = imin_:imax_
-#         Pi = zeros(0:Nx+1,0:Ny+1,0:Nz+1)
-#         Pi[i,j,k] += 1.0
-#         for kk = kmin_:kmax_, jj = jmin_:jmax_, ii = imin_:imax_
-#             A_lap[n(i,j,k,Ny,Nz),n(ii,jj,kk,Ny,Nz)] = (
-#                 (Pi[ii-1,jj,kk] - 2Pi[ii,jj,kk] + Pi[ii+1,jj,kk]) /̂ dx^2 +
-#                 (Pi[ii,jj-1,kk] - 2Pi[ii,jj,kk] + Pi[ii,jj+1,kk]) /̂ dy^2 +
-#                 (Pi[ii,jj,kk-1] - 2Pi[ii,jj,kk] + Pi[ii,jj,kk+1]) /̂ dz^2 )
-#         end
-#     end
-
-
-#     while true
-#         iter += 1
-#         max_update::Float64 = 0.0
-#         P_old = P
-#         lap!(LHS,P,param,mesh)
-#         for i= 1:Nx*Ny*Nz
-#             P[i] = (RHS[i] - LHS[i] + A_lap[i,i]*P[i])/A_lap[i,i]
-#         end
-#         if norm(P-P_old)/norm(P) > tol
-#             return iter
-#         end
-#         # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-#         #     res_factor = (-denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * RHS[i,j,k] * dx^2 * dy^2 * dz^2)
-#         #     Pk_pos = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * dt * dx^2 * dy^2)
-#         #     Pk_neg = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k+1] * dt * dx^2 * dy^2)
-#         #     Pj_pos = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dx^2 * dz^2)
-#         #     Pj_neg = (denx[i,j,k] * denx[i+1,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dx^2 * dz^2)
-#         #     Pi_pos = (denx[i,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dy^2 * dz^2)
-#         #     Pi_neg = (denx[i+1,j,k] * deny[i,j,k] * deny[i,j+1,k] * denz[i,j,k] * denz[i,j,k+1] * dt * dy^2 * dz^2)
-#         #     Pnew = (res_factor + Pk_pos*P[i,j,k+1] + Pk_neg*P[i,j,k-1] + Pj_pos*P[i,j+1,k] + Pj_neg*P[i,j-1,k] + Pi_pos*P[i+1,j,k] + Pi_neg*P[i-1,j,k])/̂
-#         #             dt*(Pk_pos + Pk_neg + Pj_pos + Pj_neg + Pi_pos + Pi_neg)
-#         #     # println(Pnew)
-#         #     max_update=max(max_update,abs(Pnew-P[i,j,k]))
-#         #     P[i,j,k] = Pnew 
-#         # end
-#         # # error("stop")
-#         update_borders!(P,mesh,par_env)
-#         Neumann!(P,mesh,par_env)
-#         # println("Max update = ",max_update)
-#         # max_update = parallel_max_all(max_update,par_env)
-
-#         # max_update < tol && return iter # Converged
-#         # Check if hit max iteration
-#         if iter == maxIter 
-#             isroot && println("Failed to converged Poisson equation")
-#             return iter
-#         end
-#     end
-# end
-
-"""
-Conjugate gradient
-"""
-function conjgrad!(P,RHS,denx,deny,denz,param,mesh,par_env)
-    @unpack dx,dy,dz = mesh
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-    @unpack tol = param
-    @unpack irank,isroot = par_env
-
-    # Interior indices
-    ix = imin_:imax_; iy = jmin_:jmax_;  iz = kmin_:kmax_
-    # Ghost cell indices
-    gx = imino_:imaxo_; gy = jmino_:jmaxo_; gz = kmino_:kmaxo_
-    
-    # Allocat work arrays (with ghost cells for comm)
-    r  = OffsetArray{Float64}(undef, gx,gy,gz)
-    p  = OffsetArray{Float64}(undef, gx,gy,gz)
-    Ap = OffsetArray{Float64}(undef, gx,gy,gz)
-
-    lap!(r,P,denx,deny,denz,param,mesh)
-    r[ix,iy,iz] = RHS.parent - r[ix,iy,iz]
-    Neumann!(r,mesh,par_env)
-    update_borders!(r,mesh,par_env) # (overwrites BCs if periodic)
-    p .= r
-    rsold = parallel_sum_all(r[ix,iy,iz].^2,par_env)
-    rsnew = 0.0
-    for iter = 1:10
-        lap!(Ap,p,denx,deny,denz,param,mesh)
-
-        sum = parallel_sum_all(p[ix,iy,iz].*Ap[ix,iy,iz],par_env)
-        alpha = rsold /̂ sum
-        P .+= alpha*p
-        r -= alpha * Ap
-        rsnew = parallel_sum_all(r[ix,iy,iz].^2,par_env)
-        if sqrt(rsnew) < tol
-            return iter
-        end
-        p = r + (rsnew /̂ rsold) * p
-        Neumann!(p,mesh,par_env)   
-        update_borders!(p,mesh,par_env) # (overwrites BCs if periodic)
-        rsold = rsnew
-
-    end
-    
-    isroot && println("Failed to converged Poisson equation rsnew = $rsnew")
-    
-    return length(RHS)
 end
 
 
