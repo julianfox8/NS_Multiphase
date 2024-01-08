@@ -7,25 +7,27 @@ using NavierStokes_Parallel
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=1e-6,       # Dynamic viscosity
-    mu_gas = 1e-9,
-    rho_liq=1.0,           # Density
-    rho_gas =0.0001, 
-    sigma = 0.000072,  #surface tension coefficient
+    mu_liq=0.01,       # Dynamic viscosity
+    mu_gas = 0.0001,
+    rho_liq= 1000,           # Density
+    rho_gas =0.1, 
+    sigma = 0.0072, #surface tension coefficient
+    gravity = 1e-2,
     Lx=3.0,            # Domain size
     Ly=3.0,
-    Lz=3.0,
+    Lz=1.0,
     tFinal=1.0,      # Simulation time
     
     # Discretization inputs
-    Nx=10,           # Number of grid cells
-    Ny=10,
+    Nx=30,           # Number of grid cells
+    Ny=30,
     Nz=1,
     stepMax=50,   # Maximum number of timesteps
+    max_dt = 5e-3,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-8,
 
     # Processors 
     nprocx = 1,
@@ -35,14 +37,16 @@ param = parameters(
     # Periodicity
     xper = false,
     yper = false,
-    zper = false,
+    zper = true,
 
-    pressureSolver = "GaussSeidel",
+    # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
-    # pressureSolver = "Secant",
+    pressureSolver = "sparseSecant",
     # pressureSolver = "NLsolve",
+    # pressure_scheme = "finite-difference",
     iter_type = "standard",
     # VTK_dir= "VTK_example_3"
+    VTK_dir= "VTK_example_static_lid_driven"
 
 )
 
@@ -50,8 +54,9 @@ param = parameters(
 Initial conditions for pressure and velocity
 """
 function IC!(P,u,v,w,VF,mesh)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,
-                xm,ym,zm,Lx,Ly,Lz = mesh
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,
+    imin_,imax_,jmin_,jmax_,kmin_,kmax_,
+    x,y,z,xm,ym,zm,Lx,Ly,Lz = mesh
     # Pressure
     fill!(P,0.0)
 
@@ -63,7 +68,15 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    fill!(VF,0.0)
+    fill!(VF,1.0)
+    # rad=0.5
+    # xo=2.5
+    # yo=2.5
+    # zo = 2.5
+    # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+    #     # VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+    #     VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+    # end
 
     return nothing    
 end
@@ -81,7 +94,7 @@ function BC!(u,v,w,mesh,par_env)
      if irankx == 0 
         i = imin-1
         for j=jmin_:jmax_
-            if ym[j] <= 1.5 
+            if ym[j] >= 1.5 
                 uleft = 1.0
             else
                 uleft = 0.0
@@ -96,7 +109,7 @@ function BC!(u,v,w,mesh,par_env)
     if irankx == nprocx-1
         i = imax+1
         for j=jmin_:jmax_
-            if ym[j] <= 1.5
+            if ym[j] >= 1.5
                 uright = 1.0
             else
                 uright = 0.0
@@ -139,5 +152,29 @@ function BC!(u,v,w,mesh,par_env)
     return nothing
 end
 
+# """
+# Apply outflow correction to region
+# """
+# function outflow_correction!(correction,uf,vf,wf,mesh,par_env)
+#     @unpack ym,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+#     @unpack iranky,nprocy = par_env
+#     # right side is the outflow
+#     if iranky == nprocy-1
+#         uf[imax+1,1:jmax/2,:] .+= correction 
+#     end
+# end
+
+# """
+# Define area of outflow region
+# """
+# function outflow_area(mesh,par_env)
+#     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+#     @unpack y,z = mesh 
+#     myArea = (y[jmax_+1]-y[jmin_]) * (z[kmax_+1]-z[kmin_])
+#     return NavierStokes_Parallel.parallel_sum_all(myArea,par_env)
+# end
+# outflow =(area=outflow_area,correction=outflow_correction!)
+
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!)
+@time run_solver(param, IC!, BC!,outflow)
+

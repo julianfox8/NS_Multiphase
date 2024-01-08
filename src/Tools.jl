@@ -79,12 +79,12 @@ macro loop(args...)
                     $(esc(lbody))
                 end
 
-            # elseif $(esc(p)).iter_type == "threads"
-            #     # Threads
-            #     @threads for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
-            #         $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
-            #         $(esc(lbody))
-            #     end
+            elseif $(esc(p)).iter_type == "threads"
+                # Threads
+                @threads for ind in CartesianIndices(($(esc(rangex)),$(esc(rangey)),$(esc(rangez))))
+                    $(esc(idx)),$(esc(idy)),$(esc(idz)) = ind[1],ind[2],ind[3]
+                    $(esc(lbody))
+                end
 
             elseif $(esc(p)).iter_type == "floop"
                 # FLoops
@@ -744,7 +744,7 @@ VF values for 2D Bubble
 function VFbubble2d(xmin,xmax,ymin,ymax,rad,xo,yo)
     nF = 20
     VF=1.0
-    VFsubcell = 1.0/nF^3
+    VFsubcell = 1.0/nF^2
     # Loop over finer grid to evaluate VF 
     for j=1:nF, i=1:nF
         xh = xmin + i/(nF+1)*(xmax-xmin)
@@ -813,7 +813,7 @@ function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,de
     
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
     d = sum(AP*dx*dy*dz)
-    while abs(d) > 1e-1*tol
+    while abs(d) > 1e-1*tol || iter < 2
         iter += 1
         # Correct outflow 
         correction = -0.5d/outflow.area(mesh,par_env)

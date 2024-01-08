@@ -9,24 +9,24 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=0.01,       # Dynamic viscosity
-    mu_gas = 0.0001,
-    rho_liq= 1000,           # Density
-    rho_gas =0.1, 
-    sigma = 0.0072, #surface tension coefficient
-    gravity = 1e-3,
-    Lx=5.0,            # Domain size 
-    Ly=5.0,
-    Lz=5.0,
+    mu_liq=2800,       # Dynamic viscosity of liquid (centipoise)
+    mu_gas = 1.85e-2, # Dynamic viscosity of gas (centipoise)
+    rho_liq= 1.389,           # Density of liquid (g/cm^3)
+    rho_gas =1.2e-3,  # Density of gas (g/cm^3)
+    sigma = 80, # surface tension coefficient (dyn/cm)
+    gravity = 981, # Gravity (cm/s^2)
+    Lx=21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
+    Ly=78,             
+    Lz=21,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputsc
-    Nx=10,           # Number of grid cells
-    Ny=10,
-    Nz=10,
+    Nx=64,           # Number of grid cells
+    Ny=240,
+    Nz=64 ,
     stepMax=3,   # Maximum number of timesteps
-    max_dt = 1e-2,
+    max_dt = 1e-4,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
@@ -73,10 +73,10 @@ function IC!(P,u,v,w,VF,mesh)
 
     # fill!(VF,1.0)
     # Volume Fraction
-    rad=0.5
-    xo=2.5
-    yo=2.5
-    zo = 2.5
+    rad=1.25
+    xo=10.5
+    yo=10.5
+    zo = 10.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
         # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)

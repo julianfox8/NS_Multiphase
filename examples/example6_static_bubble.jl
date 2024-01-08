@@ -17,16 +17,16 @@ param = parameters(
     gravity = 1e-2,
     Lx=5.0,            # Domain size 
     Ly=5.0,
-    Lz=1.0,
+    Lz=1/10,
     tFinal=100.0,      # Simulation time
  
     
-    # Discretization inputsc
-    Nx=30,           # Number of grid cells
-    Ny=30,
+    # Discretization inputs
+    Nx=32,           # Number of grid cells
+    Ny=32,
     Nz=1,
-    stepMax=400,   # Maximum number of timesteps
-    max_dt = 5e-3,
+    stepMax=25,   # Maximum number of timesteps
+    max_dt = 1e-4,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
@@ -43,11 +43,13 @@ param = parameters(
     zper = true,
 
     # pressureSolver = "NLsolve",
+    # pressureSolver = "Secant",
     pressureSolver = "sparseSecant",
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
+    # pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble2"
+    VTK_dir= "VTK_example_static_bubble21"
 
 )
 

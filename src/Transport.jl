@@ -31,11 +31,11 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
     fill!(Curve,0.0)
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        if abs(band[i,j,k]) <= 1
-            compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
-        end
+        # if abs(band[i,j,k]) <= 1
+        compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
+        # end
     end
-
+    
 
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
@@ -50,7 +50,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         if abs(band[i,j,k]) <= 1
         # if abs(band[i,j,k]) <= 3
 
-            compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
+            # compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
             # Semi-Lagrangian near interface 
             # ------------------------------
             # From projected cell and break into tets using face velocities

@@ -11,8 +11,12 @@ function test_SLdivergence()
     # Setup test parameters
     param = parameters(
         # Constants
-        mu=1e-5,       # Dynamic viscosity
-        rho=1.0,           # Density
+        mu_liq=1e-5,       # Dynamic viscosity
+        mu_gas=1e-5,       # Dynamic viscosity
+        rho_liq=1.0,           # Density
+        rho_gas=1.0,           # Density
+        sigma = 1e-2,
+        gravity = 1,
         Lx=3.0,            # Domain size
         Ly=3.0,
         Lz=3.0,
@@ -74,14 +78,14 @@ function test_SLdivergence()
                 # Therefore the change in volume is linear w.r.t. time. 
 
                 # Field a
-                ufa[i,j,k] = ym[j] + x[i]
+                ufa[i,j,k] = ym[j]
                 vfa[i,j,k] = 0.0
                 wfa[i,j,k] = 0.0
 
 
                 # Field b
                 ufb[i,j,k] = 0.0
-                vfb[i,j,k] = xm[i] + y[j]
+                vfb[i,j,k] = xm[i]
                 wfb[i,j,k] = 0.0
 
             elseif case == "B"
@@ -89,12 +93,12 @@ function test_SLdivergence()
                 # non-linearly w.r.t. time. 
 
                 # Field a
-                ufa[i,j,k] = -(x[i]-1.5)
-                vfa[i,j,k] = -(y[j]-1.5)
+                ufa[i,j,k] = y[j]
+                vfa[i,j,k] = 0.0
                 wfa[i,j,k] = 0.0
                 # Field b
-                ufb[i,j,k] = (x[i]-1.5)
-                vfb[i,j,k] = (y[j]-1.5)
+                ufb[i,j,k] = 0.0
+                vfb[i,j,k] = x[i]
                 wfb[i,j,k] = 0.0
 
             elseif case == "C"
