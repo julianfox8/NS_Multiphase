@@ -2,8 +2,12 @@
         # Setup test parameters
         param = parameters(
             # Constants
-            mu=0.1,       # Dynamic viscosity
-            rho=1.0,           # Density
+            mu_liq=0.1,       # Dynamic viscosity liquid
+            mu_gas = 1e-4,
+            rho_liq=1.0,
+            rho_gas=1.0,           # Density
+            sigma = 1.0,
+            gravity = 1.0
             Lx=3.0,            # Domain size
             Ly=1.0,
             Lz=1.0,
