@@ -7,7 +7,7 @@
             rho_liq=1.0,
             rho_gas=1.0,           # Density
             sigma = 1.0,
-            gravity = 1.0
+            gravity = 1.0,
             Lx=3.0,            # Domain size
             Ly=1.0,
             Lz=1.0,
