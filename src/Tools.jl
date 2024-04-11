@@ -163,6 +163,7 @@ function initArrays(mesh)
     gradx = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(gradx,0.0)
     grady = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(grady,0.0)
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(gradz,0.0)
+
     return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz
 
 end
@@ -809,20 +810,20 @@ Correct outflow such that sum(divg)=0
 function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
     @unpack dx,dy,dz = mesh
     @unpack tol = param
-    iter=0; maxIter=100
+    iter=0; maxIter=1000    
     
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-    d = sum(AP*dx*dy*dz)
-    while abs(d) > 1e-1*tol || iter < 2
+    d = parallel_sum_all(AP*dx*dy*dz,par_env)
+    while abs(d) > 1e-1*tol || iter < 10
         iter += 1
         # Correct outflow 
         correction = -0.5d/outflow.area(mesh,par_env)
         outflow.correction(correction,uf,vf,wf,mesh,par_env)
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-        dnew = sum(AP*dx*dy*dz)
+        dnew = parallel_sum_all(AP*dx*dy*dz,par_env)
         d=dnew
         if iter == maxIter
-            warn("outflowCorrection did not converge!")
+            error("outflowCorrection did not converge!")
             return
         end
     end

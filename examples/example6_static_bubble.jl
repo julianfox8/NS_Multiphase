@@ -13,20 +13,20 @@ param = parameters(
     mu_gas = 0.0001,
     rho_liq= 1000,           # Density
     rho_gas =0.1, 
-    sigma = 0.0072, #surface tension coefficient
-    gravity = 1e-2,
+    sigma = 0.00072, #surface tension coefficient
+    gravity = 10,
     Lx=5.0,            # Domain size 
     Ly=5.0,
-    Lz=1/10,
+    Lz=1/50,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputs
-    Nx=32,           # Number of grid cells
-    Ny=32,
+    Nx=16,           # Number of grid cells
+    Ny=16,
     Nz=1,
-    stepMax=25,   # Maximum number of timesteps
-    max_dt = 1e-4,
+    stepMax=1000,   # Maximum number of timesteps
+    max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
@@ -44,7 +44,8 @@ param = parameters(
 
     # pressureSolver = "NLsolve",
     # pressureSolver = "Secant",
-    pressureSolver = "sparseSecant",
+    # pressureSolver = "sparseSecant",
+    pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
     # pressure_scheme = "finite-difference",
@@ -166,4 +167,4 @@ end
 outflow =(area=outflow_area,correction=outflow_correction!)
 
 # Simply run solver on 1 processor
-@time run_solver(param, IC!, BC!,outflow)
+run_solver(param, IC!, BC!,outflow)

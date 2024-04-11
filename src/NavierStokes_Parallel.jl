@@ -3,6 +3,7 @@ module NavierStokes_Parallel
 export run_solver, parameters, VFcircle, VFsphere, VFbubble2d, VFbubble3d, @unpack
 
 using MPI
+using HYPRE
 using UnPack
 using OffsetArrays
 using Printf
@@ -14,6 +15,7 @@ using NLsolve
 using Statistics
 using LinearAlgebra
 using SparseArrays
+using HYPRE.LibHYPRE
 
 
 include("Parameters.jl")
@@ -23,11 +25,11 @@ include("Tools.jl")
 include("Velocity.jl")
 include("Transport.jl")
 include("Pressure.jl")
-# include("Pressure_semilag.jl")
 include("VF.jl")
 include("VFgeom.jl")
 include("ELVIRA.jl")
 include("WriteData.jl")
+# include("hyp.jl")
 
 function run_solver(param, IC!, BC!, outflow)
     @unpack stepMax,tFinal,solveNS = param
@@ -55,16 +57,17 @@ function run_solver(param, IC!, BC!, outflow)
     BC!(u,v,w,mesh,par_env)
 
     # Update processor boundaries (overwrites BCs if periodic)
-    # update_borders!(u,mesh,par_env)
-    # update_borders!(v,mesh,par_env)
-    # update_borders!(w,mesh,par_env)
-    # update_borders!(VF,mesh,par_env)
+    update_borders!(u,mesh,par_env)
+    update_borders!(v,mesh,par_env)
+    update_borders!(w,mesh,par_env)
+    update_borders!(VF,mesh,par_env)
 
     # Compute density and viscosity at intial conditions
     compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
     # Create face velocities
     interpolateFace!(u,v,w,uf,vf,wf,mesh)
+
 
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
@@ -80,7 +83,6 @@ function run_solver(param, IC!, BC!, outflow)
     # Check semi-lagrangian divergence
     divg = divergence(uf,vf,wf,dt,band,mesh,param,par_env)
 
-    
     # Initialize VTK outputs
     pvd,pvd_PLIC = VTK_init(param,par_env)
 
@@ -107,7 +109,7 @@ function run_solver(param, IC!, BC!, outflow)
         if !solveNS
             defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         end
- 
+
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz)
 
@@ -121,8 +123,9 @@ function run_solver(param, IC!, BC!, outflow)
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
+
             # # Call pressure Solver (handles processor boundaries for P)
-            iter,J = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
             # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
 
             # Corrector face velocities

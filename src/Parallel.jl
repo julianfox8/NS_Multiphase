@@ -16,6 +16,8 @@ function parallel_init(param)
         MPI.Init()
     end
 
+    
+
     comm = MPI.COMM_WORLD
     nproc = MPI.Comm_size(comm)
 
@@ -166,4 +168,15 @@ function parallel_min(A,par_env)
 end
 function parallel_min_all(A,par_env)
     return callReduce_all(minimum(A),par_env,MPI.MIN)
+end
+
+
+""" 
+Parallel Mean of A (by default output goes only to iroot)
+"""
+function parallel_mean(A,par_env)
+    return parallel_sum(A,par_env)/parallel_sum(length(A),par_env)
+end
+function parallel_mean_all(A,par_env)
+    return parallel_sum_all(A,par_env)/parallel_sum_all(length(A),par_env)
 end

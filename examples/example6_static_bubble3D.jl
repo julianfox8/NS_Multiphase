@@ -15,16 +15,21 @@ param = parameters(
     rho_gas =1.2e-3,  # Density of gas (g/cm^3)
     sigma = 80, # surface tension coefficient (dyn/cm)
     gravity = 981, # Gravity (cm/s^2)
-    Lx=21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
-    Ly=78,             
-    Lz=21,
+    # Lx=21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
+    # Ly=78, 
+    Lx=10,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
+    Ly=10,             
+    Lz=10,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputsc
-    Nx=64,           # Number of grid cells
-    Ny=240,
-    Nz=64 ,
+    # Nx=64,           # Number of grid cells
+    # Ny=240,
+    # Nz=64 ,
+    Nx=15,           # Number of grid cells
+    Ny=15,
+    Nz=15,
     stepMax=3,   # Maximum number of timesteps
     max_dt = 1e-4,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -40,10 +45,11 @@ param = parameters(
     # Periodicity
     xper = false,
     yper = false,
-    zper = false,
+    zper = true,
 
     # pressureSolver = "NLsolve",
-    pressureSolver = "sparseSecant",
+    # pressureSolver = "sparseSecant",
+    pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
     pressure_scheme = "semi-lagrangian",
