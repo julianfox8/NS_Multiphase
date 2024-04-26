@@ -67,7 +67,7 @@ end
 
 function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-
+    @unpack isroot = par_env
     fill!(gradx,0.0)
     fill!(grady,0.0)
     fill!(gradz,0.0)
@@ -76,22 +76,30 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,p
     update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
 
     #suspect that the correct gradient is being calculate due to loop
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
-        gradx[i,j,k]=dt/denx[i,j,k]*(P[i,j,k]-P[i-1,j,k])/dx
+    @loop param for kk=kmin_-1:kmax_+1, jj=jmin_-1:jmax_+1, ii=imin_-1:imax_+2
+        gradx[ii,jj,kk]=dt/̂denx[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii-1,jj,kk])/̂dx
     end
 
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
-        grady[i,j,k]=dt/deny[i,j,k]*(P[i,j,k]-P[i,j-1,k])/dy
+    @loop param for kk=kmin_-1:kmax_+1, jj=jmin_-1:jmax_+2, ii=imin_-1:imax_+1
+        grady[ii,jj,kk]=dt/̂deny[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii,jj-1,kk])/̂dy
     end
 
-    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
-        gradz[i,j,k]=dt/denz[i,j,k]*(P[i,j,k]-P[i,j,k-1])/dz
+    @loop param for kk=kmin_-1:kmax_+2, jj=jmin_-1:jmax_+1, ii=imin_-1:imax_+1
+        gradz[ii,jj,kk]=dt/̂denz[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
     end
+    # if isroot == true
+    #     println(vf[6:9,6:9,1])
+    # end
 
     uf1 = uf-gradx
     vf1 = vf-grady
     wf1 = wf-gradz
 
+    # if isroot == true
+    #     println(vf[6:9,6:9,1])
+    #     # error("stop")
+    # end
+    MPI.Barrier(par_env.comm)
     fill!(LHS,0.0)
 
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
@@ -123,22 +131,49 @@ function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,p
     @unpack isroot = par_env
 
     Neumann!(P,mesh,par_env)
-    update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
+    # update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
 
-    # apply 3x3x3 stencil around P to calculate local gradient x,y, and z changes
-    for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
-        gradx[ii,jj,kk]=dt/denx[ii,jj,kk]*(P[ii,jj,kk]-P[ii-1,jj,kk])/̂dx
-    end
-    for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
-        grady[ii,jj,kk]=dt/deny[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj-1,kk])/̂dy
-    end
-    for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
-        gradz[ii,jj,kk]=dt/denz[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
+    # # apply 3x3x3 stencil around P to calculate local gradient x,y, and z changes
+    # for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
+    #     gradx[ii,jj,kk]=dt/̂denx[ii,jj,kk]*(P[ii,jj,kk]-P[ii-1,jj,kk])/̂dx
+    # end
+    # for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
+    #     grady[ii,jj,kk]=dt/̂deny[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj-1,kk])/̂dy
+    # end
+    # for kk = max(k - 1, 1):min(k + 1, Nz), jj = max(j - 1, 1):min(j + 1, Nx), ii = max(i - 1, 1):min(i + 1, Nx)
+    #     gradz[ii,jj,kk]=dt/̂denz[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
+    # end
+
+    #suspect that the correct gradient is being calculate due to loop
+    @loop param for kk=kmin_-1:kmax_+1, jj=jmin_-1:jmax_+1, ii=imin_-1:imax_+2
+        gradx[ii,jj,kk]=dt/̂denx[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii-1,jj,kk])/̂dx
     end
 
+    @loop param for kk=kmin_-1:kmax_+1, jj=jmin_-1:jmax_+2, ii=imin_-1:imax_+1
+        grady[ii,jj,kk]=dt/̂deny[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii,jj-1,kk])/̂dy
+    end
+
+    @loop param for kk=kmin_-1:kmax_+2, jj=jmin_-1:jmax_+1, ii=imin_-1:imax_+1
+        gradz[ii,jj,kk]=dt/̂denz[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
+    end
+
+    # if isroot == true
+    #     println(vf[6,6,1])
+    # end
     uf1 = uf-gradx
     vf1 = vf-grady
     wf1 = wf-gradz
+    # if isroot == true
+    #     println(vf1[6,6,1])
+    #     error("stop")
+    # # end
+    # if i ==6 && j==6 && k == 1
+    #     # println(vf1[i,j,k]," at ", i,j,k)
+    #     println(uf1[6,6,1])
+    #     println(vf1[6,6,1])
+    #     println(wf1[6,6,1])
+
+    # end
 
     if abs(band[i,j,k]) <= 1
         tets, inds = cell2tets_withProject_uvwf(i,j,k,uf1,vf1,wf1,dt,mesh)
@@ -149,7 +184,7 @@ function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,p
         v1 = tets_vol(tets)
         LHS[i,j,k] = (v2-v1) /̂ v2 /̂ dt
 
-    else 
+    else
         # Calculate divergence with finite differnce
         du_dx = ( uf1[i+1,j,k] - uf1[i,j,k] )/̂(dx)
         dv_dy = ( vf1[i,j+1,k] - vf1[i,j,k] )/̂(dy)
@@ -738,15 +773,23 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
 
     HYPRE.Init()
     # AP = @view tmp1[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-    AP = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    AP = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     # p_index = @view tmp2[:,:,:]
     p_index = OffsetArray{Int32}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
     fill!(AP,0.0)
     # delP = OffsetArray{Float64}(undef, imax_*jmax_*kmax_,1); fill!(delP,0.0)
+    # if isroot == true
+    #     println(uf[6:8,6:8,1])
+    #     println(vf[6:8,6:8,1])
+    #     error("stop")
+    # end
     outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
 
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
-
+    # if isroot == true
+    #     println(AP[4:8,4:8,1])
+    #     error("stop")
+    # end
     #!prep indices
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
@@ -771,7 +814,6 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
     iter=0
     while true
         iter += 1
-
 
         # # #! recompute the jacobian 
         # if iter % 10 == 0
@@ -838,7 +880,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
         # P .-=mean(P)
         MPI.Barrier(par_env.comm)
         P .-=parallel_mean_all(P,par_env)
-
+    
         outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
         
         #update new Ap
@@ -853,7 +895,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
 
         # if iter % 100 == 0
         #     # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
-        #     @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP,par_env))
+        # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP,par_env))
         #     # J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
         # end
         # if iter == 400

@@ -330,6 +330,7 @@ Interpolate x face velocity to location of pt
 function get_velocity_uface(pt,i,j,k,uf,mesh)
     @unpack x ,ym,zm = mesh
     @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+
     # Find right i index
     while pt[1]-x[i  ] <  0.0 && i   > imino_
        i=i-1
@@ -351,10 +352,12 @@ function get_velocity_uface(pt,i,j,k,uf,mesh)
     while pt[3]-zm[k+1] >= 0.0 && k+1 < kmaxo_
        k=k+1
     end
+
     # Prepare tri-linear interpolation coefficients
     wx1=(pt[1]- x[i])/̂( x[i+1]- x[i]); wx2=1.0-wx1
     wy1=(pt[2]-ym[j])/̂(ym[j+1]-ym[j]); wy2=1.0-wy1
     wz1=(pt[3]-zm[k])/̂(zm[k+1]-zm[k]); wz2=1.0-wz1
+
     # Tri-linear interpolation
     u_pt=( wz1*(wy1*(wx1*uf[i+1,j+1,k+1]  +
                      wx2*uf[i  ,j+1,k+1]) +
@@ -784,17 +787,17 @@ function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
 
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+    @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
         vfx = (VF[i,j,k]+VF[i-1,j,k])/2
         denx[i,j,k] = rho_liq*(vfx) + rho_gas*(1-vfx)
         viscx[i,j,k] = vfx*mu_liq+(1-vfx)*mu_gas
     end
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+    @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
         vfy = (VF[i,j,k]+VF[i,j-1,k])/2
         deny[i,j,k] = rho_liq*(vfy) +rho_gas*(1-vfy)
         viscy[i,j,k] = vfy*mu_liq+(1-vfy)*mu_gas
     end
-    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+    @loop param for  k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
         vfz = (VF[i,j,k]+VF[i,j,k-1])/2
         denz[i,j,k] = rho_liq*(vfz) +rho_gas*(1-vfz)
         viscz[i,j,k] = vfz*mu_liq+(1-vfz)*mu_gas
@@ -810,11 +813,12 @@ Correct outflow such that sum(divg)=0
 function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
     @unpack dx,dy,dz = mesh
     @unpack tol = param
+    @unpack isroot = par_env
     iter=0; maxIter=1000    
     
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
     d = parallel_sum_all(AP*dx*dy*dz,par_env)
-    while abs(d) > 1e-1*tol || iter < 10
+    while abs(d) > 1e-1*tol || iter < 2
         iter += 1
         # Correct outflow 
         correction = -0.5d/outflow.area(mesh,par_env)

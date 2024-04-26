@@ -81,7 +81,7 @@ function run_solver(param, IC!, BC!, outflow)
     dt = compute_dt(u,v,w,param,mesh,par_env)
 
     # Check semi-lagrangian divergence
-    divg = divergence(uf,vf,wf,dt,band,mesh,param,par_env)
+    divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
 
     # Initialize VTK outputs
     pvd,pvd_PLIC = VTK_init(param,par_env)
@@ -123,7 +123,6 @@ function run_solver(param, IC!, BC!, outflow)
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
-
             # # Call pressure Solver (handles processor boundaries for P)
             iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
             # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
@@ -143,8 +142,9 @@ function run_solver(param, IC!, BC!, outflow)
 
         
         # # Check divergence
-        divg = divergence(uf,vf,wf,dt,band,mesh,param,par_env)
-        
+        divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
+
+        # error("stop")
         # Output
         std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)

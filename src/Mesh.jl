@@ -57,7 +57,7 @@ function  create_mesh(param,par_env)
     kmax=Nz
 
     # Define number of ghost cells
-    nghost = 1
+    nghost = 3
 
     # Index extents with ghost cells
     imino=imin-nghost

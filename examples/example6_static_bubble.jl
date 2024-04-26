@@ -25,7 +25,7 @@ param = parameters(
     Nx=16,           # Number of grid cells
     Ny=16,
     Nz=1,
-    stepMax=1000,   # Maximum number of timesteps
+    stepMax=50,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -33,7 +33,7 @@ param = parameters(
     tol = 1e-6,
 
     # Processors 
-    nprocx = 1,
+    nprocx = 2,
     nprocy = 1,
     nprocz = 1,
 

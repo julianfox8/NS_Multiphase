@@ -3,15 +3,15 @@
 function corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
-    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
         dp_dx = ( P[i,j,k] - P[i-1,j,k] )/(dx)
         uf[i,j,k] = uf[i,j,k] - dt/denx[i,j,k] * dp_dx
     end
-    for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
         dp_dy = ( P[i,j,k] - P[i,j-1,k] )/(dy)
         vf[i,j,k] = vf[i,j,k] - dt/deny[i,j,k] * dp_dy
     end
-    for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_
+    for k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
         dp_dz = ( P[i,j,k] - P[i,j,k-1] )/(dz)
         wf[i,j,k] = wf[i,j,k] - dt/denz[i,j,k] * dp_dz
     end
@@ -22,13 +22,13 @@ end
 function interpolateFace!(u,v,w,uf,vf,wf,mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
-    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_+1
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
         uf[i,j,k] = 0.5*(u[i-1,j,k] + u[i,j,k])
     end
-    for k = kmin_:kmax_, j = jmin_:jmax_+1, i = imin_:imax_
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
         vf[i,j,k] = 0.5*(v[i,j-1,k] + v[i,j,k])
     end
-    for k = kmin_:kmax_+1, j = jmin_:jmax_, i = imin_:imax_
+    for k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
         wf[i,j,k] = 0.5*(w[i,j,k-1] + w[i,j,k])
     end
     return nothing
@@ -55,13 +55,13 @@ function interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
     return nothing
 end
 
-function divergence(uf,vf,wf,dt,band,mesh,param,par_env)
+function divergence(divg,uf,vf,wf,dt,band,mesh,param,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack pressure_scheme = param
     
-    divg = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-
-    @loop param for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+    # divg = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+    fill!(divg,0.0)
+    @loop param for  k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
 
         # Check if near interface
         if pressure_scheme == "semi-lagrangian" && abs(band[i,j,k]) <=1
