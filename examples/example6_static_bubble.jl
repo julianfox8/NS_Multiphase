@@ -17,14 +17,14 @@ param = parameters(
     gravity = 10,
     Lx=5.0,            # Domain size 
     Ly=5.0,
-    Lz=1/50,
+    Lz=5.0,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputs
     Nx=16,           # Number of grid cells
     Ny=16,
-    Nz=1,
+    Nz=16,
     stepMax=50,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -34,13 +34,13 @@ param = parameters(
 
     # Processors 
     nprocx = 2,
-    nprocy = 1,
-    nprocz = 1,
+    nprocy = 2,
+    nprocz = 2,
 
     # Periodicity
     xper = false,
     yper = false,
-    zper = true,
+    zper = false,
 
     # pressureSolver = "NLsolve",
     # pressureSolver = "Secant",
@@ -79,8 +79,8 @@ function IC!(P,u,v,w,VF,mesh)
     yo=2.5
     zo = 2.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        # VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
-        VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+        VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+        # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end
 
     return nothing    

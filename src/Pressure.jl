@@ -582,7 +582,7 @@ function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gra
         fill!(values_,0.0)
         nst = 0
         
-        for kk = k ,jj = j-1:j+1, ii = i-1:i+1
+        for kk = k-1:k+1 ,jj = j-1:j+1, ii = i-1:i+1
             if jj < jmin || jj > jmax || ii < imin || ii > imax || kk < kmin || kk > kmax
                 continue
             else
@@ -800,8 +800,8 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
     HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
     HYPRE_IJMatrixInitialize(jacob)
 
-    cols_ = OffsetArray{Int32}(undef,1:9); fill!(cols_,0)
-    values_ = OffsetArray{Float64}(undef,1:9); fill!(values_,0.0)
+    cols_ = OffsetArray{Int32}(undef,1:27); fill!(cols_,0)
+    values_ = OffsetArray{Float64}(undef,1:27); fill!(values_,0.0)
 
     compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp3,tmp4,par_env,mesh)
     
