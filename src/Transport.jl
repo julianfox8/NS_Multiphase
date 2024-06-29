@@ -1,5 +1,5 @@
 
-function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz)
+function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t)
     @unpack gravity,pressure_scheme = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -156,7 +156,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k]) +
-                dt*sfx[i,j,k]
+                dt*sfx[i,j,k]/denx[i,j,k]
             
         # v: y-velocity
         for ii = i:i+1 # Loop over faces 
@@ -175,7 +175,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k]) +
-                dt*(sfy[i,j,k] - gravity)
+                dt*(sfy[i,j,k]/deny[i,j,k] - gravity)
 
 
         # w: z-velocity
@@ -195,7 +195,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k]) +
-                dt*sfz[i,j,k] 
+                dt*sfz[i,j,k]/denz[i,j,k]
     end # Domain loop
 
     # Finish updating VF 
@@ -203,10 +203,10 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
     # Apply boundary conditions
     Neumann!(VF,mesh,par_env)
-    BC!(us,vs,ws,mesh,par_env)
+    BC!(us,vs,ws,t,mesh,par_env)
 
     # Update Processor boundaries (overwrites BCs if periodic)
-    update_borders!(VF,mesh,par_env)
+    update_VF_borders!(VF,mesh,par_env)
     update_borders!(us,mesh,par_env)
     update_borders!(vs,mesh,par_env)
     update_borders!(ws,mesh,par_env)

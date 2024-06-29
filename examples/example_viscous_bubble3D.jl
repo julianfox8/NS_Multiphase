@@ -9,27 +9,27 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=1,       # Dynamic viscosity of liquid (N/m)
-    mu_gas = 1e-5, # Dynamic viscosity of gas (N/m)
-    rho_liq= 1000,           # Density of liquid (kg/m^3)
-    rho_gas =1,  # Density of gas (kg/m^3)
-    sigma = 0.072, # surface tension coefficient (Ns/m^2)
-    gravity = 10, # Gravity (m/s^2)
-    # Lx=21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
+    mu_liq=1.25,       # Dynamic viscosity of liquid (N/m)
+    mu_gas = 1.79e-5, # Dynamic viscosity of gas (N/m)
+    rho_liq= 1340,           # Density of liquid (kg/m^3)
+    rho_gas =1.225,  # Density of gas (kg/m^3)
+    sigma = 0.0769, # surface tension coefficient (Ns/m^2)
+    gravity = 9.8, # Gravity (m/s^2)
+    # Lx=21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
     # Ly=78, 
-    Lx=5.0,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
-    Ly=10.0,             
-    Lz=5.0,
+    Lx=0.21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
+    Ly=0.42,             
+    Lz=0.21,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputsc
-    # Nx=64,           # Number of grid cells
-    # Ny=240,
-    # Nz=64 ,
-    Nx=32,           # Number of grid cells
-    Ny=64,
-    Nz=32,
+    Nx=64,           # Number of grid cells
+    Ny=240,
+    Nz=64 ,
+    # Nx=32,           # Number of grid cells
+    # Ny=64,
+    # Nz=32,
     stepMax=100,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -79,10 +79,10 @@ function IC!(P,u,v,w,VF,mesh)
 
     # fill!(VF,1.0)
     # Volume Fraction
-    rad=0.5
-    xo=2.5
-    yo=2.5
-    zo = 2.5
+    rad=0.026
+    xo=0.105
+    yo=0.105
+    zo = 0.105
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
         # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)

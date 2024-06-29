@@ -59,7 +59,6 @@ function divergence(divg,uf,vf,wf,dt,band,mesh,param,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack pressure_scheme = param
     
-    # divg = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     fill!(divg,0.0)
     @loop param for  k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
 

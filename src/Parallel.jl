@@ -67,10 +67,20 @@ function update_borders!(A,mesh_par,par_env)
     update_borders_z!(A,mesh_par,par_env)
 
 end
-function update_borders_x!(A,mesh_par,par_env)
+
+function update_VF_borders!(A,mesh_par,par_env)
+    VFghost = 3
+    update_borders_x!(A,mesh_par,par_env,VFghost)
+    update_borders_y!(A,mesh_par,par_env,VFghost)
+    update_borders_z!(A,mesh_par,par_env,VFghost)
+
+end
+function update_borders_x!(A,mesh_par,par_env,VFghost=nothing)
     @unpack imin_,imax_,imino_,imaxo_,nghost = mesh_par
     @unpack comm = par_env
-    
+    if VFghost !== nothing
+        nghost == VFghost
+    end
     # Send to left neighbor 
     sendbuf = OffsetArrays.no_offset_view(A[imin_:imin_+nghost-1,:,:])
     recvbuf = OffsetArrays.no_offset_view(A[imax_+1:imaxo_,:,:])
@@ -87,10 +97,12 @@ function update_borders_x!(A,mesh_par,par_env)
 
     return nothing
 end
-function update_borders_y!(A,mesh_par,par_env)
+function update_borders_y!(A,mesh_par,par_env,VFghost=nothing)
     @unpack jmin_,jmax_,jmino_,jmaxo_,nghost = mesh_par
     @unpack comm = par_env
-    
+    if VFghost !== nothing
+        nghost == VFghost
+    end
     # Send to below neighbor 
     sendbuf = OffsetArrays.no_offset_view(A[:,jmin_:jmin_+nghost-1,:])
     recvbuf = OffsetArrays.no_offset_view(A[:,jmax_+1:jmaxo_,:])
@@ -107,10 +119,12 @@ function update_borders_y!(A,mesh_par,par_env)
 
     return nothing
 end
-function update_borders_z!(A,mesh_par,par_env)
+function update_borders_z!(A,mesh_par,par_env,VFghost=nothing)
     @unpack kmin_,kmax_,kmino_,kmaxo_,nghost = mesh_par
     @unpack comm = par_env
-    
+    if VFghost !== nothing
+        nghost == VFghost
+    end
     # Send to below neighbor 
     sendbuf = OffsetArrays.no_offset_view(A[:,:,kmin_:kmin_+nghost-1])
     recvbuf = OffsetArrays.no_offset_view(A[:,:,kmax_+1:kmaxo_])

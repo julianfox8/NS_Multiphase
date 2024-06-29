@@ -9,23 +9,23 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=0.0000,       # Dynamic viscosity
+    mu_liq=0.00009,       # Dynamic viscosity
     mu_gas = 0.0001,
     rho_liq= 1000,           # Density
     rho_gas =0.1, 
     sigma = 0.00072, #surface tension coefficient
     gravity = 10,
-    Lx=12,            # Domain size 
-    Ly=45,
-    Lz=12,
+    Lx=0.04,            # Domain size 
+    Ly=0.01,
+    Lz=0.04,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputs
     Nx=64,           # Number of grid cells
-    Ny=240,
+    Ny=256,
     Nz=64,
-    stepMax=50,   # Maximum number of timesteps
+    stepMax=5000,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -38,7 +38,7 @@ param = parameters(
     nprocz = 1,
 
     # Periodicity
-    xper = false,
+    xper = true,
     yper = false,
     zper = true,
 
@@ -74,13 +74,13 @@ function IC!(P,u,v,w,VF,mesh)
 
     # fill!(VF,1.0)
     # Volume Fraction
-    rad=1.5
+    rad=0.0006
     xo=0.0
-    yo=6.0
-    zo = 6.0
+    yo=0.005
+    zo = 0.005
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        # VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
-        VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+        VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+        # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end
 
     return nothing    
@@ -89,26 +89,27 @@ end
 """
 Boundary conditions for velocity
 """
-function BC!(u,v,w,mesh,par_env)
+function BC!(u,v,w,t,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-    @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
+    @unpack imin,imax,jmin,jmax,kmin,kmax,jmin_,jmax_,kmin_,kmax_,y,z = mesh
     @unpack jmin_,jmax_ = mesh
     @unpack xm,ym = mesh
     
 
      # Left
-     amp = 0.5 
-     if irankx == 0 
+    amp = 0.25
+    f=15
+    if irankx == 0 
         i = imin-1
-        for j=jmin_:jmax_
-            if ym[j] >= 4.5 
-                uleft = 1.0
+        for k=kmin_:kmax_,j=jmin_:jmax_
+            if y[j] >= 0.004 && z[k] >= 0.004 && y[j] <= 0.006 && z[k] <= 0.006
+                ujet = 5.0 + amp*sin(2*pi*t*f)
             else
-                uleft = 0.0
+                ujet = 0.0
             end
-            u[i,j,:] .= 2uleft .- u[imin,j,:]
-            v[i,:,:] = -v[imin,:,:] 
-            w[i,:,:] = -w[imin,:,:] 
+            u[i,j,k] = ujet - u[imin,j,k]
+            v[i,j,k] = ujet - v[imin,j,k] 
+            w[i,j,k] = ujet - w[imin,j,k] 
         end        
     end
     # Right

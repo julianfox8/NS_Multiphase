@@ -299,6 +299,14 @@ using face velocities
 #     return pt 
 # end
 
+# #runge-kutta step (midpoint)
+# function project_uvwf(pt,i,j,k,uf,vf,wf,dt,mesh)
+#     v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
+#     v2=get_velocity_face(pt+0.5dt*v1,i,j,k,uf,vf,wf,mesh)
+#     pt+=dt*(v1+0.5v2)
+#     return pt 
+# end
+
 #runge-kutta step
 function project_uvwf(pt,i,j,k,uf,vf,wf,dt,mesh)
     v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)

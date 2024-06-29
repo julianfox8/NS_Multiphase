@@ -298,6 +298,8 @@ function cell2tets_withProject_uvwf(i, j, k, uf, vf, wf, dt, mesh)
     return tets,inds
 end
 
+
+
 """ 
 Make 5 tets out of a polyhedron represented by 8 vertices
 """
@@ -325,6 +327,57 @@ function verts2tets(p)
     tets[:, 3, 5] = p[:, 7]
     tets[:, 4, 5] = p[:, 6]
     return tets
+end
+
+function cell2tets_uvwf_A!(i, j, k, uf, vf, wf, dt, p , tets_arr, mesh)
+
+    @unpack x, y, z = mesh
+    # Cell vertices 
+    p[:, 1] = [x[i], y[j], z[k]]
+    p[:, 2] = [x[i+1], y[j], z[k]]
+    p[:, 3] = [x[i], y[j+1], z[k]]
+    p[:, 4] = [x[i+1], y[j+1], z[k]]
+    p[:, 5] = [x[i], y[j], z[k+1]]
+    p[:, 6] = [x[i+1], y[j], z[k+1]]
+    p[:, 7] = [x[i], y[j+1], z[k+1]]
+    p[:, 8] = [x[i+1], y[j+1], z[k+1]]
+
+    for n = 1:8
+        # Perform semi-Lagrangian projection
+        p[:, n] = project_uvwf(p[:, n], i, j, k, uf, vf, wf, -dt, mesh)
+    end
+
+    verts2tets_A!(p,tets_arr)
+
+    return nothing
+end
+
+""" 
+Make 5 tets out of a polyhedron represented by 8 vertices
+"""
+function verts2tets_A!(p,tets)
+    # Make five tets 
+    tets[:, 1, 1] = p[:, 1]
+    tets[:, 2, 1] = p[:, 2]
+    tets[:, 3, 1] = p[:, 4]
+    tets[:, 4, 1] = p[:, 6]
+    tets[:, 1, 2] = p[:, 1]
+    tets[:, 2, 2] = p[:, 4]
+    tets[:, 3, 2] = p[:, 3]
+    tets[:, 4, 2] = p[:, 7]
+    tets[:, 1, 3] = p[:, 1]
+    tets[:, 2, 3] = p[:, 5]
+    tets[:, 3, 3] = p[:, 6]
+    tets[:, 4, 3] = p[:, 7]
+    tets[:, 1, 4] = p[:, 4]
+    tets[:, 2, 4] = p[:, 7]
+    tets[:, 3, 4] = p[:, 6]
+    tets[:, 4, 4] = p[:, 8]
+    tets[:, 1, 5] = p[:, 1]
+    tets[:, 2, 5] = p[:, 4]
+    tets[:, 3, 5] = p[:, 7]
+    tets[:, 4, 5] = p[:, 6]
+    return nothing
 end
 
 """

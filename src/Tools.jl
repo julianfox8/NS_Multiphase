@@ -833,3 +833,88 @@ function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,de
     end
     return nothing
 end
+
+"""
+Correct outflow such that sum(divg)=0 
+- outflow assumed to be at +x boundary
+"""
+function FD_outflowCorrection!(P,RHS,denx,deny,denz,uf,vf,wf,dt,outflow,param,mesh,par_env)
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imin,imax,kmin,kmax = mesh
+    @unpack tol = param
+    @unpack isroot = par_env
+    iter=0; maxIter=1000 
+    
+    # BC!(uf,vf,wf,t,mesh,par_env)
+    # vf[:,jmax_+1,:] = vf[:,jmax_,:]
+    # uf[imax_+1,:,:] = uf[imax_,:,:]
+
+
+    flux_in = parallel_sum_all(vf[imin_:imax_,jmin_,kmin_:kmax_],par_env)
+    flux_out = parallel_sum_all(vf[imin_:imax_,jmax_+1,kmin_:kmax_],par_env)
+    # flux_in = vf[imin_:imax_,jmin_,kmin_:kmax_]
+    # flux_out = vf[imin_:imax_,jmax_+1,kmin_:kmax_]
+    # flux_in = vf[:,jmin_,:]
+    # flux_out = vf[:,jmax_+1,:]
+    # correction = (flux_in-flux_out)/outflow.area(mesh,par_env)
+    correction = (flux_in-flux_out)/((imax+1-imin)*(kmax+1-kmin))
+    # correction = (flux_in-flux_out)
+    # println("flux_in:", flux_in)
+    # println("flux out:",flux_out)
+    
+    outflow.correction(correction,uf,vf,wf,mesh,par_env)
+    # flux_in = vf[:,jmin_,:]
+    # flux_out = vf[:,jmax_+1,:]
+    # correction = (flux_in-flux_out)
+    # println("flux_in:", flux_in)
+    # println("flux out:",flux_out)
+    # println("correction:",correction)
+    # while maximum(abs.(correction)) > 1e-1*tol
+    #     # Neumann!(uf,mesh,par_env)
+    #     # Neumann!(vf,mesh,par_env)
+        
+    #     flux_in = vf[:,jmin_,:]
+    #     flux_out = vf[:,jmax_+1,:]
+    #     correction = (flux_in-flux_out)/outflow.area(mesh,par_env)
+    #     println(maximum(abs.(correction)))
+    #     outflow.correction(correction,uf,vf,wf,mesh,par_env)
+    #     if iter == maxIter
+    #         error("outflowCorrection did not converge!")
+    #         return
+    #     end
+
+    # end
+    # println("flux_in:", flux_in)
+    # println("flux out:",flux_out)
+
+    # correction = (flux_in-flux_out)/outflow.area(mesh,par_env)
+    # correction = (flux_in-flux_out)/outflow.area(mesh,par_env)
+    # println(correction)
+    # println(flux_in)
+    # println(flux_out)
+    # println(outflow.area(mesh,par_env))
+    # println(correction)
+
+    
+    # outflow.correction(correction,uf,vf,wf,mesh,par_env)
+    # flux_in = parallel_sum_all(vf[imin_:imax_,jmin_,kmin_:kmax_],par_env)
+    # flux_out = parallel_sum_all(vf[imin_:imax_,jmax_+1,kmin_:kmax_],par_env)
+    # flux_in = vf[:,jmin_,:]
+    # flux_out = vf[:,jmax_+1,:]
+
+    # println(vf[:,jmax_,:])
+    # println(vf[:,jmax_+1,:])
+    # println(RHS[:,jmax_,:])
+    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        # RHS
+        RHS[i,j,k]= 1/dt* ( 
+            ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
+            ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
+            ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
+    end
+    # println(sum(RHS))
+    # error("stop")
+    # lap!(r,P,denx,deny,denz,param,mesh)
+    # r[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = RHS[imin_:imax_,jmin_:jmax_,kmin_:kmax_] - r[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+    # d = parallel_sum_all(r*dx*dy*dz,par_env)
+    return nothing
+end

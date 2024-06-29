@@ -2,29 +2,33 @@
 Example using inflow/outflow
 """
 
+# import Pkg
+# Pkg.activate(".")
+
 using NavierStokes_Parallel
 using Random
+
 
 #Domain set up similar to "Numerical simulation of a single rising bubble by VOF with surface compression"
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=0.01,       # Dynamic viscosity
-    mu_gas = 0.0001,
+    mu_liq=1.0,       # Dynamic viscosity
+    mu_gas = 1e-5,
     rho_liq= 1000,           # Density
-    rho_gas =0.1, 
-    sigma = 0.00072, #surface tension coefficient
+    rho_gas =1.0, 
+    sigma = 0.072, #surface tension coefficient
     gravity = 10,
     Lx=5.0,            # Domain size 
-    Ly=5.0,
-    Lz=5.0,
+    Ly=10.0,
+    Lz=1/50,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputs
-    Nx=16,           # Number of grid cells
-    Ny=16,
-    Nz=16,
+    Nx=64,           # Number of grid cells
+    Ny=128,
+    Nz=1,
     stepMax=50,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -34,23 +38,23 @@ param = parameters(
 
     # Processors 
     nprocx = 2,
-    nprocy = 2,
-    nprocz = 2,
+    nprocy = 4,
+    nprocz = 1,
 
     # Periodicity
     xper = false,
     yper = false,
-    zper = false,
+    zper = true,
 
     # pressureSolver = "NLsolve",
     # pressureSolver = "Secant",
     # pressureSolver = "sparseSecant",
-    pressureSolver = "hypreSecant",
+    # pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
-    # pressureSolver = "ConjugateGradient",
-    # pressure_scheme = "finite-difference",
+    pressureSolver = "ConjugateGradient",
+    pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble21"
+    VTK_dir= "VTK_example_static_bubble_flux_corrected"
 
 )
 
@@ -79,8 +83,8 @@ function IC!(P,u,v,w,VF,mesh)
     yo=2.5
     zo = 2.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
-        # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+        # VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+        VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end
 
     return nothing    
@@ -89,7 +93,7 @@ end
 """
 Boundary conditions for velocity
 """
-function BC!(u,v,w,mesh,par_env)
+function BC!(u,v,w,t,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
     @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
     @unpack jmin_,jmax_ = mesh
@@ -167,4 +171,4 @@ end
 outflow =(area=outflow_area,correction=outflow_correction!)
 
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!,outflow)
+@time run_solver(param, IC!, BC!,outflow)
