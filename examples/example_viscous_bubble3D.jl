@@ -18,7 +18,7 @@ param = parameters(
     # Lx=21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
     # Ly=78, 
     Lx=0.21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
-    Ly=0.42,             
+    Ly=0.78,             
     Lz=0.21,
     tFinal=100.0,      # Simulation time
  
@@ -30,17 +30,17 @@ param = parameters(
     # Nx=32,           # Number of grid cells
     # Ny=64,
     # Nz=32,
-    stepMax=100,   # Maximum number of timesteps
-    max_dt = 1e-3,
+    stepMax=10000,   # Maximum number of timesteps
+    max_dt = 1e-4,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
     tol = 1e-8,
 
     # Processors 
-    nprocx = 2,
-    nprocy = 2,
-    nprocz = 2,
+    nprocx = 3,
+    nprocy = 12,
+    nprocz = 3,
 
     # Periodicity
     xper = false,
@@ -49,13 +49,14 @@ param = parameters(
 
     # pressureSolver = "NLsolve",
     # pressureSolver = "sparseSecant",
-    pressureSolver = "hypreSecant",
+    # pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
     # pressure_scheme = "semi-lagrangian",
-    # pressure_scheme = "finite-difference",
+    pressureSolver = "FC_hypre",
+    pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble_3D"
+    VTK_dir= "VTK_viscous_bubble_FC_1e4"
 
 )
 

@@ -42,7 +42,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh
     elseif pressureSolver == "sparseSecant"
         iter = Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env,J,nstep)
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env,jacob)
+        iter = Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env,jacob)
     elseif pressureSolver == "NLsolve"
         iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     elseif pressureSolver == "Jacobi"
@@ -443,7 +443,7 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
 end
 
 
-function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,outflow,param,mesh,par_env,jacob)
+function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,outflow,param,mesh,par_env,jacob)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -468,10 +468,13 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
     
     tets_arr = Array{Float64}(undef, 3, 4, 5)
     p = Matrix{Float64}(undef, (3, 8))
+    
+    if t==0.001 || t % 10==0
+        compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
+        MPI.Barrier(comm)
+        HYPRE_IJMatrixAssemble(jacob)
 
-    compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
-    MPI.Barrier(comm)
-    HYPRE_IJMatrixAssemble(jacob)
+    end
     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
     parcsr_J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
@@ -496,26 +499,13 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
         iter += 1
 
         # # #! recompute the jacobian 
-        # if iter % 5 == 0
+        if iter % 10 == 0
         # if iter >1
-        #     HYPRE_IJMatrixInitialize(jacob)
-        #     compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
+            HYPRE_IJMatrixInitialize(jacob)
+            compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
 
-        #     HYPRE_IJMatrixAssemble(jacob)
-        # end
-
-        # #! prepare Pressure vectors (P_old and P_new)
-        # AP_ref = Ref{HYPRE_IJVector}(C_NULL)
-        # HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,AP_ref)
-        # AP_old = AP_ref[]
-        # HYPRE_IJVectorSetObjectType(AP_old,HYPRE_PARCSR)
-        # HYPRE_IJVectorInitialize(AP_old)
-
-        # Pn_ref = Ref{HYPRE_IJVector}(C_NULL)
-        # HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,Pn_ref)
-        # P_new = Pn_ref[]
-        # HYPRE_IJVectorSetObjectType(P_new, HYPRE_PARCSR)
-        # HYPRE_IJVectorInitialize(P_new)
+            HYPRE_IJMatrixAssemble(jacob)
+        end
         
         #! reinitialize after iter 1
         if iter>1
@@ -524,9 +514,6 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
         end
 
         
-
-        
-
         for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
             row_ = p_index[i,j,k]
             HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
@@ -549,8 +536,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
         solver_ref = Ref{HYPRE_Solver}(C_NULL)
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
         MPI.Barrier(par_env.comm)
-        # HYPRE_IJMatrixPrint(jacob,"jacobian2")
-        # HYPRE_IJVectorPrint(AP_old,"AP_old2")
+
         iter = hyp_solve(solver_ref,precond_ref, parcsr_J, par_AP_old, par_P_new,par_env, "LGMRES")
         
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
@@ -558,21 +544,12 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
             HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)
             P[i,j,k] -= int_x[1]
         end
-        # println(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-        # error("stop")
-        # if any(isnan,P)
-        #     println("nan found")
-        # end
-        # if any(isinf,P)
-        #     println("inf found")
-        # end
+
         MPI.Barrier(par_env.comm)
-        # Destroy solver
-        # HYPRE_ParVectorDestroy(par_AP_old)
-        # HYPRE_ParVectorDestroy(par_P_new)
 
 
         # P .-=mean(P)
+
         MPI.Barrier(par_env.comm)
         P .-=parallel_mean_all(P,par_env)
         
