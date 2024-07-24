@@ -50,22 +50,22 @@ function run_solver(param, IC!, BC!, outflow)
     # Create work arrays
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz = initArrays(mesh)
     
-    #Initialize Jacobian
-    if pressure_scheme == "finite-difference"
-        jacob = nothing
-    else
-        HYPRE.Init()
-        
-        p_min,p_max = prepare_indices(tmp3,par_env,mesh)
+    # #Initialize Jacobian
+    # if pressure_scheme == "finite-difference"
+    #     jacob = nothing
+    # else
+    HYPRE.Init()
+    
+    p_min,p_max = prepare_indices(tmp3,par_env,mesh)
 
-        MPI.Barrier(par_env.comm)
-        #! prepare Jacobian matrix
-        jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
-        HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
-        jacob = jacob_ref[]
-        HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
-        HYPRE_IJMatrixInitialize(jacob)
-    end
+    MPI.Barrier(par_env.comm)
+    #! prepare Jacobian matrix
+    jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
+    HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
+    jacob = jacob_ref[]
+    HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
+    HYPRE_IJMatrixInitialize(jacob)
+    # end
     # Create initial condition
     t = 0.0 :: Float64
     IC!(P,u,v,w,VF,mesh)
