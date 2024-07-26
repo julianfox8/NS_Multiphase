@@ -370,6 +370,7 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
 
         HYPRE_LGMRESSetKDim(solver,20)
         HYPRE_LGMRESSetTol(solver, 1e-7) # conv. tolerance
+        HYPRE_LGMRESSetMaxIter(solver,10000)
         # HYPRE_LGMRESSetPrintLevel(solver, 2) # print solve info
         HYPRE_LGMRESSetLogging(solver, 1) # needed to get run info later
 
@@ -387,11 +388,11 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
 
         # # Set the FlexGMRES preconditioner
         HYPRE_LGMRESSetPrecond(solver, HYPRE_BoomerAMGSolve, HYPRE_BoomerAMGSetup, precond)
-        num_iter = Ref{HYPRE_Int}(C_NULL)
 
         # # Now setup and solve!
         HYPRE_ParCSRLGMRESSetup(solver,parcsr_J, par_AP_old, par_P_new)
         HYPRE_ParCSRLGMRESSolve(solver,parcsr_J, par_AP_old, par_P_new)
+        num_iter = Ref{HYPRE_Int}(C_NULL)
         HYPRE_ParCSRLGMRESGetNumIterations(solver, num_iter)
 
         # HYPRE_ParCSRLGMRESGetNumIterations(solver)
