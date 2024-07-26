@@ -56,7 +56,7 @@ param = parameters(
     pressureSolver = "FC_hypre",
     pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_viscous_bubble_FC_1e4"
+    VTK_dir= "VTK_viscous_bubble_FC_1e4_2"
 
 )
 
