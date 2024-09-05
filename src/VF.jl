@@ -224,7 +224,7 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
     tet = Array{Float64}(undef,3,4)
     vert = Array{Float64}(undef,3,8)
     d = Array{Float64}(undef,4)
-    
+    # ext = get_
     # Compute VF in this cell 
     VF=0.0
     tets=cell2tets(i,j,k,mesh)

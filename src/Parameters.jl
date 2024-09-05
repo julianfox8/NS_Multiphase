@@ -44,6 +44,9 @@ using Parameters
     xper :: Bool
     yper :: Bool
     zper :: Bool
+
+    # Restart simulation
+    restart :: Bool = false
     
     # Navier Stokes solver
     solveNS :: Bool = true 

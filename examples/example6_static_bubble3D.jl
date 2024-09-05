@@ -27,10 +27,10 @@ param = parameters(
     # Nx=64,           # Number of grid cells
     # Ny=240,
     # Nz=64 ,
-    Nx=32,           # Number of grid cells
-    Ny=64,
-    Nz=32,
-    stepMax=100,   # Maximum number of timesteps
+    Nx=50,           # Number of grid cells
+    Ny=100,
+    Nz=50,
+    stepMax=10000,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -47,15 +47,19 @@ param = parameters(
     yper = false,
     zper = false,
 
+    # Restart 
+    # restart = true,
+
     # pressureSolver = "NLsolve",
     # pressureSolver = "sparseSecant",
     pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
-    # pressure_scheme = "semi-lagrangian",
+    pressure_scheme = "semi-lagrangian",
+    # pressureSolver = "FC_hypre",
     # pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble_3D"
+    VTK_dir= "VTK_example_static_bubble_3D_SL"
 
 )
 
@@ -170,5 +174,8 @@ function outflow_area(mesh,par_env)
 end
 outflow =(area=outflow_area,correction=outflow_correction!)
 
+pvtr_file = "VTK_example_static_bubble_3D/Solver_00004.pvtr"
+pvd_file = "VTK_example_static_bubble_3D/Solver.pvd"
+
 # Simply run solver on 1 processor
-@time run_solver(param, IC!, BC!,outflow)
+@time run_solver(param, IC!, BC!,outflow,pvtr_file,pvd_file)

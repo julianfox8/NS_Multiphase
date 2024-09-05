@@ -20,16 +20,16 @@ param = parameters(
     sigma = 0.072, #surface tension coefficient
     gravity = 10,
     Lx=5.0,            # Domain size 
-    Ly=10.0,
+    Ly=5.0,
     Lz=1/50,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputs
-    Nx=64,           # Number of grid cells
-    Ny=128,
+    Nx=5,           # Number of grid cells
+    Ny=5,
     Nz=1,
-    stepMax=50,   # Maximum number of timesteps
+    stepMax=15,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -37,8 +37,8 @@ param = parameters(
     tol = 1e-6,
 
     # Processors 
-    nprocx = 2,
-    nprocy = 4,
+    nprocx = 1,
+    nprocy = 1,
     nprocz = 1,
 
     # Periodicity
@@ -46,15 +46,20 @@ param = parameters(
     yper = false,
     zper = true,
 
+
+    # Restart  
+    # restart = true,
+# 
     # pressureSolver = "NLsolve",
     # pressureSolver = "Secant",
     # pressureSolver = "sparseSecant",
-    # pressureSolver = "hypreSecant",
+    pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
-    pressureSolver = "ConjugateGradient",
-    pressure_scheme = "finite-difference",
+    # pressureSolver = "ConjugateGradient",
+    # pressureSolver = "FC_hypre",
+    # pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble_flux_corrected"
+    VTK_dir= "VTK_example_static_bubble_flux_corrected1"
 
 )
 
@@ -79,8 +84,8 @@ function IC!(P,u,v,w,VF,mesh)
     # fill!(VF,1.0)
     # Volume Fraction
     rad=0.5
-    xo=2.5
-    yo=2.5
+    xo=3.5
+    yo=1.5
     zo = 2.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         # VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
@@ -168,7 +173,13 @@ function outflow_area(mesh,par_env)
     myArea = (x[imax_+1]-x[imin_]) * (z[kmax_+1]-z[kmin_])
     return NavierStokes_Parallel.parallel_sum_all(myArea,par_env)
 end
+
 outflow =(area=outflow_area,correction=outflow_correction!)
 
+pvtr_file = "VTK_example_static_bubble_flux_corrected1/Solver_00014.pvtr"
+xF_pvtr,yF_pvtr,zF_pvtr = "VTK_example_static_bubble_flux_corrected1/xFvel_00014.pvtr","VTK_example_static_bubble_flux_corrected1/yFvel_00014.pvtr","VTK_example_static_bubble_flux_corrected1/zFvel_00014.pvtr"
+pvd_file = "VTK_example_static_bubble_flux_corrected1/Solver.pvd"
+restart_files = (cell_data=pvtr_file,xFace_data=xF_pvtr,yFace_data=yF_pvtr,zFace_data=zF_pvtr,pvd_data=pvd_file)
 # Simply run solver on 1 processor
-@time run_solver(param, IC!, BC!,outflow)
+# @time run_solver(param, IC!, BC!,outflow)
+@time run_solver(param, IC!, BC!,outflow,restart_files)

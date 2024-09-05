@@ -58,7 +58,7 @@ end
 function divergence(divg,uf,vf,wf,dt,band,mesh,param,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack pressure_scheme = param
-    
+    # println(band)
     fill!(divg,0.0)
     @loop param for  k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
 
@@ -72,6 +72,11 @@ function divergence(divg,uf,vf,wf,dt,band,mesh,param,par_env)
             v2 = dx*dy*dz
             v1 = tets_vol(tets)
             divg[i,j,k] = (v2-v1) /̂ v2 /̂ dt
+            # if divg[i,j,k] >= 1e-4
+            #     println("semi-Lag first")
+            #     # println(dv_dy)
+            #     # println(dw_dz)
+            # end
 
         else
             # Calculate divergence with finite differnce
@@ -81,6 +86,12 @@ function divergence(divg,uf,vf,wf,dt,band,mesh,param,par_env)
                 
             # Divergence
             divg[i,j,k] = du_dx + dv_dy + dw_dz
+            # if divg[i,j,k] >= 1e-4
+            #     println(du_dx)
+            #     println(dv_dy)
+            #     println(divg[i,j,k])
+            #     error(i,",",j,",",k)
+            # end
         end
     end
 

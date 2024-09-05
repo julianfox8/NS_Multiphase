@@ -26,7 +26,7 @@ function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,d
 end
 
 
-#? Would we want two separate poisson_solve! functions dependent upon the pressure_scheme tag
+
 function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,BC!,jacob)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
@@ -151,7 +151,7 @@ end
 
 
 function prepare_indices(p_index,par_env,mesh)
-    @unpack Nx,Ny,kmin_,kmax_,jmin_,jmax_,imin_,imax_= mesh
+    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_= mesh
     @unpack comm,nproc,irank,iroot,isroot = par_env
     npcells = 0
     local_npcells = 0
@@ -185,6 +185,125 @@ function prepare_indices(p_index,par_env,mesh)
         end
     end
     return p_min,p_max
+
+end
+
+function prepare_x_indicesGhost(p_index,par_env,mesh)
+    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_,kmax,jmax,imax= mesh
+    @unpack comm,nproc,irank,iroot,isroot = par_env
+    npcells = 0
+    local_npcells = 0
+
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1,i = imin_-1:imax_+2
+        local_npcells += 1
+    end
+
+    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
+
+    npcells_proc = zeros(Int, nproc)
+
+    MPI.Allgather!([local_npcells], npcells_proc, comm)
+
+    npcells_proc = cumsum(npcells_proc)
+    local_count = npcells_proc[irank+1] - local_npcells
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
+            local_count += 1
+            p_index[i, j, k] = local_count
+    end
+    # println(p_index[imin_-1:imax_+2,jmin_-1:jmax_+2,kmin_-1:kmax_+2])
+    MPI.Barrier(comm)
+
+    # update_borders!(p_index,mesh,par_env)
+    
+    p_maxo = -1
+    p_mino = maximum(p_index)
+    for k = kmin_-1:kmax_+1, j in jmin_-1:jmax_+1, i in imin_-1:imax_+2
+        if p_index[i,j,k] != -1
+            p_mino = min(p_mino,p_index[i,j,k])
+            p_maxo = max(p_maxo,p_index[i,j,k])
+        end
+    end
+    return p_mino,p_maxo
+
+end
+
+
+function prepare_y_indicesGhost(p_index,par_env,mesh)
+    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_,kmax,jmax,imax= mesh
+    @unpack comm,nproc,irank,iroot,isroot = par_env
+    npcells = 0
+    local_npcells = 0
+
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2,i = imin_-1:imax_+1
+        local_npcells += 1
+    end
+
+    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
+
+    npcells_proc = zeros(Int, nproc)
+
+    MPI.Allgather!([local_npcells], npcells_proc, comm)
+
+    npcells_proc = cumsum(npcells_proc)
+    local_count = npcells_proc[irank+1] - local_npcells
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
+            local_count += 1
+            p_index[i, j, k] = local_count
+    end
+    # println(p_index[imin_-1:imax_+2,jmin_-1:jmax_+2,kmin_-1:kmax_+2])
+    MPI.Barrier(comm)
+
+    # update_borders!(p_index,mesh,par_env)
+    
+    p_maxo = -1
+    p_mino = maximum(p_index)
+    for k = kmin_-1:kmax_+1, j in jmin_-1:jmax_+2, i in imin_-1:imax_+1
+        if p_index[i,j,k] != -1
+            p_mino = min(p_mino,p_index[i,j,k])
+            p_maxo = max(p_maxo,p_index[i,j,k])
+        end
+    end
+    return p_mino,p_maxo
+
+end
+
+
+function prepare_z_indicesGhost(p_index,par_env,mesh)
+    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_,kmax,jmax,imax= mesh
+    @unpack comm,nproc,irank,iroot,isroot = par_env
+    npcells = 0
+    local_npcells = 0
+
+    for k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1,i = imin_-1:imax_+1
+        local_npcells += 1
+    end
+
+    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
+
+    npcells_proc = zeros(Int, nproc)
+
+    MPI.Allgather!([local_npcells], npcells_proc, comm)
+
+    npcells_proc = cumsum(npcells_proc)
+    local_count = npcells_proc[irank+1] - local_npcells
+    for k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
+            local_count += 1
+            p_index[i, j, k] = local_count
+    end
+    # println(p_index[imin_-1:imax_+2,jmin_-1:jmax_+2,kmin_-1:kmax_+2])
+    MPI.Barrier(comm)
+
+    # update_borders!(p_index,mesh,par_env)
+    
+    p_maxo = -1
+    p_mino = maximum(p_index)
+    for k = kmin_-1:kmax_+2, j in jmin_-1:jmax_+1, i in imin_-1:imax_+1
+        if p_index[i,j,k] != -1
+            p_mino = min(p_mino,p_index[i,j,k])
+            p_maxo = max(p_maxo,p_index[i,j,k])
+        end
+    end
+    return p_mino,p_maxo
 
 end
 
@@ -454,6 +573,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     fill!(LHS,0.0)
     fill!(AP,0.0)
     fill!(p_index,0.0)
+    # AP_2 = OffsetArray{Float64}(undef,imin_:imax_,jmin_:jmax_,kmin_:kmax_)
 
     outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
 
@@ -470,12 +590,12 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     tets_arr = Array{Float64}(undef, 3, 4, 5)
     p = Matrix{Float64}(undef, (3, 8))
     
-    if t==0.001 || t % 10==0
+    # if t==1 || t % 10==0
         compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
         MPI.Barrier(comm)
         HYPRE_IJMatrixAssemble(jacob)
 
-    end
+    # end
     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
     parcsr_J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
@@ -499,14 +619,14 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     while true
         iter += 1
 
-        # # #! recompute the jacobian 
-        if iter % 10 == 0
-        # if iter >1
+        # # # #! recompute the jacobian 
+        # # if iter % 5 == 0
+        # # if iter >1
             HYPRE_IJMatrixInitialize(jacob)
             compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
 
             HYPRE_IJMatrixAssemble(jacob)
-        end
+        # # end
         
         #! reinitialize after iter 1
         if iter>1
@@ -538,14 +658,16 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
         MPI.Barrier(par_env.comm)
 
-        iter = hyp_solve(solver_ref,precond_ref, parcsr_J, par_AP_old, par_P_new,par_env, "LGMRES")
-        
+        hyp_iter = hyp_solve(solver_ref,precond_ref, parcsr_J, par_AP_old, par_P_new,par_env, "LGMRES")
+        # P_step = OffsetArray{Float64}(undef,imin_:imax_,jmin_:jmax_,kmin_:kmax_)
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             int_x = zeros(1)
             HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)
+            # P_step[i,j,k] = int_x[1]
             P[i,j,k] -= int_x[1]
         end
-
+        # println(maximum(P_step))
+        # println(iter)
         MPI.Barrier(par_env.comm)
 
 
@@ -562,6 +684,194 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
         
         res_par = parallel_max_all(abs.(AP),par_env)
         # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP,par_env))
+        MPI.Barrier(par_env.comm)
+        
+        if res_par < tol
+            HYPRE_ParVectorDestroy(par_AP_old)
+            HYPRE_ParVectorDestroy(par_P_new)
+            return iter
+        end
+        if iter % 1000 == 0 
+            # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
+            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP,par_env))
+            # J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
+        end
+        # if iter == 400
+        #     error("stop")
+        # end
+    end    
+end
+
+function S_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,outflow,param,mesh,par_env,jacob)
+    @unpack tol,Nx,Ny,Nz = param
+    @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack dx,dy,dz = mesh
+    @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
+
+    # HYPRE.Init()
+    fill!(LHS,0.0)
+    fill!(AP,0.0)
+    fill!(p_index,0.0)
+    AP_2 = OffsetArray{Float64}(undef,imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+
+    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
+
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+
+    #!prep indices
+    p_min,p_max = prepare_indices(p_index,par_env,mesh)
+
+    MPI.Barrier(comm)
+
+    cols_ = OffsetArray{Int32}(undef,1:27); fill!(cols_,0)
+    values_ = OffsetArray{Float64}(undef,1:27); fill!(values_,0.0)
+    
+    tets_arr = Array{Float64}(undef, 3, 4, 5)
+    p = Matrix{Float64}(undef, (3, 8))
+    
+    # if t==1 || t % 10==0
+        compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
+        MPI.Barrier(comm)
+        HYPRE_IJMatrixAssemble(jacob)
+
+    # end
+    parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
+    HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
+    parcsr_J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
+
+    # #! prepare Pressure vectors (P_old and P_new)
+    AP_ref = Ref{HYPRE_IJVector}(C_NULL)
+    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,AP_ref)
+    AP_old = AP_ref[]
+    HYPRE_IJVectorSetObjectType(AP_old,HYPRE_PARCSR)
+    HYPRE_IJVectorInitialize(AP_old)
+
+    Pn_ref = Ref{HYPRE_IJVector}(C_NULL)
+    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,Pn_ref)
+    P_new = Pn_ref[]
+    HYPRE_IJVectorSetObjectType(P_new, HYPRE_PARCSR)
+    HYPRE_IJVectorInitialize(P_new)
+
+
+    # Iterate 
+    iter=0
+    while true
+        iter += 1
+
+        # # # #! recompute the jacobian 
+        # if iter % 10 == 0
+        # # if iter >1
+        #     HYPRE_IJMatrixInitialize(jacob)
+        #     compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
+
+        #     HYPRE_IJMatrixAssemble(jacob)
+        # end
+        
+        #! reinitialize after iter 1
+        if iter>1
+            HYPRE_IJVectorInitialize(AP_old)
+            HYPRE_IJVectorInitialize(P_new)
+        end
+
+        
+        for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+            row_ = p_index[i,j,k]
+            HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
+            HYPRE_IJVectorSetValues(AP_old, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
+        end
+
+        MPI.Barrier(par_env.comm)
+
+
+        HYPRE_IJVectorAssemble(AP_old)
+        par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        HYPRE_IJVectorGetObject(AP_old, par_AP_ref)
+        par_AP_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
+
+        HYPRE_IJVectorAssemble(P_new)
+        par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        HYPRE_IJVectorGetObject(P_new, par_Pn_ref)
+        par_P_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
+
+        solver_ref = Ref{HYPRE_Solver}(C_NULL)
+        precond_ref = Ref{HYPRE_Solver}(C_NULL)
+        MPI.Barrier(par_env.comm)
+
+        hyp_iter = hyp_solve(solver_ref,precond_ref, parcsr_J, par_AP_old, par_P_new,par_env, "LGMRES")
+        
+        for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
+            int_x = zeros(1)
+            HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)
+            P[i,j,k] -= int_x[1]
+        end
+
+        MPI.Barrier(par_env.comm)
+
+
+        P .-=mean(P)
+
+        MPI.Barrier(par_env.comm)
+        P .-=parallel_mean_all(P,par_env)
+        
+        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
+
+        #update new Ap
+        A!(AP_2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+        
+        
+        HYPRE_IJVectorInitialize(AP_old)
+        HYPRE_IJVectorInitialize(P_new)
+        
+
+        
+        for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+            row_ = p_index[i,j,k]
+            HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
+            HYPRE_IJVectorSetValues(AP_old, 1, pointer(Int32.([row_])), pointer(Float64.([AP_2[i,j,k]])))
+        end
+
+        MPI.Barrier(par_env.comm)
+
+
+        HYPRE_IJVectorAssemble(AP_old)
+        par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        HYPRE_IJVectorGetObject(AP_old, par_AP_ref)
+        par_AP_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
+
+        HYPRE_IJVectorAssemble(P_new)
+        par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        HYPRE_IJVectorGetObject(P_new, par_Pn_ref)
+        par_P_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
+
+        solver_ref = Ref{HYPRE_Solver}(C_NULL)
+        precond_ref = Ref{HYPRE_Solver}(C_NULL)
+        MPI.Barrier(par_env.comm)
+
+        hyp_iter = hyp_solve(solver_ref,precond_ref, parcsr_J, par_AP_old, par_P_new,par_env, "LGMRES")
+        P_step = OffsetArray{Float64}(undef,imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+        for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
+            int_x = zeros(1)
+            HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)
+            P_step[i,j,k] = int_x[1]
+            # P[i,j,k] -= int_x[1]
+        end
+
+        P .-= dot(P_step, (AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]-2AP_2[imin_:imax_,jmin_:jmax_,kmin_:kmax_])))
+
+        P .-=mean(P)
+
+        MPI.Barrier(par_env.comm)
+        P .-=parallel_mean_all(P,par_env)
+        
+        outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
+
+        #update new Ap
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+        
+        
+
+        res_par = parallel_max_all(abs.(AP),par_env)
+        @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP,par_env))
         MPI.Barrier(par_env.comm)
         
         if res_par < tol

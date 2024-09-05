@@ -1,13 +1,14 @@
 using WriteVTK
 using Printf
 
-function std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
+function std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,mesh,param,par_env)
     @unpack std_out_period = param
     @unpack isroot = par_env
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
-    max_u    = parallel_max(abs.(u),   par_env)
-    max_v    = parallel_max(abs.(v),   par_env)
-    max_w    = parallel_max(abs.(w),   par_env)
+    max_u    = parallel_max(abs.(u[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
+    max_v    = parallel_max(abs.(v[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
+    max_w    = parallel_max(abs.(w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_divg = parallel_max(abs.(divg),par_env)
     
     if isroot 
@@ -29,21 +30,34 @@ end
 
 function VTK_init(param,par_env)
     @unpack isroot = par_env 
-    @unpack VTK_dir = param
+    @unpack VTK_dir,restart = param
     # Create PVD file to hold timestep info
     dir=joinpath(pwd(),VTK_dir)
-    if isroot 
-        isdir(dir) && rm(dir, recursive=true)
-        mkdir(dir)
+    if isroot
+        if restart
+            # If restarting, ensure the directory exists
+            if !isdir(dir)
+                error("Restart requested, but VTK directory does not exist: $dir")
+            end
+        else
+            isdir(dir) && rm(dir, recursive=true)
+            mkdir(dir)
+        end
     end
     MPI.Barrier(par_env.comm)
-    pvd      = paraview_collection(joinpath(dir,"Solver"))
-    pvd_PLIC = paraview_collection(joinpath(dir,"PLIC"))
-    return pvd,pvd_PLIC
+    pvd      = paraview_collection(joinpath(dir,"Solver"),append=restart)
+    pvd_xface = paraview_collection(joinpath(dir,"xFvel"),append=restart)
+    pvd_yface = paraview_collection(joinpath(dir,"yFvel"),append=restart)
+    pvd_zface = paraview_collection(joinpath(dir,"zFvel"),append=restart)
+    pvd_PLIC = paraview_collection(joinpath(dir,"PLIC"),append=restart)
+    return pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC
 end
    
-function VTK_finalize(pvd,pvd_PLIC)
+function VTK_finalize(pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC)
     vtk_save(pvd)
+    vtk_save(pvd_xface)
+    vtk_save(pvd_yface)
+    vtk_save(pvd_zface)
     vtk_save(pvd_PLIC)
     return nothing
 end
@@ -52,8 +66,8 @@ function format(iter)
     return @sprintf("%05i",iter)
 end
 
-function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
-    @unpack VTK_dir = param
+function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
+    @unpack VTK_dir,restart = param
 
     # Check if should write output
     if rem(iter,param.out_period)!==0
@@ -62,6 +76,7 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_
 
     @unpack x,y,z,xm,ym,zm,
             imin_,imax_,jmin_,jmax_,kmin_,kmax_,
+            imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,
             Gimin_,Gimax_,Gjmin_,Gjmax_,Gkmin_,Gkmax_ = mesh
     @unpack irank,nproc = par_env
     # Build extents array
@@ -69,6 +84,7 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_
     for p = 2:nproc
        push!(extents,(Gimin_[p]:Gimax_[p]+1,Gjmin_[p]:Gjmax_[p]+1,Gkmin_[p]:Gkmax_[p]+1))
     end
+
     # Write data to VTK
     pvtk_grid(
         joinpath(pwd(),VTK_dir,"Solver_"*format(iter)), 
@@ -98,6 +114,9 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_
             pvtk["rho_x"] = @views denx[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["rho_y"] = @views deny[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["rho_z"] = @views denz[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["X_F_Velocity"] = @views uf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1]
+            pvtk["Y_F_Velocity"] = @views vf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1]
+            pvtk["Z_F_Velocity"] = @views wf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1] 
             # Indices for debugging
             for i=imin_:imax_; tmp[i,:,:] .= i; end
             pvtk["i_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
@@ -107,6 +126,68 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_
             pvtk["k_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvd[time] = pvtk
         end
+    
+
+    # Build x-face extents array
+    p=1; extents_xface=[(Gimin_[p]-1:Gimax_[p]+2,Gjmin_[p]-1:Gjmax_[p]+1,Gkmin_[p]-1:Gkmax_[p]+1), ]
+    for p = 2:nproc
+       push!(extents_xface,(Gimin_[p]-1:Gimax_[p]+2,Gjmin_[p]-1:Gjmax_[p]+1,Gkmin_[p]-1:Gkmax_[p]+1))
+    end
+
+    # Write data to VTK
+    pvtk_grid(
+        joinpath(pwd(),VTK_dir,"xFvel_"*format(iter)), 
+        xm[imin_-2:imax_+2], 
+        y[jmin_-1:jmax_+2],
+        z[kmin_-1:kmax_+2],
+        part = irank+1,
+        nparts = nproc,
+        extents = extents_xface,
+        ) do pvtk
+            pvtk["X_F_Velocity"] = @views uf[imin_-1:imax_+2,jmin_-1:jmax_+1,kmin_-1:kmax_+1]
+            pvd_xface[time] = pvtk
+    end
+
+    # Build y-face extents array
+    p=1; extents_yface=[(Gimin_[p]-1:Gimax_[p]+1,Gjmin_[p]-1:Gjmax_[p]+2,Gkmin_[p]-1:Gkmax_[p]+1), ]
+    for p = 2:nproc
+        push!(extents_yface,(Gimin_[p]-1:Gimax_[p]+1,Gjmin_[p]-1:Gjmax_[p]+2,Gkmin_[p]-1:Gkmax_[p]+1))
+    end
+
+    # Write data to VTK
+    pvtk_grid(
+        joinpath(pwd(),VTK_dir,"yFvel_"*format(iter)), 
+        x[imin_-1:imax_+2], 
+        ym[jmin_-2:jmax_+2],
+        z[kmin_-1:kmax_+2],
+        part = irank+1,
+        nparts = nproc,
+        extents = extents_xface,
+        ) do pvtk
+            pvtk["Y_F_Velocity"] = @views vf[imin_-1:imax_+1,jmin_-1:jmax_+2,kmin_-1:kmax_+1]
+            pvd_yface[time] = pvtk
+    end
+    
+    # Build z-face extents array
+    p=1; extents_zface=[(Gimin_[p]-1:Gimax_[p]+1,Gjmin_[p]-1:Gjmax_[p]+1,Gkmin_[p]-1:Gkmax_[p]+2), ]
+    for p = 2:nproc
+       push!(extents_zface,(Gimin_[p]-1:Gimax_[p]+1,Gjmin_[p]-1:Gjmax_[p]+1,Gkmin_[p]-1:Gkmax_[p]+2))
+    end
+
+    # Write data to VTK
+    pvtk_grid(
+        joinpath(pwd(),VTK_dir,"zFvel_"*format(iter)), 
+        x[imin_-1:imax_+2], 
+        y[jmin_-1:jmax_+2],
+        zm[kmin_-2:kmax_+2],
+        part = irank+1,
+        nparts = nproc,
+        extents = extents_xface,
+        ) do pvtk
+            pvtk["Z_F_Velocity"] = @views wf[imin_-1:imax_+1,jmin_-1:jmax_+1,kmin_-1:kmax_+2]
+            pvd_zface[time] = pvtk
+    end
+
 
     # Write PLIC as unstructured mesh 
     pts, tris = PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
@@ -136,6 +217,7 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_
             part = irank+1,
             nparts = nproc,
             extents = [1,length(tris)],
+            #append = restart,
             ) do pvtk
                 pvtk["Tri ID"] = ID
                 pvd_PLIC[time] = pvtk
@@ -145,13 +227,41 @@ function VTK(iter,time,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_
     # Write pvd file to read even if simulation stops (or is stoped)
     if isopen(pvd)
         # if pvd.appended
-        #     save_with_appended_data(pvd)
+        #     WriteVTK.save_with_appended_data(pvd)
         # else
-        WriteVTK.save_file(pvd.xdoc, pvd.path)
+            WriteVTK.save_file(pvd.xdoc, pvd.path)
+        # end
+    end
+
+    if isopen(pvd_xface)
+        # if pvd.appended
+        #     WriteVTK.save_with_appended_data(pvd)
+        # else
+            WriteVTK.save_file(pvd_xface.xdoc, pvd_xface.path)
+        # end
+    end
+    
+    if isopen(pvd_yface)
+        # if pvd.appended
+        #     WriteVTK.save_with_appended_data(pvd)
+        # else
+            WriteVTK.save_file(pvd_yface.xdoc, pvd_yface.path)
+        # end
+    end
+    
+    if isopen(pvd_zface)
+        # if pvd.appended
+        #     WriteVTK.save_with_appended_data(pvd)
+        # else
+            WriteVTK.save_file(pvd_zface.xdoc, pvd_zface.path)
         # end
     end
     if isopen(pvd_PLIC)
-        WriteVTK.save_file(pvd_PLIC.xdoc, pvd_PLIC.path)
+        # if pvd_PLIC.appended
+        #     WriteVTK.save_with_appended_data(pvd_PLIC)
+        # else
+            WriteVTK.save_file(pvd_PLIC.xdoc, pvd_PLIC.path)
+        # end
     end
 
     return nothing

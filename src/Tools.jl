@@ -17,8 +17,6 @@ function Neumann!(A,mesh,par_env)
     return nothing
 end
 
-# @inline inside(a::AbstractArray) = CartesianIndices(map(ax->first(ax)+1:last(ax)-1,axes(a)))
-
 
 """ 
 Macro to easily change looping behavior throughout code 
