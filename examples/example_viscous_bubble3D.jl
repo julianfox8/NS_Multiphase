@@ -15,21 +15,16 @@ param = parameters(
     rho_gas =1.225,  # Density of gas (kg/m^3)
     sigma = 0.0769, # surface tension coefficient (Ns/m^2)
     gravity = 9.8, # Gravity (m/s^2)
-    # Lx=21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
-    # Ly=78, 
     Lx=0.21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
-    Ly=0.61,             
+    Ly=0.78,             
     Lz=0.21,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputsc
-    # Nx=64,           # Number of grid cells
-    # Ny=240,
-    # Nz=64 ,
     Nx=40,           # Number of grid cells
-    Ny=120,
-    Nz=40,
+    Ny=150,
+    Nz=50,
     stepMax=10000,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -47,6 +42,9 @@ param = parameters(
     yper = false,
     zper = false,
 
+    # Restart  
+    # restart = true,
+
     # pressureSolver = "NLsolve",
     # pressureSolver = "sparseSecant",
     pressureSolver = "hypreSecant",
@@ -56,7 +54,7 @@ param = parameters(
     # pressureSolver = "FC_hypre",
     # pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_viscous_bubble_SL_40x120x40"
+    VTK_dir= "VTK_viscous_bubble_SL_50x100x50"
 
 )
 
@@ -171,7 +169,11 @@ function outflow_area(mesh,par_env)
 end
 outflow =(area=outflow_area,correction=outflow_correction!)
 
+pvtr_file = "VTK_viscous_bubble_SL_50x100x50/Solver_00009.pvtr"
+xF_pvtr,yF_pvtr,zF_pvtr = "VTK_viscous_bubble_SL_50x100x50/xFvel_00009.pvtr","VTK_viscous_bubble_SL_50x100x50/yFvel_00009.pvtr","VTK_viscous_bubble_SL_50x100x50/zFvel_00009.pvtr"
+pvd_file = "VTK_viscous_bubble_SL_50x100x50/Solver.pvd"
+restart_files = (cell_data=pvtr_file,xFace_data=xF_pvtr,yFace_data=yF_pvtr,zFace_data=zF_pvtr,pvd_data=pvd_file)
 
 
 # Simply run solver on 1 processor
-@time run_solver(param, IC!, BC!,outflow)
+@time run_solver(param, IC!, BC!,outflow,restart_files)

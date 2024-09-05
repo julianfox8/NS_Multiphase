@@ -122,9 +122,9 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
     HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
     HYPRE_IJMatrixInitialize(jacob)
 
-    Neumann!(u,mesh,par_env)
-    Neumann!(v,mesh,par_env)
-    Neumann!(w,mesh,par_env)
+    # Neumann!(u,mesh,par_env)
+    # Neumann!(v,mesh,par_env)
+    # Neumann!(w,mesh,par_env)
     # println(uf[:,jmax_,1])
     # println(uf[:,jmax_+1,1])
     
