@@ -68,6 +68,7 @@ end
 
 function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
     @unpack VTK_dir,restart = param
+    @unpack irank = par_env
 
     # Check if should write output
     if rem(iter,param.out_period)!==0
@@ -114,9 +115,6 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
             pvtk["rho_x"] = @views denx[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["rho_y"] = @views deny[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["rho_z"] = @views denz[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            pvtk["X_F_Velocity"] = @views uf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1]
-            pvtk["Y_F_Velocity"] = @views vf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1]
-            pvtk["Z_F_Velocity"] = @views wf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1] 
             # Indices for debugging
             for i=imin_:imax_; tmp[i,:,:] .= i; end
             pvtk["i_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
@@ -162,7 +160,7 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
         z[kmin_-1:kmax_+2],
         part = irank+1,
         nparts = nproc,
-        extents = extents_xface,
+        extents = extents_yface,
         ) do pvtk
             pvtk["Y_F_Velocity"] = @views vf[imin_-1:imax_+1,jmin_-1:jmax_+2,kmin_-1:kmax_+1]
             pvd_yface[time] = pvtk
@@ -182,7 +180,7 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
         zm[kmin_-2:kmax_+2],
         part = irank+1,
         nparts = nproc,
-        extents = extents_xface,
+        extents = extents_zface,
         ) do pvtk
             pvtk["Z_F_Velocity"] = @views wf[imin_-1:imax_+1,jmin_-1:jmax_+1,kmin_-1:kmax_+2]
             pvd_zface[time] = pvtk
@@ -226,6 +224,11 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
 
     # Write pvd file to read even if simulation stops (or is stoped)
     if isopen(pvd)
+        # if irank == 0
+        #     println(pvd.xdoc)
+        #     println(pvd.path)
+        #     error("stop")
+        # end
         # if pvd.appended
         #     WriteVTK.save_with_appended_data(pvd)
         # else

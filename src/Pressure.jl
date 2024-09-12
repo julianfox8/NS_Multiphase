@@ -529,8 +529,8 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         HYPRE_FlexGMRESSetKDim(solver, 30) # restart
         HYPRE_FlexGMRESSetMaxIter(solver, 100) # max iterations
         HYPRE_FlexGMRESSetTol(solver, 1e-7) # conv. tolerance
-        # HYPRE_FlexGMRESSetPrintLevel(solver, 2) # print solve info
-        # HYPRE_FlexGMRESSetLogging(solver, 1) # needed to get run info later
+        HYPRE_FlexGMRESSetPrintLevel(solver, 2) # print solve info
+        HYPRE_FlexGMRESSetLogging(solver, 1) # needed to get run info later
 
         # Now set up the AMG preconditioner and specify any parameters
         HYPRE_BoomerAMGCreate(precond_ref)
@@ -550,8 +550,11 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         # Now setup and solve!
         HYPRE_ParCSRFlexGMRESSetup(solver,parcsr_J, par_AP_old, par_P_new)
         HYPRE_ParCSRFlexGMRESSolve(solver,parcsr_J, par_AP_old, par_P_new)
+        num_iter = Ref{HYPRE_Int}(C_NULL)
+        HYPRE_ParCSRFlexGMRESGetNumIterations(solver, num_iter)
         HYPRE_ParCSRFlexGMRESDestroy(solver)
         HYPRE_BoomerAMGDestroy(precond)
+        return num_iter[]
     end
         # HYPRE_ParCSRPCGDestroy(solver)
         # HYPRE_BoomerAMGDestroy(precond)
@@ -691,7 +694,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
             HYPRE_ParVectorDestroy(par_P_new)
             return iter
         end
-        if iter % 1000 == 0 
+        if iter % 50 == 0 
             # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
             @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP,par_env))
             # J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
@@ -1045,7 +1048,9 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,r,p_index,Ap,dt,param,mesh,par_env
     MPI.Barrier(par_env.comm)
 
     iter = hyp_solve(solver_ref,precond_ref, parcsr_A, par_RHS, par_P ,par_env, "LGMRES")
-    
+    if iter >= 9999
+        error("stop")
+    end
     for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
         int_x = zeros(1)
         HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)

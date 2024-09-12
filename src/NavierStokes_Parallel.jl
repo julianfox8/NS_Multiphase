@@ -44,8 +44,16 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
     # Create mesh
     mesh = create_mesh(param,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-
+    @unpack x,xm,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    # if irank == 0
+    #     println(x)
+    #     println(xm)
+    # end
+    # MPI.Barrier(par_env.comm)
+    # if irank == 1
+    #     println(x)
+    #     println(xm)
+    # end
     # Create work arrays
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz = initArrays(mesh)
 
@@ -75,7 +83,7 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
         px_mino,px_maxo = prepare_x_indicesGhost(tmp1,par_env,mesh)
         py_mino,py_maxo = prepare_y_indicesGhost(tmp2,par_env,mesh)
         pz_mino,pz_maxo = prepare_z_indicesGhost(tmp4,par_env,mesh)
-        pvtk_file,pvd_file,pvtk_dict = gather_restart_files(restart_files)
+        pvtk_file,pvd_file,pvtk_dict = gather_restart_files(restart_files,mesh,par_env)
         # domain_check(mesh,pvtk_dict)
         t,nstep = fillArrays(pvtk_file,pvd_file,pvtk_dict,P,uf,vf,wf,VF,tmp3,tmp1,tmp2,tmp4,param,mesh,par_env)
         Neumann!(VF,mesh,par_env)
@@ -172,24 +180,54 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
         if !solveNS
             defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         end
-
+        
+        # max_us = parallel_max_all(denx,par_env)
+        # max_vs = parallel_max_all(deny,par_env)
+        # max_ws = parallel_max_all(denz,par_env)
+        # if isroot
+        #     println("x den before transport ",max_us)
+        #     println("y den before transport ",max_vs)
+        #     println("z den before transport ",max_ws)
+        #  end
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t)
-        
+
         # Update density and viscosity with transported VF
         # if iter > 0 
         compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         # end
-
+        max_us = parallel_max_all(denx,par_env)
+        max_vs = parallel_max_all(deny,par_env)
+        max_ws = parallel_max_all(denz,par_env)
+        # if isroot
+        #         # println("x den after transport ",max_us)
+        #         # println("y den after transport ",max_vs)
+        #         # println("z den after transport ",max_ws)
+        #         println(viscy[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        #         println(deny[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        #         println(sfy[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        #         println(Curve[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        #  end
         if solveNS
   
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-            
+            # max_uf = parallel_max_all(uf,par_env)
+            #  if isroot
+            #     println(max_uf)
+            #  end
+            #  MPI.Barrier(par_env.comm)
+            #  error("stop")
+            #  if nstep == 48
+            #     error("stop")
+            #  end
             # # Call pressure Solver (handles processor boundaries for P)
             iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,BC!,jacob)
             # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
-
+            # max_uf = parallel_max_all(abs.(P),par_env)
+            #  if isroot
+            #     println("Pressure at end ",max_uf)
+            #  end
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
 
