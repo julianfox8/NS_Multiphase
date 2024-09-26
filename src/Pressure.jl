@@ -986,6 +986,192 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,par_e
     end
 end
 
+function compute_lap_op_neg!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+    @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
+    nrows = 1
+    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
+        #define jacobian
+        fill!(cols_,0)
+        fill!(values_,0.0)
+        nst = 0
+        #! main diagonal
+        nst+=1
+        cols_[nst] = coeff_index[i,j,k]
+        values_[nst] = (1.0 / (denx[i, j, k] * dx^2) + 1.0 / (denx[i+1, j, k] * dx^2) + 
+                        1.0 / (deny[i, j, k] * dy^2) + 1.0 / (deny[i, j+1, k] * dy^2) + 
+                        1.0 / (denz[i, j, k] * dz^2) + 1.0 / (denz[i, j, k+1] * dz^2))
+
+        #! x-dir off-diags
+        if i-1 < imin
+            values_[1] -= 1.0/(denx[i,j,k]*dx^2)
+        else 
+            nst+=1
+            cols_[nst] = coeff_index[i-1,j,k]
+            values_[nst] = -1.0 / (denx[i,j,k] * dx^2)
+        end
+
+        if i+1 > imax
+            values_[1] -= 1.0/(denx[i+1,j,k]*dx^2)
+        else 
+            nst+=1
+            cols_[nst] = coeff_index[i+1,j,k]
+            values_[nst] = -1.0 / (denx[i+1,j,k] * dx^2)
+        end
+
+        #! y-dir off-diags
+        if j-1 < jmin
+            values_[1] -= 1.0/(deny[i,j,k]*dy^2)
+        else 
+            nst+=1
+            cols_[nst] = coeff_index[i,j-1,k]
+            values_[nst] = -1.0 / (deny[i,j,k] * dy^2)
+        end
+
+        if j+1 > jmax
+            values_[1] -= 1.0/(deny[i,j+1,k]*dy^2)
+        else 
+            nst+=1
+            cols_[nst] = coeff_index[i,j+1,k]
+            values_[nst] = -1.0 / (deny[i,j+1,k] * dy^2)
+        end
+
+        #! z-dir off-diags
+        if k-1 < kmin
+            values_[1] -= 1.0/(denz[i,j,k]*dz^2)
+        else 
+            nst+=1
+            cols_[nst] = coeff_index[i,j,k-1]
+            values_[nst] = -1.0 / (denz[i,j,k] * dz^2)
+        end
+
+        if k+1 > kmax
+            values_[1] -= 1.0/(denz[i,j,k+1]*dz^2)
+        else 
+            nst+=1
+            cols_[nst] = coeff_index[i,j,k+1]
+            values_[nst] = -1.0 / (denz[i,j,k+1] * dz^2)
+        end
+
+        for st in 1:nst
+            ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
+            tmpr = values_[st]
+            values_[st] = values_[ind]
+            values_[ind] = tmpr
+            tmpi = cols_[st]
+            cols_[st] = cols_[ind]
+            cols_[ind] = tmpi
+        end
+        
+        ncols = nst
+        rows_ = coeff_index[i,j,k]
+        # if i > imin && j > jmin
+        # println(1/(dx^2*denx[i,j,k]))
+        # println(1/(dy^2*deny[i,j,k]))
+        #     println(cols_)
+        #     println(values_)
+        #     error("stop")
+        # end
+
+        # Call function to set matrix values
+        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
+    end
+end
+
+function compute_lap_op_pref!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+    @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
+    nrows = 1
+    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
+        #define jacobian
+        fill!(cols_,0)
+        fill!(values_,0.0)
+        nst = 0
+        if i == 15 && j == 110 && k==15
+            nst+=1
+            cols_[nst] = coeff_index[i,j,k]
+            values_[1] = 1
+        else
+            #! main diagonal
+            nst+=1
+            cols_[nst] = coeff_index[i,j,k]
+            values_[nst] = -(1.0 / (denx[i, j, k] * dx^2) + 1.0 / (denx[i+1, j, k] * dx^2) + 
+                            1.0 / (deny[i, j, k] * dy^2) + 1.0 / (deny[i, j+1, k] * dy^2) + 
+                            1.0 / (denz[i, j, k] * dz^2) + 1.0 / (denz[i, j, k+1] * dz^2))
+
+            #! x-dir off-diags
+            if i-1 < imin
+                values_[1] += 1.0/(denx[i,j,k]*dx^2)
+            else 
+                nst+=1
+                cols_[nst] = coeff_index[i-1,j,k]
+                values_[nst] = 1.0 / (denx[i,j,k] * dx^2)
+            end
+
+            if i+1 > imax
+                values_[1] += 1.0/(denx[i+1,j,k]*dx^2)
+            else 
+                nst+=1
+                cols_[nst] = coeff_index[i+1,j,k]
+                values_[nst] = 1.0 / (denx[i+1,j,k] * dx^2)
+            end
+
+            #! y-dir off-diags
+            if j-1 < jmin
+                values_[1] += 1.0/(deny[i,j,k]*dy^2)
+            else 
+                nst+=1
+                cols_[nst] = coeff_index[i,j-1,k]
+                values_[nst] = 1.0 / (deny[i,j,k] * dy^2)
+            end
+
+            if j+1 > jmax
+                values_[1] += 1.0/(deny[i,j+1,k]*dy^2)
+            else 
+                nst+=1
+                cols_[nst] = coeff_index[i,j+1,k]
+                values_[nst] = 1.0 / (deny[i,j+1,k] * dy^2)
+            end
+
+            #! z-dir off-diags
+            if k-1 < kmin
+                values_[1] += 1.0/(denz[i,j,k]*dz^2)
+            else 
+                nst+=1
+                cols_[nst] = coeff_index[i,j,k-1]
+                values_[nst] = 1.0 / (denz[i,j,k] * dz^2)
+            end
+
+            if k+1 > kmax
+                values_[1] += 1.0/(denz[i,j,k+1]*dz^2)
+            else 
+                nst+=1
+                cols_[nst] = coeff_index[i,j,k+1]
+                values_[nst] = 1.0 / (denz[i,j,k+1] * dz^2)
+            end
+        end
+        for st in 1:nst
+            ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
+            tmpr = values_[st]
+            values_[st] = values_[ind]
+            values_[ind] = tmpr
+            tmpi = cols_[st]
+            cols_[st] = cols_[ind]
+            cols_[ind] = tmpi
+        end
+        
+        ncols = nst
+        rows_ = coeff_index[i,j,k]
+        # if i > imin && j > jmin
+        # println(1/(dx^2*denx[i,j,k]))
+        # println(1/(dy^2*deny[i,j,k]))
+        #     println(cols_)
+        #     println(values_)
+        #     error("stop")
+        # end
+
+        # Call function to set matrix values
+        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
+    end
+end
 
 
 
@@ -1003,7 +1189,9 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,r,p_index,Ap,dt,param,mesh,par_env
     cols_ = OffsetArray{Int32}(undef,1:27); fill!(cols_,0)
     values_ = OffsetArray{Float64}(undef,1:27); fill!(values_,0.0)
 
-    compute_lap_op!(jacob,p_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+    # compute_lap_op!(jacob,p_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+    compute_lap_op_pref!(jacob,p_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+    # compute_lap_op_neg!(jacob,p_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
     MPI.Barrier(comm)
     HYPRE_IJMatrixAssemble(jacob)
     parcsr_A_ref = Ref{Ptr{Cvoid}}(C_NULL)
@@ -1029,7 +1217,8 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,r,p_index,Ap,dt,param,mesh,par_env
         HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
         HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([RHS[i,j,k]])))
     end
-
+    row_ = p_index[15,110,15]
+    HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
     MPI.Barrier(par_env.comm)
 
 
