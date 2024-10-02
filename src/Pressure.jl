@@ -970,8 +970,8 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
 
 
     #! determine the laplacian to use
-    # compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    compute_lap_op_pref!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    # compute_lap_op_pref!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
     # compute_lap_op_neg!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
 
     MPI.Barrier(comm)
@@ -1001,8 +1001,8 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     end
     
     #! if pressure reference point is used set here
-    row_ = p_index[15,110,15]
-    HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
+    # row_ = p_index[15,110,15]
+    # HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
     MPI.Barrier(par_env.comm)
 
 
