@@ -27,11 +27,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     newtet = Array{Float64}(undef, 3, 4,nThread)
 
 
-    fill!(Curve,0.0)
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
-    end
-    
 
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
@@ -80,14 +75,17 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             for ii = i:i+1 # Loop over faces 
                 uface = 0.5*(u[ii-1,j,k] + u[ii,j,k])
                 Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*uface ) # uf*uf or uf*uface ???
+                # Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*uf[ii,j,k] )
             end           
             for jj = j:j+1 # Loop over faces 
                 uface = 0.5*(u[i,jj-1,k] + u[i,jj,k])
                 Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*uface )
+                # Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*uf[i,jj,k] )
             end          
             for kk = k:k+1 # Loop over faces 
                 uface = 0.5*(u[i,j,kk-1] + u[i,j,kk])
                 Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*uface )
+                # Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*uf[i,j,kk] )
             end
             us[i,j,k] = u[i,j,k] + dt/(dx*dy*dz) * (
                     Fx[i+1,j,k] - Fx[i,j,k] +
@@ -99,14 +97,17 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             for ii = i:i+1 # Loop over faces 
                 vface = 0.5*(v[ii-1,j,k] + v[ii,j,k])
                 Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*vface ) # uf*uf or uf*uface ???
+                # Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*vf[ii,j,k] ) # uf*uf or uf*uface ???
             end           
             for jj = j:j+1 # Loop over faces 
                 vface = 0.5*(v[i,jj-1,k] + v[i,jj,k])
                 Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*vface )
+                # Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*vf[i,jj,k] )
             end       
             for kk = k:k+1 # Loop over faces 
                 vface = 0.5*(v[i,j,kk-1] + v[i,j,kk])
                 Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*vface )
+                # Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*vf[i,j,kk] )
             end
             vs[i,j,k] = v[i,j,k] + dt/(dx*dy*dz) * (
                     Fx[i+1,j,k] - Fx[i,j,k] +
@@ -118,14 +119,17 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             for ii = i:i+1 # Loop over faces 
                 wface = 0.5*(w[ii-1,j,k] + w[ii,j,k])
                 Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*wface ) # uf*uf or uf*uface ???
+                # Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*wf[ii,j,k] )
             end       
             for jj = j:j+1 # Loop over faces 
                 wface = 0.5*(w[i,jj-1,k] + w[i,jj,k])
                 Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*wface )
+                # Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*wf[i,jj,k] ) 
             end           
             for kk = k:k+1 # Loop over faces 
                 wface = 0.5*(w[i,j,kk-1] + w[i,j,kk])
                 Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*wface )
+                # Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*wf[i,j,kk] )
             end
             ws[i,j,k] = w[i,j,k] + dt/(dx*dy*dz) * (
                     Fx[i+1,j,k] - Fx[i,j,k] +
@@ -134,9 +138,18 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 )
         end# band conditional
     end
-    # compute surface tension
-    compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
+
+    # Finish updating VF 
+    VF .= VFnew
+
+    # compute surface tension\
+    fill!(Curve,0.0)
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
+    end
     
+    compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
+
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # u: x-velocity
@@ -198,8 +211,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 dt*sfz[i,j,k]/denz[i,j,k]
     end # Domain loop
 
-    # Finish updating VF 
-    VF .= VFnew
+
 
     # Apply boundary conditions
     Neumann!(VF,mesh,par_env)

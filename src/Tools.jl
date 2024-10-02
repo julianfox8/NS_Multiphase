@@ -833,86 +833,154 @@ function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,de
 end
 
 """
-Correct outflow such that sum(divg)=0 
-- outflow assumed to be at +x boundary
+Prepares matrix containing index mapping of i,j,k matrix location to corresponding vector index
 """
-function FD_outflowCorrection!(P,RHS,denx,deny,denz,uf,vf,wf,dt,outflow,param,mesh,par_env)
-    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imin,imax,kmin,kmax = mesh
-    @unpack tol = param
-    @unpack isroot = par_env
-    iter=0; maxIter=1000 
-    
-    # BC!(uf,vf,wf,t,mesh,par_env)
-    # vf[:,jmax_+1,:] = vf[:,jmax_,:]
-    # uf[imax_+1,:,:] = uf[imax_,:,:]
-
-
-    flux_in = parallel_sum_all(vf[imin_:imax_,jmin_,kmin_:kmax_],par_env)
-    flux_out = parallel_sum_all(vf[imin_:imax_,jmax_+1,kmin_:kmax_],par_env)
-    # flux_in = vf[imin_:imax_,jmin_,kmin_:kmax_]
-    # flux_out = vf[imin_:imax_,jmax_+1,kmin_:kmax_]
-    # flux_in = vf[:,jmin_,:]
-    # flux_out = vf[:,jmax_+1,:]
-    # correction = (flux_in-flux_out)/outflow.area(mesh,par_env)
-    correction = (flux_in-flux_out)/((imax+1-imin)*(kmax+1-kmin))
-    # correction = (flux_in-flux_out)
-    # println("flux_in:", flux_in)
-    # println("flux out:",flux_out)
-    
-    outflow.correction(correction,uf,vf,wf,mesh,par_env)
-    # flux_in = vf[:,jmin_,:]
-    # flux_out = vf[:,jmax_+1,:]
-    # correction = (flux_in-flux_out)
-    # println("flux_in:", flux_in)
-    # println("flux out:",flux_out)
-    # println("correction:",correction)
-    # while maximum(abs.(correction)) > 1e-1*tol
-    #     # Neumann!(uf,mesh,par_env)
-    #     # Neumann!(vf,mesh,par_env)
-        
-    #     flux_in = vf[:,jmin_,:]
-    #     flux_out = vf[:,jmax_+1,:]
-    #     correction = (flux_in-flux_out)/outflow.area(mesh,par_env)
-    #     println(maximum(abs.(correction)))
-    #     outflow.correction(correction,uf,vf,wf,mesh,par_env)
-    #     if iter == maxIter
-    #         error("outflowCorrection did not converge!")
-    #         return
-    #     end
-
-    # end
-    # println("flux_in:", flux_in)
-    # println("flux out:",flux_out)
-
-    # correction = (flux_in-flux_out)/outflow.area(mesh,par_env)
-    # correction = (flux_in-flux_out)/outflow.area(mesh,par_env)
-    # println(correction)
-    # println(flux_in)
-    # println(flux_out)
-    # println(outflow.area(mesh,par_env))
-    # println(correction)
-
-    
-    # outflow.correction(correction,uf,vf,wf,mesh,par_env)
-    # flux_in = parallel_sum_all(vf[imin_:imax_,jmin_,kmin_:kmax_],par_env)
-    # flux_out = parallel_sum_all(vf[imin_:imax_,jmax_+1,kmin_:kmax_],par_env)
-    # flux_in = vf[:,jmin_,:]
-    # flux_out = vf[:,jmax_+1,:]
-
-    # println(vf[:,jmax_,:])
-    # println(vf[:,jmax_+1,:])
-    # println(RHS[:,jmax_,:])
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        # RHS
-        RHS[i,j,k]= 1/dt* ( 
-            ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
-            ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
-            ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
+function prepare_indices(p_index,par_env,mesh)
+    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_= mesh
+    @unpack comm,nproc,irank,iroot,isroot = par_env
+    npcells = 0
+    local_npcells = 0
+    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
+            local_npcells += 1
     end
-    # println(sum(RHS))
-    # error("stop")
-    # lap!(r,P,denx,deny,denz,param,mesh)
-    # r[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = RHS[imin_:imax_,jmin_:jmax_,kmin_:kmax_] - r[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-    # d = parallel_sum_all(r*dx*dy*dz,par_env)
+
+    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
+
+    npcells_proc = zeros(Int, nproc)
+
+    MPI.Allgather!([local_npcells], npcells_proc, comm)
+
+    npcells_proc = cumsum(npcells_proc)
+    local_count = npcells_proc[irank+1] - local_npcells
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+            local_count += 1
+            p_index[i, j, k] = local_count
+    end
+
+    MPI.Barrier(comm)
+
+    update_borders!(p_index,mesh,par_env)
+    
+    p_max = -1
+    p_min = maximum(p_index)
+    for k = kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
+        if p_index[i,j,k] != -1
+            p_min = min(p_min,p_index[i,j,k])
+            p_max = max(p_max,p_index[i,j,k])
+        end
+    end
+    return p_min,p_max
+
+end
+
+
+"""
+Prepares matrix containing index mapping of i,j,k matrix location to corresponding vector index over ghost cells
+"""
+function prepare_indicesGhost(p_index,par_env,mesh)
+    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_,kmax,jmax,imax= mesh
+    @unpack comm,nproc,irank,iroot,isroot = par_env
+    npcells = 0
+    local_npcells = 0
+
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1,i = imin_-1:imax_+1
+        local_npcells += 1
+    end
+
+    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
+
+    npcells_proc = zeros(Int, nproc)
+
+    MPI.Allgather!([local_npcells], npcells_proc, comm)
+
+    npcells_proc = cumsum(npcells_proc)
+    local_count = npcells_proc[irank+1] - local_npcells
+    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
+            local_count += 1
+            p_index[i, j, k] = local_count
+    end
+    # println(p_index[imin_-1:imax_+2,jmin_-1:jmax_+2,kmin_-1:kmax_+2])
+    MPI.Barrier(comm)
+
+    # update_borders!(p_index,mesh,par_env)
+    
+    p_maxo = -1
+    p_mino = maximum(p_index)
+    for k = kmin_-1:kmax_+1, j in jmin_-1:jmax_+1, i in imin_-1:imax_+2
+        if p_index[i,j,k] != -1
+            p_mino = min(p_mino,p_index[i,j,k])
+            p_maxo = max(p_maxo,p_index[i,j,k])
+        end
+    end
+    return p_mino,p_maxo
+
+end
+
+"""
+Adds pressure pertubation required for Jacobian calculation
+"""
+function add_perturb!(P,delta,ii,jj,kk,mesh,par_env)
+    @unpack imin, imax, jmin,jmax,kmin,kmax = mesh
+
+    P[ii,jj,kk] += delta
+
+    if ii == imin
+        P[ii-1,:,:] = P[ii,:,:]
+    end
+
+    if ii == imax
+        P[ii+1,:,:] = P[ii,:,:]
+    end
+
+    if jj == jmin
+        P[:,jj-1,:] = P[:,jj,:]
+    end
+
+    if jj == jmax 
+        P[:,jj+1,:] = P[:,jj,:]
+    end
+
+    if kk == kmin
+        P[:,:,kk-1] =P[:,:,kk]
+    end
+
+    if kk == kmax
+        P[:,:,kk+1] = P[:,:,kk]
+    end
+    return nothing
+end
+
+
+"""
+Removes pressure pertubation required for Jacobian calculation
+"""
+function remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
+    @unpack imin, imax, jmin,jmax,kmin,kmax = mesh
+
+    P[ii,jj,kk] -= delta
+
+    if ii == imin
+        P[ii-1,:,:] = P[ii,:,:]
+    end
+
+    if ii == imax
+        P[ii+1,:,:] = P[ii,:,:]
+    end
+
+    if jj == jmin
+        P[:,jj-1,:] = P[:,jj,:]
+    end
+
+    if jj == jmax 
+        P[:,jj+1,:] = P[:,jj,:]
+    end
+
+    if kk == kmin
+        P[:,:,kk-1] =P[:,:,kk]
+    end
+
+    if kk == kmax
+        P[:,:,kk+1] = P[:,:,kk]
+    end
     return nothing
 end

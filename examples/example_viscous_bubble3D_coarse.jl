@@ -47,14 +47,14 @@ param = parameters(
 
     # pressureSolver = "NLsolve",
     # pressureSolver = "sparseSecant",
-    pressureSolver = "hypreSecant",
+    # pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
     # pressure_scheme = "semi-lagrangian",
-    # pressureSolver = "FC_hypre",
-    # pressure_scheme = "finite-difference",
+    pressureSolver = "FC_hypre",
+    pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_viscous_bubble_SL_30x110x30"
+    VTK_dir= "VTK_viscous_bubble_FD_30x110x30"
 
 )
 
@@ -169,8 +169,8 @@ function outflow_area(mesh,par_env)
 end
 outflow =(area=outflow_area,correction=outflow_correction!)
 
-pvtr_file = "VTK_viscous_bubble_FD_30x110x30/Solver_00060.pvtr"
-xF_pvtr,yF_pvtr,zF_pvtr = "VTK_viscous_bubble_FD_30x110x30/xFvel_00060.pvtr","VTK_viscous_bubble_FD_30x110x30/yFvel_00060.pvtr","VTK_viscous_bubble_FD_30x110x30/zFvel_00060.pvtr"
+pvtr_file = "VTK_viscous_bubble_FD_30x110x30/Solver_00007.pvtr"
+xF_pvtr,yF_pvtr,zF_pvtr = "VTK_viscous_bubble_FD_30x110x30/xFvel_00007.pvtr","VTK_viscous_bubble_FD_30x110x30/yFvel_00007.pvtr","VTK_viscous_bubble_FD_30x110x30/zFvel_00007.pvtr"
 pvd_file = "VTK_viscous_bubble_FD_30x110x30/Solver.pvd"
 restart_files = (cell_data=pvtr_file,xFace_data=xF_pvtr,yFace_data=yF_pvtr,zFace_data=zF_pvtr,pvd_data=pvd_file)
 

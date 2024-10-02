@@ -45,53 +45,23 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
     # Create mesh
     mesh = create_mesh(param,par_env)
     @unpack x,xm,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    # if irank == 0
-    #     println(x)
-    #     println(xm)
-    # end
-    # MPI.Barrier(par_env.comm)
-    # if irank == 1
-    #     println(x)
-    #     println(xm)
-    # end
+
     # Create work arrays
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz = initArrays(mesh)
 
     HYPRE.Init()
     
     p_min,p_max = prepare_indices(tmp3,par_env,mesh)
-    # if irank == 0
-    #     println(tmp3[imin_:imax_,jmin_:jmax_,1])
-    # end
-    # MPI.Barrier(par_env.comm)
-    # if irank == 1
-    #     println(tmp3[imin_:imax_,jmin_:jmax_,1])
-    # end
-    # MPI.Barrier(par_env.comm)
-    # if irank == 2
-    #     println(tmp3[imin_:imax_,jmin_:jmax_,1])
-    # end
-    # MPI.Barrier(par_env.comm)
-    # if irank == 3
-    #     println(tmp3[imin_:imax_,jmin_:jmax_,1])
-    # end
     
     MPI.Barrier(par_env.comm)
 
     # Check simulation param for restart
     if restart == true
-        px_mino,px_maxo = prepare_x_indicesGhost(tmp1,par_env,mesh)
-        py_mino,py_maxo = prepare_y_indicesGhost(tmp2,par_env,mesh)
-        pz_mino,pz_maxo = prepare_z_indicesGhost(tmp4,par_env,mesh)
         pvtk_file,pvd_file,pvtk_dict = gather_restart_files(restart_files,mesh,par_env)
         # domain_check(mesh,pvtk_dict)
-        t,nstep = fillArrays(pvtk_file,pvd_file,pvtk_dict,P,uf,vf,wf,VF,tmp3,tmp1,tmp2,tmp4,param,mesh,par_env)
+        t,nstep = fillArrays(pvtk_file,pvd_file,pvtk_dict,P,uf,vf,wf,VF,param,mesh,par_env)
         Neumann!(VF,mesh,par_env)
-        # outflow_BC!(uf,vf,wf,mesh,par_env)
         if isroot ; println("Solver restart at time: ", round(t,digits= 4)); end        # Update processor boundaries (overwrites BCs if periodic)
-        # update_borders!(uf,mesh,par_env)
-        # update_borders!(vf,mesh,par_env)
-        # update_borders!(wf,mesh,par_env)
         update_VF_borders!(VF,mesh,par_env)
         # Create cell centered velocities
         interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
@@ -110,16 +80,6 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
         # Create face velocities
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
     end
-    # zzz = count(x->x==0,u[imin_-1:imax_+1,jmin_-1:jmax_+1,kmin_-1:kmax_+2])
-    # println(zzz)
-    # println(length(u[imin_-1:imax_+1,jmin_-1:jmax_+1,kmin_-1:kmax_+2]))
-    # println(u[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-    # println(uf[:,jmax_+1,1])
-    # println("whole field")
-    # nz = count(x->x==0,uf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1])
-    # println(nz)
-    # println("half field")
-    # println(vf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1])
 
     MPI.Barrier(par_env.comm)
 
@@ -129,12 +89,6 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
     jacob = jacob_ref[]
     HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
     HYPRE_IJMatrixInitialize(jacob)
-
-    # Neumann!(u,mesh,par_env)
-    # Neumann!(v,mesh,par_env)
-    # Neumann!(w,mesh,par_env)
-    # println(uf[:,jmax_,1])
-    # println(uf[:,jmax_+1,1])
     
     # Compute density and viscosity at intial conditions
     compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
@@ -181,74 +135,36 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
             defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         end
         
-        # max_us = parallel_max_all(denx,par_env)
-        # max_vs = parallel_max_all(deny,par_env)
-        # max_ws = parallel_max_all(denz,par_env)
-        # if isroot
-        #     println("x den before transport ",max_us)
-        #     println("y den before transport ",max_vs)
-        #     println("z den before transport ",max_ws)
-        #  end
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t)
 
         # Update density and viscosity with transported VF
-        # if iter > 0 
         compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
-        # end
-        max_us = parallel_max_all(denx,par_env)
-        max_vs = parallel_max_all(deny,par_env)
-        max_ws = parallel_max_all(denz,par_env)
-        # if isroot
-        #         # println("x den after transport ",max_us)
-        #         # println("y den after transport ",max_vs)
-        #         # println("z den after transport ",max_ws)
-        #         println(viscy[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-        #         println(deny[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-        #         println(sfy[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-        #         println(Curve[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-        #  end
+        
+        #! test for setting density to 1
+        # denx[:,:,:] .= 1.0
+        # deny[:,:,:] .= 1.0
+        # denz[:,:,:] .= 1.0
+
+
         if solveNS
   
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-            # max_uf = parallel_max_all(uf,par_env)
-            #  if isroot
-            #     println(max_uf)
-            #  end
-            #  MPI.Barrier(par_env.comm)
-            #  error("stop")
-            #  if nstep == 48
-            #     error("stop")
-            #  end
+
             # # Call pressure Solver (handles processor boundaries for P)
             iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,BC!,jacob)
             # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
-            # max_uf = parallel_max_all(abs.(P),par_env)
-            #  if isroot
-            #     println("Pressure at end ",max_uf)
-            #  end
+
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
 
             # Interpolate velocity to cell centers (keeping BCs from predictor)
             interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
 
-            # if nstep == 14
-            # #     zzz = count(x->x==0,u[imin_-1:imax_+1,jmin_-1:jmax_+1,kmin_-1:kmax_+2])
-            # #     println(zzz)
-            #     println(size(u[imin_-1:imax_+1,jmin_-1:jmax_+1,kmin_-1:kmax_+2]))
-            #     println(size(u[:,:,:]))
-            # #     # println(u[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-            # # #     println("whole field")
-            # #     # println(vf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1])
-            # #     # ng = count(x->x==0,uf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1])
-            # #     # println(ng)
-            # # #     println("half field")
-            # # #     println(uf[imin_:imax_+1,jmax_+1,1])
-            # # #     # println(uf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1])
-            # # #     # println(vf[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1])
-            # end
+            #! if setting density to 1 recompute properties here
+            # compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+
             # Update Processor boundaries
             update_borders!(u,mesh,par_env)
             update_borders!(v,mesh,par_env)
@@ -258,14 +174,6 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
         # # Check divergence
         divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
 
-        # if isroot &&
-        #     if parallel_max(abs.(divg),par_env) > param.tol
-        #         std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,param,par_env)
-        #         VTK(nstep,t,P,u,v,w,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
-        #         error("Divergence criteria not met!!")
-        #     end
-        # end
-        # error("stop")
         # Output
         std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,mesh,param,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)

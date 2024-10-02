@@ -6,7 +6,6 @@ function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,d
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
     # RHS = nothing
-
     if pressure_scheme == "finite-difference"
         # RHS = @view tmp4[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
@@ -36,7 +35,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh
     elseif pressureSolver == "ConjugateGradient"
         iter = conjgrad!(P,RHS,denx,deny,denz,tmp2,tmp3,tmp4,dt,param,mesh,par_env)
     elseif pressureSolver == "FC_hypre"
-        iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp1,tmp2,tmp4,dt,param,mesh,par_env,jacob)
+        iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp4,param,mesh,par_env,jacob)
     elseif pressureSolver == "Secant"
         iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env)
     elseif pressureSolver == "sparseSecant"
@@ -146,271 +145,6 @@ function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets
         LHS[i,j,k] = du_dx + dv_dy + dw_dz
     end
     return nothing
-end
-
-
-
-function prepare_indices(p_index,par_env,mesh)
-    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_= mesh
-    @unpack comm,nproc,irank,iroot,isroot = par_env
-    npcells = 0
-    local_npcells = 0
-    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
-            local_npcells += 1
-    end
-
-    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
-
-    npcells_proc = zeros(Int, nproc)
-
-    MPI.Allgather!([local_npcells], npcells_proc, comm)
-
-    npcells_proc = cumsum(npcells_proc)
-    local_count = npcells_proc[irank+1] - local_npcells
-    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-            local_count += 1
-            p_index[i, j, k] = local_count
-    end
-
-    MPI.Barrier(comm)
-
-    update_borders!(p_index,mesh,par_env)
-    
-    p_max = -1
-    p_min = maximum(p_index)
-    for k = kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        if p_index[i,j,k] != -1
-            p_min = min(p_min,p_index[i,j,k])
-            p_max = max(p_max,p_index[i,j,k])
-        end
-    end
-    return p_min,p_max
-
-end
-
-function prepare_x_indicesGhost(p_index,par_env,mesh)
-    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_,kmax,jmax,imax= mesh
-    @unpack comm,nproc,irank,iroot,isroot = par_env
-    npcells = 0
-    local_npcells = 0
-
-    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1,i = imin_-1:imax_+2
-        local_npcells += 1
-    end
-
-    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
-
-    npcells_proc = zeros(Int, nproc)
-
-    MPI.Allgather!([local_npcells], npcells_proc, comm)
-
-    npcells_proc = cumsum(npcells_proc)
-    local_count = npcells_proc[irank+1] - local_npcells
-    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
-            local_count += 1
-            p_index[i, j, k] = local_count
-    end
-    # println(p_index[imin_-1:imax_+2,jmin_-1:jmax_+2,kmin_-1:kmax_+2])
-    MPI.Barrier(comm)
-
-    # update_borders!(p_index,mesh,par_env)
-    
-    p_maxo = -1
-    p_mino = maximum(p_index)
-    for k = kmin_-1:kmax_+1, j in jmin_-1:jmax_+1, i in imin_-1:imax_+2
-        if p_index[i,j,k] != -1
-            p_mino = min(p_mino,p_index[i,j,k])
-            p_maxo = max(p_maxo,p_index[i,j,k])
-        end
-    end
-    return p_mino,p_maxo
-
-end
-
-
-function prepare_y_indicesGhost(p_index,par_env,mesh)
-    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_,kmax,jmax,imax= mesh
-    @unpack comm,nproc,irank,iroot,isroot = par_env
-    npcells = 0
-    local_npcells = 0
-
-    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2,i = imin_-1:imax_+1
-        local_npcells += 1
-    end
-
-    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
-
-    npcells_proc = zeros(Int, nproc)
-
-    MPI.Allgather!([local_npcells], npcells_proc, comm)
-
-    npcells_proc = cumsum(npcells_proc)
-    local_count = npcells_proc[irank+1] - local_npcells
-    for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
-            local_count += 1
-            p_index[i, j, k] = local_count
-    end
-    # println(p_index[imin_-1:imax_+2,jmin_-1:jmax_+2,kmin_-1:kmax_+2])
-    MPI.Barrier(comm)
-
-    # update_borders!(p_index,mesh,par_env)
-    
-    p_maxo = -1
-    p_mino = maximum(p_index)
-    for k = kmin_-1:kmax_+1, j in jmin_-1:jmax_+2, i in imin_-1:imax_+1
-        if p_index[i,j,k] != -1
-            p_mino = min(p_mino,p_index[i,j,k])
-            p_maxo = max(p_maxo,p_index[i,j,k])
-        end
-    end
-    return p_mino,p_maxo
-
-end
-
-
-function prepare_z_indicesGhost(p_index,par_env,mesh)
-    @unpack kmin_,kmax_,jmin_,jmax_,imin_,imax_,kmax,jmax,imax= mesh
-    @unpack comm,nproc,irank,iroot,isroot = par_env
-    npcells = 0
-    local_npcells = 0
-
-    for k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1,i = imin_-1:imax_+1
-        local_npcells += 1
-    end
-
-    MPI.Allreduce!([local_npcells], [npcells], MPI.SUM, comm)
-
-    npcells_proc = zeros(Int, nproc)
-
-    MPI.Allgather!([local_npcells], npcells_proc, comm)
-
-    npcells_proc = cumsum(npcells_proc)
-    local_count = npcells_proc[irank+1] - local_npcells
-    for k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
-            local_count += 1
-            p_index[i, j, k] = local_count
-    end
-    # println(p_index[imin_-1:imax_+2,jmin_-1:jmax_+2,kmin_-1:kmax_+2])
-    MPI.Barrier(comm)
-
-    # update_borders!(p_index,mesh,par_env)
-    
-    p_maxo = -1
-    p_mino = maximum(p_index)
-    for k = kmin_-1:kmax_+2, j in jmin_-1:jmax_+1, i in imin_-1:imax_+1
-        if p_index[i,j,k] != -1
-            p_mino = min(p_mino,p_index[i,j,k])
-            p_maxo = max(p_maxo,p_index[i,j,k])
-        end
-    end
-    return p_mino,p_maxo
-
-end
-
-function add_perturb!(P,delta,ii,jj,kk,mesh,par_env)
-    @unpack imin, imax, jmin,jmax,kmin,kmax = mesh
-
-    P[ii,jj,kk] += delta
-
-    if ii == imin
-        P[ii-1,:,:] = P[ii,:,:]
-    end
-
-    if ii == imax
-        P[ii+1,:,:] = P[ii,:,:]
-    end
-
-    if jj == jmin
-        P[:,jj-1,:] = P[:,jj,:]
-    end
-
-    if jj == jmax 
-        P[:,jj+1,:] = P[:,jj,:]
-    end
-
-    if kk == kmin
-        P[:,:,kk-1] =P[:,:,kk]
-    end
-
-    if kk == kmax
-        P[:,:,kk+1] = P[:,:,kk]
-    end
-    return nothing
-end
-
-function remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
-    @unpack imin, imax, jmin,jmax,kmin,kmax = mesh
-
-    P[ii,jj,kk] -= delta
-
-    if ii == imin
-        P[ii-1,:,:] = P[ii,:,:]
-    end
-
-    if ii == imax
-        P[ii+1,:,:] = P[ii,:,:]
-    end
-
-    if jj == jmin
-        P[:,jj-1,:] = P[:,jj,:]
-    end
-
-    if jj == jmax 
-        P[:,jj+1,:] = P[:,jj,:]
-    end
-
-    if kk == kmin
-        P[:,:,kk-1] =P[:,:,kk]
-    end
-
-    if kk == kmax
-        P[:,:,kk+1] = P[:,:,kk]
-    end
-    return nothing
-end
-
-function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,tmp4,p,tets_arr,par_env,mesh)
-    @unpack  imin, imax, jmin,jmax,kmin,kmax,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_,kmin_,kmax_,kmino_,kmaxo_,Nx,Nz,Ny = mesh
-    
-    delta = 1.0
-    nrows = 1
-    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
-        #define jacobian
-        fill!(cols_,0)
-        fill!(values_,0.0)
-        nst = 0
-        
-        for kk = k-1:k+1 ,jj = j-1:j+1, ii = i-1:i+1
-            if jj < jmin || jj > jmax || ii < imin || ii > imax || kk < kmin || kk > kmax
-                continue
-            else
-                nst += 1
-                add_perturb!(P,delta,ii,jj,kk,mesh,par_env)
-                cols_[nst] = coeff_index[ii,jj,kk]
-                A!(i,j,k,LHS1,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
-                values_[nst] = ((LHS1[i,j,k]
-                - AP[i,j,k])
-                /̂delta)
-                remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
-            end
-        end
-
-        for st in 1:nst
-            ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
-            tmpr = values_[st]
-            values_[st] = values_[ind]
-            values_[ind] = tmpr
-            tmpi = cols_[st]
-            cols_[st] = cols_[ind]
-            cols_[ind] = tmpi
-        end
-        
-        ncols = nst
-        rows_ = coeff_index[i,j,k]
-
-        # Call function to set matrix values
-        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
-    end
 end
 
 function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_env, solver_tag)
@@ -565,6 +299,52 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
 
 end
 
+
+# Semi-Lagrangian pressure solvers
+
+function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,tmp4,p,tets_arr,par_env,mesh)
+    @unpack  imin, imax, jmin,jmax,kmin,kmax,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_,kmin_,kmax_,kmino_,kmaxo_,Nx,Nz,Ny = mesh
+    
+    delta = 1.0
+    nrows = 1
+    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
+        #define jacobian
+        fill!(cols_,0)
+        fill!(values_,0.0)
+        nst = 0
+        
+        for kk = k-1:k+1 ,jj = j-1:j+1, ii = i-1:i+1
+            if jj < jmin || jj > jmax || ii < imin || ii > imax || kk < kmin || kk > kmax
+                continue
+            else
+                nst += 1
+                add_perturb!(P,delta,ii,jj,kk,mesh,par_env)
+                cols_[nst] = coeff_index[ii,jj,kk]
+                A!(i,j,k,LHS1,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
+                values_[nst] = ((LHS1[i,j,k]
+                - AP[i,j,k])
+                /̂delta)
+                remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
+            end
+        end
+
+        for st in 1:nst
+            ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
+            tmpr = values_[st]
+            values_[st] = values_[ind]
+            values_[ind] = tmpr
+            tmpi = cols_[st]
+            cols_[st] = cols_[ind]
+            cols_[ind] = tmpi
+        end
+        
+        ncols = nst
+        rows_ = coeff_index[i,j,k]
+
+        # Call function to set matrix values
+        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
+    end
+end
 
 function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,outflow,param,mesh,par_env,jacob)
     @unpack tol,Nx,Ny,Nz = param
@@ -893,9 +673,9 @@ function S_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz
     end    
 end
 
-#! Flux-Corrected solvers 
-
-function compute_lap_op!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+# Flux-Corrected solvers 
+#! laplace operator containing face centered densities
+function compute_lap_op!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
@@ -986,7 +766,8 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,par_e
     end
 end
 
-function compute_lap_op_neg!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+#! laplace operator containing face centered densities multiplied by negative 1
+function compute_lap_op_neg!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
@@ -1077,7 +858,8 @@ function compute_lap_op_neg!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,p
     end
 end
 
-function compute_lap_op_pref!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+#! laplace operator containing face centered densities with pressure reference point
+function compute_lap_op_pref!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
@@ -1173,32 +955,32 @@ function compute_lap_op_pref!(matrix,coeff_index,cols_,values_,P,denx,deny,denz,
     end
 end
 
-
-
-function FC_hypre_solver(P,RHS,denx,deny,denz,r,p_index,Ap,dt,param,mesh,par_env,jacob)
+function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
     @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
     
-    ix = imin_:imax_; iy = jmin_:jmax_;  iz = kmin_:kmax_
 
-    #!prep indices
+    #! prep indices
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
     cols_ = OffsetArray{Int32}(undef,1:27); fill!(cols_,0)
     values_ = OffsetArray{Float64}(undef,1:27); fill!(values_,0.0)
 
-    # compute_lap_op!(jacob,p_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
-    compute_lap_op_pref!(jacob,p_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
-    # compute_lap_op_neg!(jacob,p_index,cols_,values_,P,denx,deny,denz,par_env,mesh)
+
+    #! determine the laplacian to use
+    # compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    compute_lap_op_pref!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    # compute_lap_op_neg!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+
     MPI.Barrier(comm)
     HYPRE_IJMatrixAssemble(jacob)
     parcsr_A_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJMatrixGetObject(jacob, parcsr_A_ref)
     parcsr_A = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_A_ref[])
 
-    # #! prepare Pressure vectors (P_old and P_new)
+    #! prepare Pressure vectors (P_old and P_new)
     RHS_ref = Ref{HYPRE_IJVector}(C_NULL)
     HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,RHS_ref)
     RHS_hyp = RHS_ref[]
@@ -1217,6 +999,8 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,r,p_index,Ap,dt,param,mesh,par_env
         HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
         HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([RHS[i,j,k]])))
     end
+    
+    #! if pressure reference point is used set here
     row_ = p_index[15,110,15]
     HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
     MPI.Barrier(par_env.comm)
@@ -1246,7 +1030,6 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,r,p_index,Ap,dt,param,mesh,par_env
         P[i,j,k] = int_x[1]
     end
 
-    #! residual check
     Neumann!(P,mesh,par_env)
     update_borders!(P,mesh,par_env)
     return iter
@@ -1327,9 +1110,6 @@ function BiCGSTAB!(P,RHS,denx,deny,denz,r,p,v,t1,param,mesh,par_env)
     
     return length(RHS)
 end
-
-
-
 
 """
 GaussSeidel Poisson Solver

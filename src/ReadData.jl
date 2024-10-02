@@ -97,41 +97,35 @@ function domain_check(mesh,pvtk_dict)
 
 end
 
-# function fillArrays(pvtk_file,pvd_file,P,u,v,w,VF,nx,ny,nz,band,Curve,sfx,sfy,sfz,file,vec_index,param,mesh,par_env)
-function fillArrays(pvtk_file,pvd_file,pvtk_dict,P,uf,vf,wf,VF,vec_index,vec_x_indexo,vec_y_indexo,vec_z_indexo,param,mesh,par_env)
+function fillArrays(pvtk_file,pvd_file,pvtk_dict,P,uf,vf,wf,VF,param,mesh,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack irank = par_env
    
     # Fill work arrays
     for k=kmin_:kmax_,j=jmin_:jmax_,i=imin_:imax_
-        # P[i,j,k] = pvtk_dict["Pressure"][irank+1][Int(vec_index[i,j,k]-(length(pvtk_dict["Pressure"][irank+1])*irank))]
-        # VF[i,j,k] = pvtk_dict["VF"][irank+1][Int(vec_index[i,j,k]-(length(pvtk_dict["VF"][irank+1])*irank))]
         P[i,j,k] = pvtk_dict["Pressure"][irank+1][i-imin_+1,j-jmin_+1,k-kmin_+1]
         VF[i,j,k] = pvtk_dict["VF"][irank+1][i-imin_+1,j-jmin_+1,k-kmin_+1]
     end
 
     for k=kmin_-1:kmax_+1,j=jmin_-1:jmax_+1,i=imin_-1:imax_+2
-        # uf[i,j,k] = pvtk_dict["X_F_Velocity"][irank+1][Int(vec_x_indexo[i,j,k]-(size(pvtk_dict["X_F_Velocity"][irank+1])[1]*irank))]
         uf[i,j,k] = pvtk_dict["X_F_Velocity"][irank+1][i-imin_+2,j-jmin_+2,k-kmin_+2]
     end
 
     for k=kmin_-1:kmax_+1,j=jmin_-1:jmax_+2,i=imin_-1:imax_+1
-        # vf[i,j,k] = pvtk_dict["Y_F_Velocity"][irank+1][Int(vec_y_indexo[i,j,k]-(size(pvtk_dict["Y_F_Velocity"][irank+1])[1]*irank))]
         vf[i,j,k] = pvtk_dict["Y_F_Velocity"][irank+1][i-imin_+2,j-jmin_+2,k-kmin_+2]
     end
 
     for k=kmin_-1:kmax_+2,j=jmin_-1:jmax_+1,i=imin_-1:imax_+1
-        # wf[i,j,k] = pvtk_dict["Z_F_Velocity"][irank+1][Int(vec_z_indexo[i,j,k]-(size(pvtk_dict["Z_F_Velocity"][irank+1])[1]*irank))]
         wf[i,j,k] = pvtk_dict["Z_F_Velocity"][irank+1][i-imin_+2,j-jmin_+2,k-kmin_+2]
     end
 
     # Grab iteration and timestep 
     pvd_time_index = findfirst(x -> x == basename(pvtk_file.filename),pvd_file.vtk_filenames)
-    if irank == 0
-        println(pvd_file.vtk_filenames) 
-        println(length(pvd_file.vtk_filenames))
-        println(pvd_time_index)
-    end
+    # if irank == 0
+    #     println(pvd_file.vtk_filenames) 
+    #     println(length(pvd_file.vtk_filenames))
+    #     println(pvd_time_index)
+    # end
     t = pvd_file.timesteps[pvd_time_index]
     n_step = pvd_time_index-1
 
