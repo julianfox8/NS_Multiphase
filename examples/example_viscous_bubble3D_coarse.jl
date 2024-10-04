@@ -33,9 +33,9 @@ param = parameters(
     tol = 1e-8,
 
     # Processors 
-    nprocx = 2,
-    nprocy = 2,
-    nprocz = 2,
+    nprocx = 1,
+    nprocy = 1,
+    nprocz = 1,
 
     # Periodicity
     xper = false,

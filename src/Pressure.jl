@@ -404,18 +404,14 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
 
         # # # #! recompute the jacobian 
         # # if iter % 5 == 0
-        # # if iter >1
-            HYPRE_IJMatrixInitialize(jacob)
-            compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
+        # # # if iter >1
+        #     HYPRE_IJMatrixInitialize(jacob)
+        #     compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
 
-            HYPRE_IJMatrixAssemble(jacob)
-        # # end
+        #     HYPRE_IJMatrixAssemble(jacob)
+        # # # end
         
-        #! reinitialize after iter 1
-        if iter>1
-            HYPRE_IJVectorInitialize(AP_old)
-            HYPRE_IJVectorInitialize(P_new)
-        end
+        # #! reinit
 
         
         for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
@@ -970,9 +966,9 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
 
 
     #! determine the laplacian to use
-    compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    # compute_lap_op_pref!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    # compute_lap_op_neg!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    #compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    #compute_lap_op_pref!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    compute_lap_op_neg!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
 
     MPI.Barrier(comm)
     HYPRE_IJMatrixAssemble(jacob)
@@ -997,10 +993,11 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
         row_ = p_index[i,j,k]
         HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
-        HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([RHS[i,j,k]])))
+        HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([-RHS[i,j,k]])))
     end
     
     #! if pressure reference point is used set here
+
     # row_ = p_index[15,110,15]
     # HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
     MPI.Barrier(par_env.comm)
@@ -1022,7 +1019,7 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
 
     iter = hyp_solve(solver_ref,precond_ref, parcsr_A, par_RHS, par_P ,par_env, "LGMRES")
     if iter >= 9999
-        error("stop")
+        error("Hypre solver did not converge!")
     end
     for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
         int_x = zeros(1)

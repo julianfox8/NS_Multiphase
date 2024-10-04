@@ -139,7 +139,7 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t)
 
         # Update density and viscosity with transported VF
-        compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+        # compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         
         #! test for setting density to 1
         # denx[:,:,:] .= 1.0
@@ -173,7 +173,7 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
         # # Check divergence
         divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
-
+        compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         # Output
         std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,mesh,param,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)

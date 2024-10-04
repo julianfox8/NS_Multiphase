@@ -26,7 +26,13 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     d = Array{Float64}(undef, 4,nThread)
     newtet = Array{Float64}(undef, 3, 4,nThread)
 
-
+    # compute surface tension\
+    fill!(Curve,0.0)
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
+    end
+    
+    compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
 
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
@@ -139,17 +145,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
         end# band conditional
     end
 
-    # Finish updating VF 
-    VF .= VFnew
-
-    # compute surface tension\
-    fill!(Curve,0.0)
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
-    end
-    
-    compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
-
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # u: x-velocity
@@ -213,6 +208,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
 
 
+    # Finish updating VF 
+    VF .= VFnew
     # Apply boundary conditions
     Neumann!(VF,mesh,par_env)
     BC!(us,vs,ws,t,mesh,par_env)
