@@ -778,54 +778,54 @@ function VFbubble3d(xmin,xmax,ymin,ymax,zmin,zmax,rad,xo,yo,zo)
     end
     return VF
 end
-"""
-Density/Viscosity calculation
-"""
-function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
-
-    @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
-        vfx = (VF[i,j,k]+VF[i-1,j,k])/2
-        denx[i,j,k] = rho_liq*(vfx) + rho_gas*(1-vfx)
-        viscx[i,j,k] = vfx*mu_liq+(1-vfx)*mu_gas
-    end
-    @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
-        vfy = (VF[i,j,k]+VF[i,j-1,k])/2
-        deny[i,j,k] = rho_liq*(vfy) +rho_gas*(1-vfy)
-        viscy[i,j,k] = vfy*mu_liq+(1-vfy)*mu_gas
-    end
-    @loop param for  k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
-        vfz = (VF[i,j,k]+VF[i,j,k-1])/2
-        denz[i,j,k] = rho_liq*(vfz) +rho_gas*(1-vfz)
-        viscz[i,j,k] = vfz*mu_liq+(1-vfz)*mu_gas
-
-    end
-    return nothing
-end
-
+# """
+# Density/Viscosity calculation
+# """
 # function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 #     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 #     @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
 
 #     @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
-#         vfx = min(1.0,max(0.0,(VF[i,j,k]+VF[i-1,j,k])/2))
+#         vfx = (VF[i,j,k]+VF[i-1,j,k])/2
 #         denx[i,j,k] = rho_liq*(vfx) + rho_gas*(1-vfx)
 #         viscx[i,j,k] = vfx*mu_liq+(1-vfx)*mu_gas
 #     end
 #     @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
-#         vfy = min(1.0,max(0.0,(VF[i,j,k]+VF[i,j-1,k])/2))
+#         vfy = (VF[i,j,k]+VF[i,j-1,k])/2
 #         deny[i,j,k] = rho_liq*(vfy) +rho_gas*(1-vfy)
 #         viscy[i,j,k] = vfy*mu_liq+(1-vfy)*mu_gas
 #     end
 #     @loop param for  k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
-#         vfz = min(1.0,max(0.0,(VF[i,j,k]+VF[i,j,k-1])/2))
+#         vfz = (VF[i,j,k]+VF[i,j,k-1])/2
 #         denz[i,j,k] = rho_liq*(vfz) +rho_gas*(1-vfz)
 #         viscz[i,j,k] = vfz*mu_liq+(1-vfz)*mu_gas
 
 #     end
 #     return nothing
 # end
+
+function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
+
+    @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
+        vfx = min(1.0,max(0.0,(VF[i,j,k]+VF[i-1,j,k])/2))
+        denx[i,j,k] = rho_liq*(vfx) + rho_gas*(1-vfx)
+        viscx[i,j,k] = vfx*mu_liq+(1-vfx)*mu_gas
+    end
+    @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
+        vfy = min(1.0,max(0.0,(VF[i,j,k]+VF[i,j-1,k])/2))
+        deny[i,j,k] = rho_liq*(vfy) +rho_gas*(1-vfy)
+        viscy[i,j,k] = vfy*mu_liq+(1-vfy)*mu_gas
+    end
+    @loop param for  k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
+        vfz = min(1.0,max(0.0,(VF[i,j,k]+VF[i,j,k-1])/2))
+        denz[i,j,k] = rho_liq*(vfz) +rho_gas*(1-vfz)
+        viscz[i,j,k] = vfz*mu_liq+(1-vfz)*mu_gas
+
+    end
+    return nothing
+end
 
 """
 Correct outflow such that sum(divg)=0 
