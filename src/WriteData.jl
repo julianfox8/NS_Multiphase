@@ -1,15 +1,16 @@
 using WriteVTK
 using Printf
 
-function std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,mesh,param,par_env)
+function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,iter,mesh,param,par_env)
     @unpack std_out_period = param
     @unpack isroot = par_env
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mesh
 
     max_u    = parallel_max(abs.(u[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_v    = parallel_max(abs.(v[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_w    = parallel_max(abs.(w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_divg = parallel_max(abs.(divg),par_env)
+    sum_VF = parallel_sum(VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]*dx*dy*dz,par_env)
     
     if isroot 
         if (now = time()) - t_last[1] > std_out_period
@@ -18,10 +19,10 @@ function std_out(h_last,t_last,nstep,t,P,u,v,w,divg,iter,mesh,param,par_env)
             # Write header
             if h_last[1] >= 10
                 h_last[1] = 0
-                @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)    Piters\n")
+                @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)   sum(VF)    Piters\n")
             end
             # Write values
-            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,iter)
+            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g  %8.3g %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,sum_VF,iter)
         end
     end
 
