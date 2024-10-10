@@ -126,6 +126,13 @@ function fillArrays(pvtk_file,pvd_file,pvtk_dict,P,uf,vf,wf,VF,param,mesh,par_en
     #     println(length(pvd_file.vtk_filenames))
     #     println(pvd_time_index)
     # end
+    doc = readxml(pvd_file)
+    for i in eachelement(doc.root)
+        for j in eachelement(i)
+            node = j
+        end
+    end
+
     t = pvd_file.timesteps[pvd_time_index]
     n_step = pvd_time_index-1
 

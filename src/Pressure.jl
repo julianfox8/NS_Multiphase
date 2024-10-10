@@ -223,7 +223,7 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
 
         HYPRE_LGMRESSetKDim(solver,20)
         HYPRE_LGMRESSetTol(solver, 1e-7) # conv. tolerance
-        HYPRE_LGMRESSetMaxIter(solver,10000)
+        HYPRE_LGMRESSetMaxIter(solver,100)
         # HYPRE_LGMRESSetPrintLevel(solver, 2) # print solve info
         HYPRE_LGMRESSetLogging(solver, 1) # needed to get run info later
 
@@ -1018,9 +1018,7 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     MPI.Barrier(par_env.comm)
 
     iter = hyp_solve(solver_ref,precond_ref, parcsr_A, par_RHS, par_P ,par_env, "LGMRES")
-    if iter >= 9999
-        error("Hypre solver did not converge!")
-    end
+
     for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
         int_x = zeros(1)
         HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)

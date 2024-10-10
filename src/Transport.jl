@@ -68,12 +68,13 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 vW   += tetvW
             end
             VFnew[i,j,k] = vLiq/vol
-            if VFnew[i,j,k] < 0
-                VFnew[i,j,k] = VFlo
-            end
-            if VFnew[i,j,k] > 1
-                VFnew[i,j,k] = VFhi
-            end
+            # VFnew[i,j,k] = max(VFlo,min(VFhi,vLiq/vol))
+            # if VFnew[i,j,k] < 0
+            #     VFnew[i,j,k] = VFlo
+            # end
+            # if VFnew[i,j,k] > 1
+            #     VFnew[i,j,k] = VFhi
+            # end
             us[i,j,k] = vU/vol
             vs[i,j,k] = vV/vol
             ws[i,j,k] = vW/vol
