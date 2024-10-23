@@ -16,6 +16,8 @@ using Statistics
 using LinearAlgebra
 using SparseArrays
 using HYPRE.LibHYPRE
+using EzXML
+using JSON
 
 
 include("Parameters.jl")
@@ -37,32 +39,71 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
     # Create parallel environment
     par_env = parallel_init(param)
-    @unpack isroot,irank = par_env
+    @unpack isroot,irank,nproc,comm = par_env
 
     if isroot; println("Starting solver ..."); end 
     print("on $(nthreads()) threads\n")
 
     # Create mesh
     mesh = create_mesh(param,par_env)
-    @unpack x,xm,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz = initArrays(mesh)
 
     HYPRE.Init()
     
-    p_min,p_max = prepare_indices(tmp3,par_env,mesh)
     
-    MPI.Barrier(par_env.comm)
+    p_min,p_max = prepare_indices(tmp3,par_env,mesh)
+    # #! compute the map from i,j,k indices to vec index
+    # local_tuples = [((i, j, k),(tmp3[i, j, k])) for i in imin_:imax_, j in jmin_:jmax_, k in kmin_:kmax_]
+    
+    # #! allocate sendbuff on root proc
+    # if isroot
+    #         vec2mats = Array{Tuple{Tuple{Int,Int,Int},Float64 }}(undef, imax+1,jmax+1,kmax+1)
+    # else
+    #     vec2mats = nothing
+    # end
+
+    # #! gather local_tuples
+    # MPI.Gather!(local_tuples, vec2mats , 0 ,par_env.comm)
+
+    # #! store tuples in dict for mapping in test_V1.jl
+    # if isroot
+    #     ind_dict = Dict{Tuple{Int, Int, Int}, Float64}()
+    #     for t in vec2mats
+    #         ind, value = t
+    #         if value >= 1.0
+    #             ind_dict[ind] = value
+    #         end
+    #     end
+    #     open("vec2mat_dict.json","w") do f
+    #         JSON.print(f,ind_dict)
+    #     end
+    #     error("stop")
+    # end
+    MPI.Barrier(comm)
+
+    # for i in 0:nproc-1
+    #     if irank == i
+    #         println("p_min=",p_min)
+    #         println("p_max=",p_max)
+    #         println("size =",p_max-p_min)
+    #     end
+    #     MPI.Barrier(par_env.comm)
+    # end
 
     # Check simulation param for restart
     if restart == true
-        pvtk_file,pvd_file,pvtk_dict = gather_restart_files(restart_files,mesh,par_env)
+        # pvtk_file,pvd_file,pvtk_dict = gather_restart_files(restart_files,mesh,par_env)
         # domain_check(mesh,pvtk_dict)
-        t,nstep = fillArrays(pvtk_file,pvd_file,pvtk_dict,P,uf,vf,wf,VF,param,mesh,par_env)
+        t,nstep = fillArrays(restart_files,P,uf,vf,wf,VF,param,mesh,par_env)
         Neumann!(VF,mesh,par_env)
         if isroot ; println("Solver restart at time: ", round(t,digits= 4)); end        # Update processor boundaries (overwrites BCs if periodic)
         update_VF_borders!(VF,mesh,par_env)
+        update_xface_borders!(uf,mesh,par_env)
+        update_yface_borders!(vf,mesh,par_env)
+        update_zface_borders!(wf,mesh,par_env)
         # Create cell centered velocities
         interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
     else
@@ -107,8 +148,14 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
     # Check semi-lagrangian divergence
     divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
     # println(divg[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1])
-
+    # if parallel_max(abs.(divg),par_env) > tol
+    #     error("divergence-free constraint not satisfied")
+    # end
     # Initialize VTK outputs
+    if restart == true && isroot == true
+        pvd_file_cleanup!(restart_files,t)
+    end
+
     pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC = VTK_init(param,par_env)
 
     # Output IC
@@ -140,20 +187,37 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
         # Update density and viscosity with transported VF
         # compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+        # for i in 0:nproc-1
+        #     if irank == i
+        #         println("iteration ",iter," on proc ",i)
+        #         println("u_max=",maximum(us))
+        #         println("u_min=",minimum(us))
+        #         println("v_max=",maximum(vs))
+        #         println("v_min=",minimum(vs))
+        #         println("w_max=",maximum(ws))
+        #         println("w_min=",minimum(ws))
+        #     end
+        #     MPI.Barrier(par_env.comm)
+        # end
         
-        #! test for setting density to 1
-        # denx[:,:,:] .= 1.0
-        # deny[:,:,:] .= 1.0
-        # denz[:,:,:] .= 1.0
-
-
         if solveNS
   
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-
+            # for i in 0:nproc-1
+            #     if irank == i
+            #         println("iteration ",iter," on proc ",i)
+            #         println("sfx_max=",maximum(sfx))
+            #         println("sfx_min=",minimum(sfx))
+            #         println("sfy_max=",maximum(sfy))
+            #         println("sfy_min=",minimum(sfy))
+            #         println("sfz_max=",maximum(sfz))
+            #         println("sfz_min=",minimum(sfz))
+            #     end
+            #     MPI.Barrier(par_env.comm)
+            # end
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,BC!,jacob)
+            iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,outflow,BC!,jacob)
             # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
 
             # Corrector face velocities
@@ -161,9 +225,6 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
             # Interpolate velocity to cell centers (keeping BCs from predictor)
             interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
-
-            #! if setting density to 1 recompute properties here
-            # compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
             # Update Processor boundaries
             update_borders!(u,mesh,par_env)
