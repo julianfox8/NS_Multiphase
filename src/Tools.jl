@@ -148,6 +148,8 @@ function initArrays(mesh)
     tmp3 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp3,0.0)
 
     tmp4 = OffsetArray{Float64}(undef, imino_-3:imaxo_+3,jmino_-3:jmaxo_+3,kmino_-3:kmaxo_+3); fill!(tmp4,0.0)
+    tmp5 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp2,0.0)
+    tmp6 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp3,0.0)
     Curve = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(Curve,0.0)
     sfx = OffsetArray{Float64}(undef, imino_:imaxo_+1,jmino_:jmaxo_,kmino_:kmaxo_); fill!(sfx,0.0)
     sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_+1,kmino_:kmaxo_); fill!(sfy,0.0)
@@ -162,7 +164,7 @@ function initArrays(mesh)
     grady = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(grady,0.0)
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(gradz,0.0)
 
-    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz
+    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz
 
 end
 
@@ -241,8 +243,16 @@ Determine which cell (index) a point
 lies within 
 """
 function pt2index(pt,i,j,k,mesh)
-    @unpack x,y,z = mesh
+    @unpack x,y,z,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     I=[i,j,k]
+    if pt[1] < x[imino_] #|| pt[2] < y[jmino_] || pt[3] < z[kmino_]
+        println("projected point outside of domain")
+        println("location of projected point ",pt)
+        println("with projection occuring at ",i,", ",j,", ",k)
+    end
+    # pt[1] = clamp(pt[1],x[imino_],x[imaxo_])
+    # pt[2] = clamp(pt[2],y[jmino_],y[jmaxo_])
+    # pt[3] = clamp(pt[3],z[kmino_],z[kmaxo_])
     while pt[1] > x[I[1]+1]+eps(); I[1]=I[1]+1; end
     while pt[1] < x[I[1]  ]-eps(); I[1]=I[1]-1; end
     while pt[2] > y[I[2]+1]+eps(); I[2]=I[2]+1; end
@@ -831,20 +841,20 @@ end
 Correct outflow such that sum(divg)=0 
 - outflow assumed to be at +x boundary
 """
-function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,param,mesh,par_env)
+function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
     @unpack dx,dy,dz = mesh
     @unpack tol = param
     @unpack isroot = par_env
     iter=0; maxIter=1000    
     
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
     d = parallel_sum_all(AP*dx*dy*dz,par_env)
     while abs(d) > 1e-1*tol || iter < 2
         iter += 1
         # Correct outflow 
         correction = -0.5d/outflow.area(mesh,par_env)
         outflow.correction(correction,uf,vf,wf,mesh,par_env)
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,mesh,param,par_env)
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
         dnew = parallel_sum_all(AP*dx*dy*dz,par_env)
         d=dnew
         if iter == maxIter

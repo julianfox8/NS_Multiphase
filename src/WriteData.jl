@@ -225,11 +225,6 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
 
     # Write pvd file to read even if simulation stops (or is stoped)
     if isopen(pvd)
-        # if irank == 0
-        #     println(pvd.xdoc)
-        #     println(pvd.path)
-        #     error("stop")
-        # end
         # if pvd.appended
         #     WriteVTK.save_with_appended_data(pvd)
         # else

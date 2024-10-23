@@ -73,7 +73,9 @@ function divergence(divg,uf,vf,wf,dt,band,mesh,param,par_env)
             v1 = tets_vol(tets)
             divg[i,j,k] = (v2-v1) /̂ v2 /̂ dt
             # if divg[i,j,k] >= 1e-4
-            #     println("semi-Lag first")
+            #     println("semi-Lag div")
+            #     @show i, j, k
+            #     println(divg[i,j,k])
             #     # println(dv_dy)
             #     # println(dw_dz)
             # end
@@ -87,10 +89,10 @@ function divergence(divg,uf,vf,wf,dt,band,mesh,param,par_env)
             # Divergence
             divg[i,j,k] = du_dx + dv_dy + dw_dz
             # if divg[i,j,k] >= 1e-4
-            #     println(du_dx)
-            #     println(dv_dy)
+            #     println("FD div")
+            #     @show i, j, k
             #     println(divg[i,j,k])
-            #     error(i,",",j,",",k)
+            #     # error(i,",",j,",",k)
             # end
         end
     end
