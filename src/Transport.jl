@@ -33,7 +33,10 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     end
     
     compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
-
+    # ml = 0.0
+    # mg = 0.0
+    # countl = 0
+    # countg = 0
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         
@@ -68,12 +71,16 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 vW   += tetvW
             end
             VFnew[i,j,k] = vLiq/vol
-            # VFnew[i,j,k] = max(VFlo,min(VFhi,vLiq/vol))
-            # if VFnew[i,j,k] < 0
-            #     VFnew[i,j,k] = VFlo
+            # VFnew[i,j,k] = max(VFlo,min(1.0,vLiq/vol))
+            # if VFnew[i,j,k] < 0.0
+            #     println("neg VF found")
+            #     ml += VFnew[i,j,k]
+            #     countl += 1
             # end
-            # if VFnew[i,j,k] > 1
-            #     VFnew[i,j,k] = VFhi
+            # if VFnew[i,j,k] > 1.0
+            #     println(">1 VF found")
+            #     mg += VFnew[i,j,k]-1.0
+            #     countg += 1
             # end
             us[i,j,k] = vU/vol
             vs[i,j,k] = vV/vol
@@ -142,7 +149,10 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 )
         end# band conditional
     end
-
+    # println("us(10 9 11) = $(us[10,9,11])")
+    # println("us(12 9 11) = $(us[12,9,11])")
+    # println("$countl cells have volume less than 0.0, totaling $ml VF lost")
+    # println("$countg cells have volume greater than 1.0, totaling $mg VF gained")
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # u: x-velocity
@@ -162,50 +172,65 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k]) +
-                dt*sfx[i,j,k]/denx[i,j,k]
-            
+                # dt*sfx[i,j,k]/̂(denx[i,j,k])
+                dt*sfx[i,j,k]/̂(0.5*(denx[i+1,j,k]+denx[i,j,k]))
+
         # v: y-velocity
         for ii = i:i+1 # Loop over faces 
             dvdx = (v[ii,j,k] - v[ii-1,j,k])/dx
-            Fx[ii,j,k] = dy*dz*( viscx[ii,j,k]/denx[ii,j,k]*dvdx) 
+            Fx[ii,j,k] = dy*dz*( viscx[ii,j,k]/̂denx[ii,j,k]*dvdx) 
         end
         for jj = j:j+1# Loop over faces 
             dvdy = (v[i,jj,k] - v[i,jj-1,k])/dy
-            Fy[i,jj,k] = dx*dz*( viscy[i,jj,k]/deny[i,jj,k]*dvdy )
+            Fy[i,jj,k] = dx*dz*( viscy[i,jj,k]/̂deny[i,jj,k]*dvdy )
         end
         for kk = k:k+1# Loop over faces 
             dvdz = (v[i,j,kk] - v[i,j,kk-1])/dz
-            Fz[i,j,kk] = dx*dy*( viscz[i,j,kk]/denz[i,j,kk]*dvdz )
+            Fz[i,j,kk] = dx*dy*( viscz[i,j,kk]/̂denz[i,j,kk]*dvdz )
         end
         vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k]) +
-                dt*(sfy[i,j,k]/deny[i,j,k] - gravity)
+                # dt*(sfy[i,j,k]/̂deny[i,j,k] -gravity)
+                dt*(sfy[i,j,k]/̂(0.5*(deny[i,j+1,k]+deny[i,j,k])) -gravity)
+                
 
 
         # w: z-velocity
         for ii = i:i+1 # Loop over faces 
             dwdx = (w[ii,j,k] - w[ii-1,j,k])/dx
-            Fx[ii,j,k] = dy*dz*(viscx[ii,j,k]/denx[ii,j,k]*dwdx ) 
+            Fx[ii,j,k] = dy*dz*(viscx[ii,j,k]/̂denx[ii,j,k]*dwdx ) 
         end
         for jj = j:j+1 # Loop over faces 
             dwdy = (w[i,jj,k] - w[i,jj-1,k])/dy
-            Fy[i,jj,k] = dx*dz*( viscy[i,jj,k]/deny[i,jj,k]*dwdy )
+            Fy[i,jj,k] = dx*dz*( viscy[i,jj,k]/̂deny[i,jj,k]*dwdy )
         end
         for kk = k:k+1# Loop over faces 
             dwdz = (w[i,j,kk] - w[i,j,kk-1])/dz
-            Fz[i,j,kk] = dx*dy*( viscz[i,j,kk]/denz[i,j,kk]*dwdz )
+            Fz[i,j,kk] = dx*dy*( viscz[i,j,kk]/̂denz[i,j,kk]*dwdz )
         end
         ws[i,j,k] = ws[i,j,k] + dt/(dx*dy*dz) * (
                 Fx[i+1,j,k] - Fx[i,j,k] +
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k]) +
-                dt*sfz[i,j,k]/denz[i,j,k]
+                # dt*sfz[i,j,k]/̂denz[i,j,k] 
+                dt*sfz[i,j,k]/̂(0.5*(denz[i,j,k+1]+denz[i,j,k]))
     end # Domain loop
+    # println("sfx(10,9,11= $(sfx[10,9,11])")
+    # println("sfx(12,9,11= $(sfx[12,9,11])")
+    # println("sfy(10,9,11= $(sfy[10,9,11])")
+    # println("sfy(12,9,11= $(sfy[12,9,11])")
+    # println("sfz(10,9,11= $(sfz[10,9,11])")
+    # println("sfz(12,9,11= $(sfz[12,9,11])")
 
+    # println("us(10 9 11) = $(us[10,9,11])")
+    # println("us(12 9 11) = $(us[12,9,11])")
+    # println("vs(10 9 11) = $(vs[10,9,11])")
+    # println("vs(12 9 11) = $(vs[12,9,11])")
 
-
+    # println("denx[10,9,11] = $(denx[10,9,11])")
+    # println("denx[12,9,11] = $(denx[12,9,11])")
     # Finish updating VF 
     VF .= VFnew
     # Apply boundary conditions
