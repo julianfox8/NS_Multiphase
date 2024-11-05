@@ -31,7 +31,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     end
-    
+    # println("us(10 9 11) = $(us[10,9,11])")
+    # println("us(12 9 11) = $(us[12,9,11])")
     compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
     # ml = 0.0
     # mg = 0.0
@@ -72,16 +73,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             end
             VFnew[i,j,k] = vLiq/vol
             # VFnew[i,j,k] = max(VFlo,min(1.0,vLiq/vol))
-            # if VFnew[i,j,k] < 0.0
-            #     println("neg VF found")
-            #     ml += VFnew[i,j,k]
-            #     countl += 1
-            # end
-            # if VFnew[i,j,k] > 1.0
-            #     println(">1 VF found")
-            #     mg += VFnew[i,j,k]-1.0
-            #     countg += 1
-            # end
+
             us[i,j,k] = vU/vol
             vs[i,j,k] = vV/vol
             ws[i,j,k] = vW/vol

@@ -273,10 +273,10 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         solver = solver_ref[]
 
         # Set some parameters (See Reference Manual for more parameters)
-        HYPRE_FlexGMRESSetKDim(solver, 30) # restart
+        HYPRE_FlexGMRESSetKDim(solver,20) # restart
         HYPRE_FlexGMRESSetMaxIter(solver, 100) # max iterations
         HYPRE_FlexGMRESSetTol(solver, 1e-7) # conv. tolerance
-        HYPRE_FlexGMRESSetPrintLevel(solver, 2) # print solve info
+        # HYPRE_FlexGMRESSetPrintLevel(solver, 2) # print solve info
         HYPRE_FlexGMRESSetLogging(solver, 1) # needed to get run info later
 
         # Now set up the AMG preconditioner and specify any parameters
@@ -359,7 +359,7 @@ function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gra
     end
 end
 
-function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_star,AP_star,outflow,param,mesh,par_env,jacob)
+function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,outflow,param,mesh,par_env,jacob)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -372,19 +372,11 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     # AP_2 = OffsetArray{Float64}(undef,imin_:imax_,jmin_:jmax_,kmin_:kmax_)
     tets_arr = Array{Float64}(undef, 3, 4, 5)
     p = Matrix{Float64}(undef, (3, 8))
-    # if imin_< 14 && imax_>14 && jmin_< 19 && jmax_>19 && kmin_< 11 && kmax_>11
-    #     println(uf[12:15,18:20,10:12])
-    # end
-    # println("outflow gradient calculations")
-    outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
-    # if imin_< 14 && imax_>14 && jmin_< 19 && jmax_>19 && kmin_< 11 && kmax_>11
-    #     println(vf[12:15,18:20,10:12])
-    # end
-    # println("A op gradient calculations")
+
+    #outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
+
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
-    # if imin_< 14 && imax_>14 && jmin_< 19 && jmax_>19 && kmin_< 11 && kmax_>11
-    #     println(vf[12:15,18:20,10:12])
-    # end
+    res_par = parallel_max_all(abs.(AP),par_env)
     #!prep indices
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
@@ -393,15 +385,11 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     cols_ = OffsetArray{Int32}(undef,1:27); fill!(cols_,0)
     values_ = OffsetArray{Float64}(undef,1:27); fill!(values_,0.0)
     
-    
-    
-    
-    # if t==1 || t % 10==0
-        compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
-        MPI.Barrier(comm)
-        HYPRE_IJMatrixAssemble(jacob)
+    compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
+    MPI.Barrier(comm)
+    HYPRE_IJMatrixAssemble(jacob)
 
-    # end
+
     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
     parcsr_J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
@@ -421,7 +409,8 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
 
     for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
         row_ = p_index[i,j,k]
-        HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
+        HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
+        # HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
         HYPRE_IJVectorSetValues(AP_old, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
     end
 
@@ -438,32 +427,23 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     HYPRE_IJVectorGetObject(P_new, par_Pn_ref)
     par_P_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
 
-    # # # #! print out matrices for analysis
-    # if t == 76 || t == 72
-    #     # HYPRE_IJMatrixPrint(jacob,"jacobian_iter_$t/jacobian_1")
-    #     # HYPRE_IJVectorPrint(AP_old,"rhsV_iter_$t/rhsV_1")
-    #     mkdir("pressureV_iter_$t")
-    #     # HYPRE_IJVectorPrint(P_new,"/Users/julia/repo/NS_Multiphase/pressureV_iter_$t/pressureV_1")
-    #     HYPRE_IJVectorPrint(P_new,"pressureV_1")
-    # end
 
-    # #! create old Pressure and A(P) arrays
-    # copyto!(P_star,P)
-    # copyto!(AP_star,AP)
+    # # #! create old Pressure and A(P) arrays
+    copyto!(P_k,P)
+    copyto!(AP_k,AP)
 
     # Iterate 
     iter=0
     while true
         iter += 1
-        # if iter >1 && t == 125 ; error("stop"); end
-        # # # #! recompute the jacobian 
-        # # if iter % 5 == 0
-        # # # if iter >1
-        #     HYPRE_IJMatrixInitialize(jacob)
-        #     compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
 
-        #     HYPRE_IJMatrixAssemble(jacob)
-        # # # end
+        # if iter > 10
+        # if iter > 20 
+            HYPRE_IJMatrixInitialize(jacob)
+            compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
+
+            HYPRE_IJMatrixAssemble(jacob)
+        # end
         
         # #! reinit
 
@@ -488,102 +468,57 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
             HYPRE_IJVectorGetObject(P_new, par_Pn_ref)
             par_P_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
 
-            # if t == 76 || t == 72
-            #     # HYPRE_IJMatrixPrint(jacob,"jacobian_iter_$t/jacobian_$iter")
-            #     # HYPRE_IJVectorPrint(AP_old,"rhsV_iter_$t/rhsV_$iter")
-            #     # HYPRE_IJVectorPrint(P_new,"/Users/julia/repo/NS_Multiphase/pressureV_iter_$t/pressureV_$iter")
-            #     HYPRE_IJVectorPrint(P_new,"pressureV_$iter")
-            #  end
         end
 
         solver_ref = Ref{HYPRE_Solver}(C_NULL)
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
         MPI.Barrier(par_env.comm)
 
-        hyp_iter = hyp_solve(solver_ref,precond_ref, parcsr_J, par_AP_old, par_P_new,par_env, "LGMRES")
-        # P_step = OffsetArray{Float64}(undef,imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+        hyp_iter = hyp_solve(solver_ref,precond_ref, parcsr_J, par_AP_old, par_P_new,par_env, "GMRES-AMG")
+
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             int_x = zeros(1)
             HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)
             # P_step[i,j,k] = int_x[1]
-            if iter < 50
-                P[i,j,k] -= int_x[1]
-            else
+            if iter> 10 && t>1
                 P[i,j,k] -= 0.5*int_x[1]
+            else
+                P[i,j,k] -= int_x[1]
             end
         end
-        # println(maximum(P_step))
-        # println(iter)
+
         MPI.Barrier(par_env.comm)
-
-
-        # P .-=mean(P)
 
         MPI.Barrier(par_env.comm)
         P .-=parallel_mean_all(P,par_env)
-        # psum = parallel_sum_all(P,par_env)
-        # if irank == 0
-        #     println("sum of pressures = ",psum)
-        # end
-        # for i in 0:nproc-1
-        #     if irank == i
-        #         println("iteration ",iter," on proc ",i)
-        #         println("P_max=",maximum(P))
-        #         println("P_min=",minimum(P))
-        #     end
-        #     MPI.Barrier(par_env.comm)
-        # end
-                #     for i in 0:nproc-1
-                # if irank == i
-                #     println("iteration ",iter," on proc ",i)
-                #     println("uf_max=",maximum(uf))
-                #     println("uf_min=",minimum(uf))
-                #     println("vf_max=",maximum(vf))
-                #     println("vf_min=",minimum(vf))
-                #     println("wf_max=",maximum(wf))
-                #     println("wf_min=",minimum(wf))
-                # end
-            # MPI.Barrier(par_env.comm)
-            # end
+
         MPI.Barrier(par_env.comm)
         # if isroot; println("outflow gradient calculated within p iterations at iter ", iter); end
         outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
         # if isroot; println("a op gradient calc within p iter at iter ", iter); end
-        # if t == 125
-        #     HYPRE_IJMatrixPrint(jacob,"jacobian_2_$t")
-        #     HYPRE_IJVectorPrint(AP_old,"rhsV_2_$t")
-        #     HYPRE_IJVectorPrint(P_new,"pressureV_2_$t")
-        # end
+
         MPI.Barrier(par_env.comm)
-        # if iter ==3 && t == 125 ; error("stop"); end
+        
         #update new Ap
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
 
-
         #! interpolate between the k and k+1 iterations
-
-        # for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        #     P[i,j,k] = P_star[i,j,k] - AP_star[i,j,k]*(P[i,j,k]-P_star[i,j,k])/(AP[i,j,k]-AP_star[i,j,k])
-        # end
-
-        # A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
-        # if imin_< 14 && imax_>14 && jmin_< 19 && jmax_>19 && kmin_< 11 && kmax_>11
-        #     println(vf[12:15,18:20,10:12])
-        # end
-        # if t == 125 && iter > 3
-        #     for i in 0:nproc-1
-        #         if irank == i
-        #             println("iteration ",t," on proc ",i)
-        #             println("max(AP)",maximum(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]))
-        #             println("min(AP)",minimum(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]))
-
-        #         end
-        #     MPI.Barrier(par_env.comm)
+        # if t >109 && iter>1
+        #     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
+        #         P_temp = P_k[i,j,k] - AP_k[i,j,k]*(P[i,j,k]-P_k[i,j,k])/(AP[i,j,k]-AP_k[i,j,k])
+        #         P_temp = min(max(P_k[i,j,k],P[i,j,k]),P_temp)
+        #         P[i,j,k] = max(min(P_k[i,j,k],P[i,j,k]),P_temp)
         #     end
-        #     error("stop")
+        #     outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
+        #     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
         # end
 
+        # println("this is iter $iter")
+        # outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
+        copyto!(P_k,P)
+        copyto!(AP_k,AP)
         res_par = parallel_max_all(abs.(AP),par_env)
+        # println("iter is $iter with divg($res_par)")
         # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP,par_env))
         MPI.Barrier(par_env.comm)
         
@@ -592,7 +527,9 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
             HYPRE_ParVectorDestroy(par_P_new)
             return iter
         end
-        if iter % 50 == 0 
+        # if iter >1 && t>109
+        if iter % 50 == 0
+        # if t == 6
             # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
             @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP,par_env))
             # J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)

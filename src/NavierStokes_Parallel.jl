@@ -18,6 +18,7 @@ using SparseArrays
 using HYPRE.LibHYPRE
 using EzXML
 using JSON
+using CSV
 
 
 include("Parameters.jl")
@@ -35,7 +36,7 @@ include("ReadData.jl")
 # include("hyp.jl")
 
 function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
-    @unpack stepMax,tFinal,solveNS,pressure_scheme,restart,tol = param
+    @unpack Nx,stepMax,tFinal,solveNS,pressure_scheme,restart,tol = param
 
     # Create parallel environment
     par_env = parallel_init(param)
@@ -46,52 +47,16 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
     # Create mesh
     mesh = create_mesh(param,par_env)
-    @unpack x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack dx,dy,dz,x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz = initArrays(mesh)
 
     HYPRE.Init()
-    
-    
+
     p_min,p_max = prepare_indices(tmp3,par_env,mesh)
-    # #! compute the map from i,j,k indices to vec index
-    # local_tuples = [((i, j, k),(tmp3[i, j, k])) for i in imin_:imax_, j in jmin_:jmax_, k in kmin_:kmax_]
-    
-    # #! allocate sendbuff on root proc
-    # if isroot
-    #         vec2mats = Array{Tuple{Tuple{Int,Int,Int},Float64 }}(undef, imax+1,jmax+1,kmax+1)
-    # else
-    #     vec2mats = nothing
-    # end
 
-    # #! gather local_tuples
-    # MPI.Gather!(local_tuples, vec2mats , 0 ,par_env.comm)
-
-    # #! store tuples in dict for mapping in test_V1.jl
-    # if isroot
-    #     ind_dict = Dict{Tuple{Int, Int, Int}, Float64}()
-    #     for t in vec2mats
-    #         ind, value = t
-    #         if value >= 1.0
-    #             ind_dict[ind] = value
-    #         end
-    #     end
-    #     open("vec2mat_dict.json","w") do f
-    #         JSON.print(f,ind_dict)
-    #     end
-    #     error("stop")
-    # end
     MPI.Barrier(comm)
-
-    # for i in 0:nproc-1
-    #     if irank == i
-    #         println("p_min=",p_min)
-    #         println("p_max=",p_max)
-    #         println("size =",p_max-p_min)
-    #     end
-    #     MPI.Barrier(par_env.comm)
-    # end
 
     # Check simulation param for restart
     if restart == true
@@ -124,6 +89,9 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
     MPI.Barrier(par_env.comm)
 
+    # terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
+    # error("stop")
+
     # Initialize Jacobian matrix
     jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
     HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
@@ -147,10 +115,7 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
     # Check semi-lagrangian divergence
     divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
-    # println(divg[imin_:imax_+1,jmin_:jmax_+1,kmin_:kmax_+1])
-    # if parallel_max(abs.(divg),par_env) > tol
-    #     error("divergence-free constraint not satisfied")
-    # end
+
     # Initialize VTK outputs
     if restart == true && isroot == true
         pvd_file_cleanup!(restart_files,t)
@@ -158,10 +123,15 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
     pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC = VTK_init(param,par_env)
 
+
+    # Grab initial volume fraction sum
+    VF_init = parallel_sum(VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]*dx*dy*dz,par_env)
+
     # Output IC
     t_last =[-100.0,]
     h_last =[100]
-    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,0,mesh,param,par_env)
+
+    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,0,mesh,param,par_env)
     VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
 
     # Loop over time
@@ -184,38 +154,12 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
         
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t)
-
-        # Update density and viscosity with transported VF
-        # compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
-        # for i in 0:nproc-1
-        #     if irank == i
-        #         println("iteration ",iter," on proc ",i)
-        #         println("u_max=",maximum(us))
-        #         println("u_min=",minimum(us))
-        #         println("v_max=",maximum(vs))
-        #         println("v_min=",minimum(vs))
-        #         println("w_max=",maximum(ws))
-        #         println("w_min=",minimum(ws))
-        #     end
-        #     MPI.Barrier(par_env.comm)
-        # end
-        
+    
         if solveNS
   
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-            # for i in 0:nproc-1
-            #     if irank == i
-            #         println("iteration ",iter," on proc ",i)
-            #         println("sfx_max=",maximum(sfx))
-            #         println("sfx_min=",minimum(sfx))
-            #         println("sfy_max=",maximum(sfy))
-            #         println("sfy_min=",minimum(sfy))
-            #         println("sfz_max=",maximum(sfz))
-            #         println("sfz_min=",minimum(sfz))
-            #     end
-            #     MPI.Barrier(par_env.comm)
-            # end
+
             # # Call pressure Solver (handles processor boundaries for P)
             iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,outflow,BC!,jacob)
             # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
@@ -230,14 +174,19 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
             update_borders!(u,mesh,par_env)
             update_borders!(v,mesh,par_env)
             update_borders!(w,mesh,par_env)
-        end
 
+            
+        end
+        #! grab terminal velocity
+        # terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
+        # println(terminal_vel)
         # # Check divergence
         divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
         compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         # Output
-        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,iter,mesh,param,par_env)
+        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,mesh,param,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
+
         # error("stop")
     end
 

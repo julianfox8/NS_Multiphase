@@ -526,14 +526,14 @@ function add_correction_tets(tets, inds, i, j, k, uf, vf, wf, dt, mesh)
         @unpack x, y, z, dx, dy = mesh
         # Flux vertices from cell face and projected vertices (within tets array)
         p = Matrix{Float64}(undef, (3, 8))
-        p[:, 1] = tets[:,1,1] # 1
-        p[:, 2] = tets[:,2,1] # 2
-        p[:, 3] = tets[:,3,2] # 3
-        p[:, 4] = tets[:,3,1] # 4
-        p[:, 5] = [x[i  ], y[j  ], z[k]]
-        p[:, 6] = [x[i+1], y[j  ], z[k]]
-        p[:, 7] = [x[i  ], y[j+1], z[k]]
-        p[:, 8] = [x[i+1], y[j+1], z[k]]
+        p[:, 1] = [x[i  ], y[j  ], z[k]]        
+        p[:, 2] = [x[i+1], y[j  ], z[k]]
+        p[:, 3] = [x[i  ], y[j+1], z[k]]        
+        p[:, 4] = [x[i+1], y[j+1], z[k]]        
+        p[:, 5] = tets[:,2,3] # 5        
+        p[:, 6] = tets[:,3,3] # 6        
+        p[:, 7] = tets[:,4,3] # 7        
+        p[:, 8] = tets[:,4,4] # 8 
         # Create tets from vertices
         flux_tets = verts2tets(p)
         # Compute flux volume 
