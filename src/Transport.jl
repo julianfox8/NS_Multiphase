@@ -31,13 +31,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     end
-    # println("us(10 9 11) = $(us[10,9,11])")
-    # println("us(12 9 11) = $(us[12,9,11])")
+
     compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
-    # ml = 0.0
-    # mg = 0.0
-    # countl = 0
-    # countg = 0
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         
@@ -49,10 +44,10 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             # From projected cell and break into tets using face velocities
             tets,inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
 
-            if pressure_scheme == "finite-difference"
-                # Add correction tets 
-                tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
-            end
+            # if pressure_scheme == "finite-difference"
+            #     # Add correction tets 
+            #     tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
+            # end
             
             # Compute VF in semi-Lagrangian cell 
             vol  = 0.0
@@ -141,10 +136,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 )
         end# band conditional
     end
-    # println("us(10 9 11) = $(us[10,9,11])")
-    # println("us(12 9 11) = $(us[12,9,11])")
-    # println("$countl cells have volume less than 0.0, totaling $ml VF lost")
-    # println("$countg cells have volume greater than 1.0, totaling $mg VF gained")
+
     # Loop overdomain
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # u: x-velocity
@@ -185,9 +177,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 Fy[i,j+1,k] - Fy[i,j,k] + 
                 Fz[i,j,k+1] - Fz[i,j,k]) +
                 # dt*(sfy[i,j,k]/̂deny[i,j,k] -gravity)
-                dt*(sfy[i,j,k]/̂(0.5*(deny[i,j+1,k]+deny[i,j,k])) -gravity)
-                
-
+                dt*(sfy[i,j,k]/̂(0.5*(deny[i,j+1,k]+deny[i,j,k])) - gravity)
 
         # w: z-velocity
         for ii = i:i+1 # Loop over faces 
@@ -209,20 +199,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                 # dt*sfz[i,j,k]/̂denz[i,j,k] 
                 dt*sfz[i,j,k]/̂(0.5*(denz[i,j,k+1]+denz[i,j,k]))
     end # Domain loop
-    # println("sfx(10,9,11= $(sfx[10,9,11])")
-    # println("sfx(12,9,11= $(sfx[12,9,11])")
-    # println("sfy(10,9,11= $(sfy[10,9,11])")
-    # println("sfy(12,9,11= $(sfy[12,9,11])")
-    # println("sfz(10,9,11= $(sfz[10,9,11])")
-    # println("sfz(12,9,11= $(sfz[12,9,11])")
 
-    # println("us(10 9 11) = $(us[10,9,11])")
-    # println("us(12 9 11) = $(us[12,9,11])")
-    # println("vs(10 9 11) = $(vs[10,9,11])")
-    # println("vs(12 9 11) = $(vs[12,9,11])")
-
-    # println("denx[10,9,11] = $(denx[10,9,11])")
-    # println("denx[12,9,11] = $(denx[12,9,11])")
     # Finish updating VF 
     VF .= VFnew
     # Apply boundary conditions

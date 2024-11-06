@@ -373,8 +373,6 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     tets_arr = Array{Float64}(undef, 3, 4, 5)
     p = Matrix{Float64}(undef, (3, 8))
 
-    #outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
-
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
     res_par = parallel_max_all(abs.(AP),par_env)
     #!prep indices
@@ -438,11 +436,11 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
         iter += 1
 
         # if iter > 10
-        # if iter > 20 
-            HYPRE_IJMatrixInitialize(jacob)
-            compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
+        # # if iter > 20 
+        #     HYPRE_IJMatrixInitialize(jacob)
+        #     compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,p,tets_arr,par_env,mesh)
 
-            HYPRE_IJMatrixAssemble(jacob)
+        #     HYPRE_IJMatrixAssemble(jacob)
         # end
         
         # #! reinit
@@ -808,13 +806,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env
         
         ncols = nst
         rows_ = coeff_index[i,j,k]
-        # if i > imin && j > jmin
-        # println(1/(dx^2*denx[i,j,k]))
-        # println(1/(dy^2*deny[i,j,k]))
-        #     println(cols_)
-        #     println(values_)
-        #     error("stop")
-        # end
+
 
         # Call function to set matrix values
         HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
