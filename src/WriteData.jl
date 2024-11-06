@@ -1,8 +1,22 @@
 using WriteVTK
 using Printf
 
-function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,iter,mesh,param,par_env)
-    @unpack std_out_period = param
+function csv_init(param,par_env)
+    @unpack isroot = par_env
+    @unpack VTK_dir = param
+    if isroot
+        param_fields = [(key,getfield(param,key)) for key in fieldnames(typeof(param))]
+        open(VTK_dir*".csv","w") do io
+            println(io, join(first.(param_fields), ","))
+            println(io, join(last.(param_fields), ","))
+            println(io,"Iteration ,Time, max(u), max(v), max(w), max(divg), sum(mass_err), vel_t_height, Piters")
+        end
+    end
+    return nothing
+end
+
+function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter,mesh,param,par_env)
+    @unpack std_out_period,VTK_dir = param
     @unpack isroot = par_env
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mesh
 
@@ -11,21 +25,24 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,iter,mesh,param,par_env)
     max_w    = parallel_max(abs.(w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_divg = parallel_max(abs.(divg),par_env)
     sum_VF = parallel_sum(VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]*dx*dy*dz,par_env)
-    
-    if isroot 
+    vel_t_height = parallel_max(terminal_vel,par_env)
+    # println(vel_t_height)
+    if isroot
         if (now = time()) - t_last[1] > std_out_period
             t_last[1] = now
             h_last[1] += 1
             # Write header
             if h_last[1] >= 10
                 h_last[1] = 0
-                @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)   sum(VF)    Piters\n")
+                @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)  sum(mass_err)  vel_t_height  Piters\n")
             end
             # Write values
-            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g  %8.3g %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,sum_VF,iter)
+            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g      %8.3g %12.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,VF_init-sum_VF,vel_t_height,iter)
+            open(VTK_dir*".csv","a") do io
+                println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$VF_init-$sum_VF,$vel_t_height,$iter"))
+            end
         end
     end
-
     return nothing
 end
 

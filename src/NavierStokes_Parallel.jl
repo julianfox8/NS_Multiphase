@@ -88,8 +88,8 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
     end
 
     MPI.Barrier(par_env.comm)
-
-    # terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
+    csv_init(param,par_env)
+    terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
     # error("stop")
 
     # Initialize Jacobian matrix
@@ -131,7 +131,7 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
     t_last =[-100.0,]
     h_last =[100]
 
-    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,0,mesh,param,par_env)
+    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,0,mesh,param,par_env)
     VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
 
     # Loop over time
@@ -178,13 +178,13 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
             
         end
         #! grab terminal velocity
-        # terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
+        terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
         # println(terminal_vel)
         # # Check divergence
         divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
         compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         # Output
-        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,mesh,param,par_env)
+        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter,mesh,param,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
 
         # error("stop")

@@ -16,21 +16,21 @@ param = parameters(
     sigma = 0.0769, # surface tension coefficient (Ns/m^2)
     gravity = 9.8, # Gravity (m/s^2)
     Lx=0.21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
-    Ly=0.78,             
+    Ly=0.63,             
     Lz=0.21,
     tFinal=100.0,      # Simulation time
  
     
-    # Discretization inputsc
-    Nx=30,           # Number of grid cells
-    Ny=110,
-    Nz=30,
-    stepMax=10000,   # Maximum number of timesteps
+    # Discretization inputs
+    Nx=21,           # Number of grid cells
+    Ny=63,
+    Nz=21,
+    stepMax=1000,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-8,
+    tol = 1e-6,
 
     # Processors 
     nprocx = 1,
@@ -47,14 +47,14 @@ param = parameters(
 
     # pressureSolver = "NLsolve",
     # pressureSolver = "sparseSecant",
-    # pressureSolver = "hypreSecant",
+    pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
     # pressure_scheme = "semi-lagrangian",
-    pressureSolver = "FC_hypre",
-    pressure_scheme = "finite-difference",
+    # pressureSolver = "FC_hypre",
+    # pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_viscous_bubble_FD_30x110x30"
+    VTK_dir= "VTK_viscous_bubble_FD_31x110x31_flux_corrected"
 
 )
 
@@ -169,9 +169,9 @@ function outflow_area(mesh,par_env)
 end
 outflow =(area=outflow_area,correction=outflow_correction!)
 
-pvtr_file = "VTK_viscous_bubble_FD_30x110x30/Solver_00007.pvtr"
-xF_pvtr,yF_pvtr,zF_pvtr = "VTK_viscous_bubble_FD_30x110x30/xFvel_00007.pvtr","VTK_viscous_bubble_FD_30x110x30/yFvel_00007.pvtr","VTK_viscous_bubble_FD_30x110x30/zFvel_00007.pvtr"
-pvd_file = "VTK_viscous_bubble_FD_30x110x30/Solver.pvd"
+pvtr_file = "VTK_viscous_bubble_SL_30x110x30_test/Solver_00108.pvtr"
+xF_pvtr,yF_pvtr,zF_pvtr = "VTK_viscous_bubble_SL_30x110x30_test/xFvel_00108.pvtr","VTK_viscous_bubble_SL_30x110x30_test/yFvel_00108.pvtr","VTK_viscous_bubble_SL_30x110x30_test/zFvel_00108.pvtr"
+pvd_file = "VTK_viscous_bubble_SL_30x110x30_test/Solver.pvd"
 restart_files = (cell_data=pvtr_file,xFace_data=xF_pvtr,yFace_data=yF_pvtr,zFace_data=zF_pvtr,pvd_data=pvd_file)
 
 
