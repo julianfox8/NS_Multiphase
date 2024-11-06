@@ -44,6 +44,7 @@ param = parameters(
 
     # Restart  
     # restart = true,
+    restart_itr = 107,
 
     # pressureSolver = "NLsolve",
     # pressureSolver = "sparseSecant",
@@ -169,11 +170,5 @@ function outflow_area(mesh,par_env)
 end
 outflow =(area=outflow_area,correction=outflow_correction!)
 
-pvtr_file = "VTK_viscous_bubble_SL_30x110x30_test/Solver_00108.pvtr"
-xF_pvtr,yF_pvtr,zF_pvtr = "VTK_viscous_bubble_SL_30x110x30_test/xFvel_00108.pvtr","VTK_viscous_bubble_SL_30x110x30_test/yFvel_00108.pvtr","VTK_viscous_bubble_SL_30x110x30_test/zFvel_00108.pvtr"
-pvd_file = "VTK_viscous_bubble_SL_30x110x30_test/Solver.pvd"
-restart_files = (cell_data=pvtr_file,xFace_data=xF_pvtr,yFace_data=yF_pvtr,zFace_data=zF_pvtr,pvd_data=pvd_file)
-
-
 # Simply run solver on 1 processor
-@time run_solver(param, IC!, BC!,outflow,restart_files)
+@time run_solver(param, IC!, BC!,outflow)

@@ -4,6 +4,7 @@ authors = ["Mark Owkes"]
 version = "0.1.0"
 
 [deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 EzXML = "8f5d6c58-4d21-5cfd-889c-e3ad7ee6a615"
 FLoops = "cc61a311-1640-44b5-9fba-1b764f453329"
 FoldsThreads = "9c68100b-dfe1-47cf-94c8-95104e173443"
@@ -30,6 +31,7 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 XML = "72c71f33-b9b6-44de-8c94-c961784809e2"
 
 [compat]
+CSV = "0.10.15"
 FLoops = "0.2"
 FoldsThreads = "0.1"
 Parameters = "0.12"

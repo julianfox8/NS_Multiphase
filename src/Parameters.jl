@@ -47,6 +47,8 @@ using Parameters
 
     # Restart simulation
     restart :: Bool = false
+    restart_itr :: Int64 = 0
+
     
     # Navier Stokes solver
     solveNS :: Bool = true 

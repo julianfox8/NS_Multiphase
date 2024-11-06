@@ -35,7 +35,7 @@ include("WriteData.jl")
 include("ReadData.jl")
 # include("hyp.jl")
 
-function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
+function run_solver(param, IC!, BC!, outflow)
     @unpack Nx,stepMax,tFinal,solveNS,pressure_scheme,restart,tol = param
 
     # Create parallel environment
@@ -62,7 +62,7 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
     if restart == true
         # pvtk_file,pvd_file,pvtk_dict = gather_restart_files(restart_files,mesh,par_env)
         # domain_check(mesh,pvtk_dict)
-        t,nstep = fillArrays(restart_files,P,uf,vf,wf,VF,param,mesh,par_env)
+        t,nstep = fillArrays(P,uf,vf,wf,VF,param,mesh,par_env)
         Neumann!(VF,mesh,par_env)
         if isroot ; println("Solver restart at time: ", round(t,digits= 4)); end        # Update processor boundaries (overwrites BCs if periodic)
         update_VF_borders!(VF,mesh,par_env)
@@ -118,7 +118,7 @@ function run_solver(param, IC!, BC!, outflow,restart_files = nothing)
 
     # Initialize VTK outputs
     if restart == true && isroot == true
-        pvd_file_cleanup!(restart_files,t)
+        pvd_file_cleanup!(t,param)
     end
 
     pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC = VTK_init(param,par_env)

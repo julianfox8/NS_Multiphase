@@ -105,22 +105,26 @@ function reshape_pvtk_data(data, pt_data, irank)
     reshape(data, (ext_x, ext_y, ext_z))
 end
 
-function fillArrays(restart_files,P,uf,vf,wf,VF,param,mesh,par_env)
+function fillArrays(P,uf,vf,wf,VF,param,mesh,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack irank = par_env
+    @unpack VTK_dir,restart_itr = param
+
+    # Format restart iteration number 
+    restart_itr = format(restart_itr)
    
     # Read VTK files
-    cell_data_restart = PVTKFile(restart_files.cell_data)
-    xFace_data_restart = PVTKFile(restart_files.xFace_data)
-    yFace_data_restart = PVTKFile(restart_files.yFace_data)
-    zFace_data_restart = PVTKFile(restart_files.zFace_data)
-    pvd_file_restart = PVDFile(restart_files.pvd_data)
+    cell_data_restart  = PVTKFile(VTK_dir*"/Solver_"*restart_itr*".pvtr",dir=VTK_dir)
+    xFace_data_restart = PVTKFile(VTK_dir*"/xFvel_" *restart_itr*".pvtr",dir=VTK_dir)
+    yFace_data_restart = PVTKFile(VTK_dir*"/yFvel_" *restart_itr*".pvtr",dir=VTK_dir)
+    zFace_data_restart = PVTKFile(VTK_dir*"/zFvel_" *restart_itr*".pvtr",dir=VTK_dir)
+    pvd_file_restart   =  PVDFile(VTK_dir*"/Solver.pvd")
 
     # Create cell data objects and fill dict 
     cell_data = get_cell_data(cell_data_restart)
-    xpt_data = get_cell_data(xFace_data_restart)
-    ypt_data = get_cell_data(yFace_data_restart)
-    zpt_data = get_cell_data(zFace_data_restart)
+    xpt_data  = get_cell_data(xFace_data_restart)
+    ypt_data  = get_cell_data(yFace_data_restart)
+    zpt_data  = get_cell_data(zFace_data_restart)
     pvtk_data = Dict()
 
     # Need keys from each cell data object
@@ -206,9 +210,11 @@ function fillArrays(restart_files,P,uf,vf,wf,VF,param,mesh,par_env)
     return t,n_step
 end
  
-function pvd_file_cleanup!(restart_files, t)
+function pvd_file_cleanup!(t,param)
+    @unpack VTK_dir = param
+
     # clean up XML file to remove iterations past restart timestep
-    doc = readxml(restart_files.pvd_data)
+    doc = readxml(VTK_dir*"/Solver.pvd")
     elements2remove = []
     for i in eachelement(doc.root)
         for j in eachelement(i)
@@ -222,5 +228,5 @@ function pvd_file_cleanup!(restart_files, t)
         unlink!(n)
     end
 
-    write(restart_files.pvd_data,doc)
+    write(VTK_dir*"/Solver.pvd",doc)
 end
