@@ -84,7 +84,7 @@ function format(iter)
     return @sprintf("%05i",iter)
 end
 
-function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz)
+function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
     @unpack VTK_dir,restart = param
     @unpack irank = par_env
 
@@ -206,7 +206,7 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
 
 
     # Write PLIC as unstructured mesh 
-    pts, tris = PLIC2Mesh(nx,ny,nz,D,VF,param,mesh)
+    pts, tris = PLIC2Mesh(nx,ny,nz,D,VF,verts,tets,param,mesh)
 
     # Put pts into VTK format 
     npts = length(pts)

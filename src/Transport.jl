@@ -1,5 +1,5 @@
 
-function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t)
+function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
     @unpack gravity,pressure_scheme,VFlo,VFhi = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -13,7 +13,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     # Compute PLIC reconstruction 
     computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
-
     # Transport velocity and volume fraction 
     fill!(VFnew,0.0)
     fill!(Curve,0.0)
@@ -26,7 +25,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     d = Array{Float64}(undef, 4,nThread)
     newtet = Array{Float64}(undef, 3, 4,nThread)
 
-    # compute surface tension\
+    # compute surface tension
     fill!(Curve,0.0)
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
@@ -37,17 +36,19 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         
         # Calculate inertia near or away from the interface
-        # Check if near interface
         if abs(band[i,j,k]) <= 1
             # Semi-Lagrangian near interface 
             # ------------------------------
-            # From projected cell and break into tets using face velocities
-            tets,inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
+            # Form projected cell and break into tets using face velocities
+            tetsign = cell2tets!(verts,tets,i,j,k,mesh; 
+                project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,
+                compute_indices=true,inds=inds,vInds=vInds)
 
-            # if pressure_scheme == "finite-difference"
-            #     # Add correction tets 
-            #     tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
-            # end
+            if pressure_scheme == "finite-difference"
+                # Add correction tets 
+                error("Fix correction tets for odd/even cell2tets")
+                tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
+            end
             
             # Compute VF in semi-Lagrangian cell 
             vol  = 0.0
@@ -60,15 +61,13 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
                                     u,v,w,
                                     false,false,false,nx,ny,nz,D,mesh,
                                     1,vert,vert_ind,d,newtet)
-                vol += tetVol
-                vLiq += tetvLiq
-                vU   += tetvU
-                vV   += tetvV
-                vW   += tetvW
+                vol  += tetsign * tetVol
+                vLiq += tetsign * tetvLiq
+                vU   += tetsign * tetvU
+                vV   += tetsign * tetvV
+                vW   += tetsign * tetvW
             end
             VFnew[i,j,k] = vLiq/vol
-            # VFnew[i,j,k] = max(VFlo,min(1.0,vLiq/vol))
-
             us[i,j,k] = vU/vol
             vs[i,j,k] = vV/vol
             ws[i,j,k] = vW/vol
