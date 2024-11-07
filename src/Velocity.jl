@@ -55,77 +55,36 @@ function interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
     return nothing
 end
 
-function divergence(divg,uf,vf,wf,dt,band,mesh,param,par_env)
+function divergence!(divg,uf,vf,wf,dt,band,mesh,param,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack pressure_scheme = param
-    # println(band)
     fill!(divg,0.0)
+    tets_arr = Array{Float64}(undef, 3, 4, 5)
+    p = Matrix{Float64}(undef, (3, 8))
     @loop param for  k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-
-        # Check if near interface
-        if pressure_scheme == "semi-lagrangian" && abs(band[i,j,k]) <=1
-            # Calculate divergence with semi-lagrangian scheme
-            tets, inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
-            if any(isnan,tets)
-                error("Nan in tets at ", i,j,k)
-            end
-            v2 = dx*dy*dz
-            v1 = tets_vol(tets)
-            divg[i,j,k] = (v2-v1) /̂ v2 /̂ dt
-            # if divg[i,j,k] >= 1e-4
-            #     println("semi-Lag div")
-            #     @show i, j, k
-            #     println(divg[i,j,k])
-            #     # println(dv_dy)
-            #     # println(dw_dz)
-            # end
-
-        else
-            # Calculate divergence with finite differnce
-            du_dx = ( uf[i+1,j,k] - uf[i,j,k] )/(dx)
-            dv_dy = ( vf[i,j+1,k] - vf[i,j,k] )/(dy)
-            dw_dz = ( wf[i,j,k+1] - wf[i,j,k] )/(dz)
-                
-            # Divergence
-            divg[i,j,k] = du_dx + dv_dy + dw_dz
-            # if divg[i,j,k] >= 1e-4
-            #     println("FD div")
-            #     @show i, j, k
-            #     println(divg[i,j,k])
-            #     # error(i,",",j,",",k)
-            # end
-        end
+        divg[i,j,k] = divg_cell(i,j,k,uf,vf,wf,band,dt,p,tets_arr,param,mesh)
     end
 
     return divg
 end
 
-function semi_lag_divergence(uf,vf,wf,dt,mesh,par_env)
-    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    
-    divg = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+# Divergence in a computational cell ∇⋅u
+function divg_cell(i,j,k,uf,vf,wf,band,dt,p,tets_arr,param,mesh)
+    @unpack dx,dy,dz = mesh
+    @unpack pressure_scheme = param
 
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        tets, inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
-        if any(isnan,tets)
-            error("Nan in tets at ", i,j,k)
-        end
+    if pressure_scheme == "semi-lagrangian" &&abs(band[i,j,k]) <= 1
+        # Calculate divergence with semi-Lagrangian
+        cell2tets_uvwf_A!(i,j,k,uf,vf,wf,dt,p,tets_arr,mesh)
         v2 = dx*dy*dz
-        v1 = tets_vol(tets)
-        divg[i,j,k] = (v2-v1) /̂ v2 /̂ dt
+        v1 = tets_vol(tets_arr)
+        divg = (v2-v1) /̂ v2 /̂ dt
+
+    else
+        # Calculate divergence with finite differnce
+        du_dx = ( uf[i+1,j,k] - uf[i,j,k] )/(dx)
+        dv_dy = ( vf[i,j+1,k] - vf[i,j,k] )/(dy)
+        dw_dz = ( wf[i,j,k+1] - wf[i,j,k] )/(dz)
+        divg = du_dx + dv_dy + dw_dz
     end
-
     return divg
-end
-
-# function semi_lag_divergence(uf,vf,wf,dt,mesh)
-#     tets, inds = cell2tets_withProject_uvwf(i,j,k,uf,vf,wf,dt,mesh)
-#     if any(isnan,tets)
-#         error("Nan in tets at ", i,j,k)
-#     end
-#     v2 = dx*dy*dz
-#     v1 = tets_vol(tets)
-#     divg[i,j,k] = (v2-v1) /̂ v2 /̂ dt
-
-#     return divg
-# end
+end 

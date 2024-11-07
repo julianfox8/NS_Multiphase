@@ -50,7 +50,7 @@ function run_solver(param, IC!, BC!, outflow)
     @unpack dx,dy,dz,x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     # Create work arrays
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg = initArrays(mesh)
 
     HYPRE.Init()
 
@@ -114,7 +114,7 @@ function run_solver(param, IC!, BC!, outflow)
     dt = compute_dt(u,v,w,param,mesh,par_env)
 
     # Check semi-lagrangian divergence
-    divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
+    divergence!(divg,uf,vf,wf,dt,band,mesh,param,par_env)
 
     # Initialize VTK outputs
     if restart == true && isroot == true
@@ -181,7 +181,7 @@ function run_solver(param, IC!, BC!, outflow)
         terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
         # println(terminal_vel)
         # # Check divergence
-        divg = divergence(tmp1,uf,vf,wf,dt,band,mesh,param,par_env)
+        divergence!(divg,uf,vf,wf,dt,band,mesh,param,par_env)
         compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         # Output
         std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter,mesh,param,par_env)

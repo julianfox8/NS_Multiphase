@@ -106,21 +106,7 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,m
     fill!(LHS,0.0)
 
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        if abs(band[i,j,k]) <= 1
-            # cell2tets_uvwf_A!(i,j,k,gradx,grady,gradz,dt,p,tets_arr,mesh)
-            tets, inds = cell2tets_withProject_uvwf(i,j,k,gradx,grady,gradz,dt,mesh)
-            v2 = dx*dy*dz
-            # v1 = tets_vol(tets_arr)
-            v1 = tets_vol(tets)
-
-            LHS[i,j,k] = (v2-v1) /̂ v2 /̂ dt
-        else 
-            # Calculate divergence with finite differnce
-            du_dx = ( gradx[i+1,j,k] - gradx[i,j,k] )/(dx)
-            dv_dy = ( grady[i,j+1,k] - grady[i,j,k] )/(dy)
-            dw_dz = ( gradz[i,j,k+1] - gradz[i,j,k] )/(dz)
-            LHS[i,j,k] = du_dx + dv_dy + dw_dz
-        end
+        LHS[i,j,k] = divg_cell(i,j,k,gradx,grady,gradz,band,dt,p,tets_arr,param,mesh)
     end
     return nothing
 end
@@ -144,19 +130,8 @@ function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets
         gradz[ii,jj,kk]=wf[ii,jj,kk] -dt/̂denz[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
     end
 
-    if abs(band[i,j,k]) <= 1
-        cell2tets_uvwf_A!(i,j,k,gradx,grady,gradz,dt,p,tets_arr,mesh)
-        v2 = dx*dy*dz
-        v1 = tets_vol(tets_arr)
-        LHS[i,j,k] = (v2-v1) /̂ v2 /̂ dt
+    LHS[i,j,k] = divg_cell(i,j,k,gradx,grady,gradz,band,dt,p,tets_arr,param,mesh)
 
-    else
-        # Calculate divergence with finite differnce
-        du_dx = ( gradx[i+1,j,k] - gradx[i,j,k] )/̂(dx)
-        dv_dy = ( grady[i,j+1,k] - grady[i,j,k] )/̂(dy)
-        dw_dz = ( gradz[i,j,k+1] - gradz[i,j,k] )/̂(dz)
-        LHS[i,j,k] = du_dx + dv_dy + dw_dz
-    end
     return nothing
 end
 
