@@ -958,27 +958,27 @@ function add_perturb!(P,delta,ii,jj,kk,mesh,par_env)
     P[ii,jj,kk] += delta
 
     if ii == imin
-        P[ii-1,:,:] = P[ii,:,:]
+        P[ii-1,jj,kk] = P[ii,jj,kk]
     end
 
     if ii == imax
-        P[ii+1,:,:] = P[ii,:,:]
+        P[ii+1,jj,kk] = P[ii,jj,kk]
     end
 
     if jj == jmin
-        P[:,jj-1,:] = P[:,jj,:]
+        P[ii,jj-1,kk] = P[ii,jj,kk]
     end
 
     if jj == jmax 
-        P[:,jj+1,:] = P[:,jj,:]
+        P[ii,jj+1,kk] = P[ii,jj,kk]
     end
 
     if kk == kmin
-        P[:,:,kk-1] =P[:,:,kk]
+        P[ii,jj,kk-1] =P[ii,jj,kk]
     end
 
     if kk == kmax
-        P[:,:,kk+1] = P[:,:,kk]
+        P[ii,jj,kk+1] = P[ii,jj,kk]
     end
     return nothing
 end
@@ -993,27 +993,27 @@ function remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
     P[ii,jj,kk] -= delta
 
     if ii == imin
-        P[ii-1,:,:] = P[ii,:,:]
+        P[ii-1,jj,kk] = P[ii,jj,kk]
     end
 
     if ii == imax
-        P[ii+1,:,:] = P[ii,:,:]
+        P[ii+1,jj,kk] = P[ii,jj,kk]
     end
 
     if jj == jmin
-        P[:,jj-1,:] = P[:,jj,:]
+        P[ii,jj-1,kk] = P[ii,jj,kk]
     end
 
     if jj == jmax 
-        P[:,jj+1,:] = P[:,jj,:]
+        P[ii,jj+1,kk] = P[ii,jj,kk]
     end
 
     if kk == kmin
-        P[:,:,kk-1] =P[:,:,kk]
+        P[ii,jj,kk-1] =P[ii,jj,kk]
     end
 
     if kk == kmax
-        P[:,:,kk+1] = P[:,:,kk]
+        P[ii,jj,kk+1] = P[ii,jj,kk]
     end
     return nothing
 end
