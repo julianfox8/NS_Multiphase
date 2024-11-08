@@ -366,7 +366,7 @@ end
 """
 Add correction tets on to semi-Lagrangian cell
 """
-function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
+function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
     @unpack dx,dy,dz = mesh
 
     """ 
@@ -424,9 +424,9 @@ function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
         newtets[:,:,1:ntets] = tets
         # Construct correction tets
         if oddEvenCell(i,j,k)
-            newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,1],verts[:,3],verts[:,4],+(divg_vol - flux_vol))
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_z(verts[:,2],verts[:,1],verts[:,3],verts[:,4],+(divg_vol - flux_vol))
         else
-            newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,1],verts[:,3],verts[:,4],-(divg_vol - flux_vol))
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_z(verts[:,2],verts[:,1],verts[:,3],verts[:,4],-(divg_vol - flux_vol))
         end
         return newtets
     end
@@ -472,22 +472,22 @@ function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
     end
 
     # Add 2 tets to correct flux on each face 
-    new_tets = tets
-    new_tets = add_correction_tets_x(new_tets,verts,i  ,j,k)
-    new_tets = add_correction_tets_x(new_tets,verts,i+1,j,k)
-    new_tets = add_correction_tets_y(new_tets,verts,i,j  ,k)
-    new_tets = add_correction_tets_y(new_tets,verts,i,j+1,k)
-    new_tets = add_correction_tets_z(new_tets,verts,i,j,k  )
-    new_tets = add_correction_tets_z(new_tets,verts,i,j,k+1)
+    new_tets = tets[:,:,1:5]
+    new_tets = add_correction_tets_x(new_tets,verts,i  ,j,k); ntets += 2
+    new_tets = add_correction_tets_x(new_tets,verts,i+1,j,k); ntets += 2
+    new_tets = add_correction_tets_y(new_tets,verts,i,j  ,k); ntets += 2
+    new_tets = add_correction_tets_y(new_tets,verts,i,j+1,k); ntets += 2
+    new_tets = add_correction_tets_z(new_tets,verts,i,j,k  ); ntets += 2
+    new_tets = add_correction_tets_z(new_tets,verts,i,j,k+1); ntets += 2
     # Compute indices of new tets 
     new_inds = Array{eltype(inds)}(undef, size(new_tets))
-    new_inds[:,:,1:5] = inds # transfer original indices 
+    new_inds[:,:,1:5] = inds[:,:,1:5] # transfer original indices 
     for n = 6:size(new_tets,3)
         for v = 1:4
             pt2index!(@view(new_inds[:,v,n]),@view(new_tets[:,v,n]),i,j,k,mesh)
         end
     end
-    return new_tets, new_inds
+    return new_tets, new_inds, ntets
 end
 
 """

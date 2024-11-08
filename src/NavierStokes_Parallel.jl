@@ -62,6 +62,10 @@ function run_solver(param, IC!, BC!, outflow)
         if isroot ; println("Solver restart at time: ", round(t,digits= 4)); end        # Update processor boundaries (overwrites BCs if periodic)
         # Create cell centered velocities
         interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
+        # Update Processor boundaries
+        update_borders!(u,mesh,par_env)
+        update_borders!(v,mesh,par_env)
+        update_borders!(w,mesh,par_env)
     else
         # Create initial condition
         t = 0.0 :: Float64
@@ -96,10 +100,10 @@ function run_solver(param, IC!, BC!, outflow)
     computeBand!(band,VF,param,mesh,par_env)
 
     # Compute interface normal 
-    computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
+    !restart && computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
     # Compute PLIC reconstruction 
-    computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+    !restart && computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
     dt = compute_dt(u,v,w,param,mesh,par_env)
 
@@ -121,7 +125,7 @@ function run_solver(param, IC!, BC!, outflow)
     h_last =[100]
 
     std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,0,mesh,param,par_env)
-    VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
+    !restart && VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
 
     # Loop over time
     # nstep = 0

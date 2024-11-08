@@ -165,8 +165,8 @@ function initArrays(mesh)
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(gradz,0.0)
     divg  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(divg,0.0)
 
-    tets  = Array{Float64}(undef, 3, 4, 5)
-    inds  = Array{Int32}(undef, 3, 4, 5)
+    tets  = Array{Float64}(undef, 3, 4, 17)
+    inds  = Array{Int32}(undef, 3, 4, 17)
     verts = Array{Float64}(undef, 3, 8)
     vInds = Array{Int32}(undef, 3, 8)
 

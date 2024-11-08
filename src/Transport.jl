@@ -37,13 +37,14 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             # Semi-Lagrangian near interface 
             # ------------------------------
             # Form projected cell and break into tets using face velocities
+            ntets = 5
             tetsign = cell2tets!(verts,tets,i,j,k,mesh; 
                 project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,
                 compute_indices=true,inds=inds,vInds=vInds)
 
             if pressure_scheme == "finite-difference"
                 # Add correction tets 
-                tets,inds = add_correction_tets(verts,tets,inds,i,j,k,uf,vf,wf,dt,mesh)
+                tets,inds,ntets = add_correction_tets(ntets,verts,tets,inds,i,j,k,uf,vf,wf,dt,mesh)
             end
             
             # Compute VF in semi-Lagrangian cell 
@@ -52,7 +53,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             vU   = 0.0
             vV   = 0.0
             vW   = 0.0
-            for tet in eachindex(view(tets,1,1,:))
+            for tet in eachindex(view(tets,1,1,1:ntets))
                 tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tets[:,:,tet],inds[:,:,tet],
                                     u,v,w,
                                     false,false,false,nx,ny,nz,D,mesh,
