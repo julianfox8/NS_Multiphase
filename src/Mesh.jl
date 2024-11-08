@@ -44,6 +44,12 @@ struct mesh_struct
     Gjmax_ :: Vector{Int64};
     Gkmin_ :: Vector{Int64};
     Gkmax_ :: Vector{Int64};
+    Gimino_ :: Vector{Int64};
+    Gimaxo_ :: Vector{Int64};
+    Gjmino_ :: Vector{Int64};
+    Gjmaxo_ :: Vector{Int64};
+    Gkmino_ :: Vector{Int64};
+    Gkmaxo_ :: Vector{Int64};
 end
 
 function  create_mesh(param,par_env)
@@ -148,6 +154,12 @@ function  create_mesh(param,par_env)
     Gjmax_ = MPI.Allgather(jmax_,comm)
     Gkmin_ = MPI.Allgather(kmin_,comm)
     Gkmax_ = MPI.Allgather(kmax_,comm)
+    Gimino_ = MPI.Allgather(imino_,comm)
+    Gimaxo_ = MPI.Allgather(imaxo_,comm)
+    Gjmino_ = MPI.Allgather(jmino_,comm)
+    Gjmaxo_ = MPI.Allgather(jmaxo_,comm)
+    Gkmino_ = MPI.Allgather(kmino_,comm)
+    Gkmaxo_ = MPI.Allgather(kmaxo_,comm)
     
     # Put in struct
     mesh = mesh_struct(
@@ -171,6 +183,12 @@ function  create_mesh(param,par_env)
         Gjmax_,
         Gkmin_,
         Gkmax_,
+        Gimino_,
+        Gimaxo_,
+        Gjmino_,
+        Gjmaxo_,
+        Gkmino_,
+        Gkmaxo_,
         )
 
     return mesh::mesh_struct

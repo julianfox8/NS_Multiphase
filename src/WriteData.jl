@@ -63,19 +63,15 @@ function VTK_init(param,par_env)
         end
     end
     MPI.Barrier(par_env.comm)
-    pvd      = paraview_collection(joinpath(dir,"Solver"),append=restart)
-    pvd_xface = paraview_collection(joinpath(dir,"xFvel"),append=restart)
-    pvd_yface = paraview_collection(joinpath(dir,"yFvel"),append=restart)
-    pvd_zface = paraview_collection(joinpath(dir,"zFvel"),append=restart)
-    pvd_PLIC = paraview_collection(joinpath(dir,"PLIC"),append=restart)
-    return pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC
+    pvd         = paraview_collection(joinpath(dir,"Solver"),append=restart)
+    pvd_restart = paraview_collection(joinpath(dir,"restart"),append=restart)
+    pvd_PLIC    = paraview_collection(joinpath(dir,"PLIC"),append=restart)
+    return pvd,pvd_restart,pvd_PLIC
 end
    
 function VTK_finalize(pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC)
     vtk_save(pvd)
-    vtk_save(pvd_xface)
-    vtk_save(pvd_yface)
-    vtk_save(pvd_zface)
+    vtk_save(pvd_restart)
     vtk_save(pvd_PLIC)
     return nothing
 end
@@ -84,7 +80,7 @@ function format(iter)
     return @sprintf("%05i",iter)
 end
 
-function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
+function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
     @unpack VTK_dir,restart = param
     @unpack irank = par_env
 
@@ -96,7 +92,8 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
     @unpack x,y,z,xm,ym,zm,
             imin_,imax_,jmin_,jmax_,kmin_,kmax_,
             imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,
-            Gimin_,Gimax_,Gjmin_,Gjmax_,Gkmin_,Gkmax_ = mesh
+            Gimin_,Gimax_,Gjmin_,Gjmax_,Gkmin_,Gkmax_,
+            Gimino_,Gimaxo_,Gjmino_,Gjmaxo_,Gkmino_,Gkmaxo_ = mesh
     @unpack irank,nproc = par_env
     # Build extents array
     p=1; extents=[(Gimin_[p]:Gimax_[p]+1,Gjmin_[p]:Gjmax_[p]+1,Gkmin_[p]:Gkmax_[p]+1), ]
@@ -143,67 +140,29 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
             pvd[time] = pvtk
         end
     
-
-    # Build x-face extents array
-    p=1; extents_xface=[(Gimin_[p]-1:Gimax_[p]+2,Gjmin_[p]-1:Gjmax_[p]+1,Gkmin_[p]-1:Gkmax_[p]+1), ]
+    ## Restart data (note not stored at correct locations)
+    p=1; extents_restart=[(Gimino_[p]:Gimaxo_[p]+1,Gjmino_[p]:Gjmaxo_[p]+1,Gkmino_[p]:Gkmaxo_[p]+1), ]
     for p = 2:nproc
-       push!(extents_xface,(Gimin_[p]-1:Gimax_[p]+2,Gjmin_[p]-1:Gjmax_[p]+1,Gkmin_[p]-1:Gkmax_[p]+1))
+       push!(extents_restart,(Gimino_[p]:Gimaxo_[p]+1,Gjmino_[p]:Gjmaxo_[p]+1,Gkmino_[p]:Gkmaxo_[p]+1))
     end
 
     # Write data to VTK
     pvtk_grid(
-        joinpath(pwd(),VTK_dir,"xFvel_"*format(iter)), 
-        xm[imin_-2:imax_+2], 
-        y[jmin_-1:jmax_+2],
-        z[kmin_-1:kmax_+2],
+        joinpath(pwd(),VTK_dir,"restart_"*format(iter)), 
+        x[imino_:imaxo_+1], 
+        y[jmino_:jmaxo_+1],
+        z[kmino_:kmaxo_+1],
         part = irank+1,
         nparts = nproc,
-        extents = extents_xface,
+        extents = extents_restart,
         ) do pvtk
-            pvtk["X_F_Velocity"] = @views uf[imin_-1:imax_+2,jmin_-1:jmax_+1,kmin_-1:kmax_+1]
-            pvd_xface[time] = pvtk
+        pvtk["VF"] = @views VF[imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_]
+        pvtk["uf"] = @views uf[imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_]
+        pvtk["vf"] = @views vf[imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_]
+        pvtk["wf"] = @views wf[imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_]
+        pvtk["P" ] = @views  P[imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_]
+        pvd_restart[time] = pvtk
     end
-
-    # Build y-face extents array
-    p=1; extents_yface=[(Gimin_[p]-1:Gimax_[p]+1,Gjmin_[p]-1:Gjmax_[p]+2,Gkmin_[p]-1:Gkmax_[p]+1), ]
-    for p = 2:nproc
-        push!(extents_yface,(Gimin_[p]-1:Gimax_[p]+1,Gjmin_[p]-1:Gjmax_[p]+2,Gkmin_[p]-1:Gkmax_[p]+1))
-    end
-
-    # Write data to VTK
-    pvtk_grid(
-        joinpath(pwd(),VTK_dir,"yFvel_"*format(iter)), 
-        x[imin_-1:imax_+2], 
-        ym[jmin_-2:jmax_+2],
-        z[kmin_-1:kmax_+2],
-        part = irank+1,
-        nparts = nproc,
-        extents = extents_yface,
-        ) do pvtk
-            pvtk["Y_F_Velocity"] = @views vf[imin_-1:imax_+1,jmin_-1:jmax_+2,kmin_-1:kmax_+1]
-            pvd_yface[time] = pvtk
-    end
-    
-    # Build z-face extents array
-    p=1; extents_zface=[(Gimin_[p]-1:Gimax_[p]+1,Gjmin_[p]-1:Gjmax_[p]+1,Gkmin_[p]-1:Gkmax_[p]+2), ]
-    for p = 2:nproc
-       push!(extents_zface,(Gimin_[p]-1:Gimax_[p]+1,Gjmin_[p]-1:Gjmax_[p]+1,Gkmin_[p]-1:Gkmax_[p]+2))
-    end
-
-    # Write data to VTK
-    pvtk_grid(
-        joinpath(pwd(),VTK_dir,"zFvel_"*format(iter)), 
-        x[imin_-1:imax_+2], 
-        y[jmin_-1:jmax_+2],
-        zm[kmin_-2:kmax_+2],
-        part = irank+1,
-        nparts = nproc,
-        extents = extents_zface,
-        ) do pvtk
-            pvtk["Z_F_Velocity"] = @views wf[imin_-1:imax_+1,jmin_-1:jmax_+1,kmin_-1:kmax_+2]
-            pvd_zface[time] = pvtk
-    end
-
 
     # Write PLIC as unstructured mesh 
     pts, tris = PLIC2Mesh(nx,ny,nz,D,VF,verts,tets,param,mesh)
@@ -249,29 +208,14 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
         # end
     end
 
-    if isopen(pvd_xface)
+    if isopen(pvd_restart)
         # if pvd.appended
         #     WriteVTK.save_with_appended_data(pvd)
         # else
-            WriteVTK.save_file(pvd_xface.xdoc, pvd_xface.path)
+            WriteVTK.save_file(pvd_restart.xdoc, pvd_restart.path)
         # end
     end
     
-    if isopen(pvd_yface)
-        # if pvd.appended
-        #     WriteVTK.save_with_appended_data(pvd)
-        # else
-            WriteVTK.save_file(pvd_yface.xdoc, pvd_yface.path)
-        # end
-    end
-    
-    if isopen(pvd_zface)
-        # if pvd.appended
-        #     WriteVTK.save_with_appended_data(pvd)
-        # else
-            WriteVTK.save_file(pvd_zface.xdoc, pvd_zface.path)
-        # end
-    end
     if isopen(pvd_PLIC)
         # if pvd_PLIC.appended
         #     WriteVTK.save_with_appended_data(pvd_PLIC)

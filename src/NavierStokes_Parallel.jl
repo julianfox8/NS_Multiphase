@@ -116,7 +116,7 @@ function run_solver(param, IC!, BC!, outflow)
         pvd_file_cleanup!(t,param)
     end
 
-    pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC = VTK_init(param,par_env)
+    pvd,pvd_restart,pvd_PLIC = VTK_init(param,par_env)
 
 
     # Grab initial volume fraction sum
@@ -127,7 +127,7 @@ function run_solver(param, IC!, BC!, outflow)
     h_last =[100]
 
     std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,0,mesh,param,par_env)
-    VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
+    VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
 
     # Loop over time
     # nstep = 0
@@ -180,7 +180,7 @@ function run_solver(param, IC!, BC!, outflow)
         compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
         # Output
         std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter,mesh,param,par_env)
-        VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_xface,pvd_yface,pvd_zface,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
+        VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
 
         # error("stop")
     end
