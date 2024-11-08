@@ -170,7 +170,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     #######################################
     # Viscous & Surface Tension & Gravity #
     #######################################
-
+    
     # Compute viscous fluxes : x faces
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
         dudx = (u[i,j,k] - u[i-1,j,k])/dx
@@ -202,10 +202,10 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     # Apply viscous fluxes, surface tension force, and gravitational force
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # u: x-velocity
-        us[i,j,k] = u[i,j,k] + dt/(dx*dy*dz) * (
+        us[i,j,k] = us[i,j,k] + dt/(dx*dy*dz) * (
                 Fux[i+1,j,k] - Fux[i,j,k] +
                 Fuy[i,j+1,k] - Fuy[i,j,k] + 
-                Fuz[i,j,k+1] - Fuz[i,j,k] ) +
+                Fuz[i,j,k+1] - Fuz[i,j,k]) +
                 dt*sfx[i,j,k]/̂(0.5*(denx[i+1,j,k]+denx[i,j,k]))
         # v: y-velocity           
         vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
