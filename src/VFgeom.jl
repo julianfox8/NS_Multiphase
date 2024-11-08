@@ -360,13 +360,14 @@ function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,mesh)
      # Compute flux volume 
      flux_vol = tets_vol(tets) * tetsign
     
-     return flux_vol, tetsign
+     return flux_vol
 end
 
 """
 Add correction tets on to semi-Lagrangian cell
 """
 function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
+    @unpack dx,dy,dz = mesh
 
     """ 
     Add correction tets on faces 
@@ -376,7 +377,7 @@ function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
         # Create seperate tets work array to not impact exisiting tets 
         tets_work  = Array{Float64}(undef, 3, 4, 5)
         # Constrct SL flux volume - compute volume and set verts 
-        flux_vol, tetsign = SLfluxVol(1,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
+        flux_vol = SLfluxVol(1,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
         # Compute required volume 
         divg_vol = dt*dy*dz*uf[i,j,k]
         # Create array with 2 additional tets appended 
@@ -385,9 +386,9 @@ function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
         newtets[:,:,1:ntets] = tets
         # Construct correction tets
         if oddEvenCell(i,j,k)
-            newtets[:,:,ntets+1:ntets+2] = correction_tets_x(verts[:,5],verts[:,7],verts[:,3],verts[:,1],tetsign*(divg_vol - flux_vol))
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_x(verts[:,5],verts[:,7],verts[:,3],verts[:,1],+(divg_vol - flux_vol))
         else
-            newtets[:,:,ntets+1:ntets+2] = correction_tets_x(verts[:,8],verts[:,6],verts[:,2],verts[:,4],tetsign*(divg_vol - flux_vol))
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_x(verts[:,8],verts[:,6],verts[:,2],verts[:,4],-(divg_vol - flux_vol))
         end
         return newtets
     end
@@ -395,7 +396,7 @@ function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
         # Create seperate tets work array to not impact exisiting tets 
         tets_work  = Array{Float64}(undef, 3, 4, 5)
         # Constrct SL flux volume - compute volume and set verts 
-        flux_vol, tetsign = SLfluxVol(2,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
+        flux_vol = SLfluxVol(2,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
         # Compute required volume 
         divg_vol = dt*dx*dz*vf[i,j,k]
         # Create array with 2 additional tets appended 
@@ -403,14 +404,18 @@ function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
         newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
         newtets[:,:,1:ntets] = tets
         # Construct correction tets
-        newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,6],verts[:,5],verts[:,1],tetsign*(divg_vol - flux_vol))
+        if oddEvenCell(i,j,k)
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,6],verts[:,5],verts[:,1],+(divg_vol - flux_vol))
+        else
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,6],verts[:,5],verts[:,1],-(divg_vol - flux_vol))
+        end
         return newtets
     end
     function add_correction_tets_z(tets,verts,i,j,k)
         # Create seperate tets work array to not impact exisiting tets 
         tets_work  = Array{Float64}(undef, 3, 4, 5)
         # Constrct SL flux volume - compute volume and set verts 
-        flux_vol, tetsign = SLfluxVol(3,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
+        flux_vol = SLfluxVol(3,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
         # Compute required volume 
         divg_vol = dt*dx*dy*wf[i,j,k]
         # Create array with 2 additional tets appended 
@@ -418,7 +423,11 @@ function add_correction_tets(verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
         newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
         newtets[:,:,1:ntets] = tets
         # Construct correction tets
-        newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,1],verts[:,3],verts[:,4],tetsign*(divg_vol - flux_vol))
+        if oddEvenCell(i,j,k)
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,1],verts[:,3],verts[:,4],+(divg_vol - flux_vol))
+        else
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,1],verts[:,3],verts[:,4],-(divg_vol - flux_vol))
+        end
         return newtets
     end
 
