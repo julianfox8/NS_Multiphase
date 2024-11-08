@@ -23,7 +23,7 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter
     max_u    = parallel_max(abs.(u[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_v    = parallel_max(abs.(v[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_w    = parallel_max(abs.(w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
-    max_divg = parallel_max(abs.(divg),par_env)
+    max_divg = parallel_max(abs.(divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
     sum_VF = parallel_sum(VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]*dx*dy*dz,par_env)
     vel_t_height = parallel_max(terminal_vel,par_env)
     # println(vel_t_height)

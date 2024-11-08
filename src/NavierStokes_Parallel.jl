@@ -58,15 +58,8 @@ function run_solver(param, IC!, BC!, outflow)
 
     # Check simulation param for restart
     if restart == true
-        # pvtk_file,pvd_file,pvtk_dict = gather_restart_files(restart_files,mesh,par_env)
-        # domain_check(mesh,pvtk_dict)
         t,nstep = fillArrays(P,uf,vf,wf,VF,param,mesh,par_env)
-        Neumann!(VF,mesh,par_env)
         if isroot ; println("Solver restart at time: ", round(t,digits= 4)); end        # Update processor boundaries (overwrites BCs if periodic)
-        update_VF_borders!(VF,mesh,par_env)
-        update_xface_borders!(uf,mesh,par_env)
-        update_yface_borders!(vf,mesh,par_env)
-        update_zface_borders!(wf,mesh,par_env)
         # Create cell centered velocities
         interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
     else
@@ -85,7 +78,6 @@ function run_solver(param, IC!, BC!, outflow)
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
     end
 
-    MPI.Barrier(par_env.comm)
     csv_init(param,par_env)
     terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
     # error("stop")
@@ -110,6 +102,8 @@ function run_solver(param, IC!, BC!, outflow)
     computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
     dt = compute_dt(u,v,w,param,mesh,par_env)
+
+    divergence!(divg,uf,vf,wf,dt,band,verts,tets,mesh,param,par_env)
 
     # Initialize VTK outputs
     if restart == true && isroot == true
@@ -149,6 +143,9 @@ function run_solver(param, IC!, BC!, outflow)
         
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
+
+        # Update bands with transported VF
+        computeBand!(band,VF,param,mesh,par_env)
     
         if solveNS
   

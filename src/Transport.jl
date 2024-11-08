@@ -3,9 +3,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     @unpack gravity,pressure_scheme,VFlo,VFhi = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-
-    # Create band around interface 
-    computeBand!(band,VF,param,mesh,par_env)
     
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
