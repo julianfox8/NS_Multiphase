@@ -143,8 +143,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             vs[i,j,k] = vV/vol
             ws[i,j,k] = vW/vol
         else
-            # Finite-differences for intertia away from interface 
-            # --------------------------------------
+            # Apply fluxes away from interface
+            # --------------------------------
             # VF (doesn't change)
             VFnew[i,j,k] = VF[i,j,k]
         

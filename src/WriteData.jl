@@ -37,7 +37,7 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter
                 @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)  sum(mass_err)  vel_t_height  Piters\n")
             end
             # Write values
-            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g      %9.3g %12.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,VF_init-sum_VF,vel_t_height,iter)
+            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g    %9.3g %12.3g  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,VF_init-sum_VF,vel_t_height,iter)
             open(VTK_dir*".csv","a") do io
                 println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$VF_init-$sum_VF,$vel_t_height,$iter"))
             end
