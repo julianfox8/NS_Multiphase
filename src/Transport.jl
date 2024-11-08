@@ -43,8 +43,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
 
             if pressure_scheme == "finite-difference"
                 # Add correction tets 
-                error("Fix correction tets for odd/even cell2tets")
-                tets,inds = add_correction_tets(tets,inds,i,j,k,uf,vf,wf,dt,mesh)
+                tets,inds = add_correction_tets(verts,tets,inds,i,j,k,uf,vf,wf,dt,mesh)
             end
             
             # Compute VF in semi-Lagrangian cell 
