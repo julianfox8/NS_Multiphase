@@ -61,7 +61,7 @@ function pvd_file_cleanup!(t,param)
         elements2remove = []
         for i in eachelement(doc.root)
             for j in eachelement(i)
-                if parse(Float64,j["timestep"]) >= t
+                if parse(Float64,j["timestep"]) > t
                     push!(elements2remove,j)
                 end
             end
