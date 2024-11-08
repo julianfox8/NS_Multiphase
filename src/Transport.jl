@@ -1,5 +1,5 @@
 
-function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
+function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,Fvy,Fvz,Fwx,Fwy,Fwz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
     @unpack gravity,pressure_scheme,VFlo,VFhi = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -10,10 +10,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     # Compute PLIC reconstruction 
     computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
-    # Transport velocity and volume fraction 
-    fill!(VFnew,0.0)
-    fill!(Curve,0.0)
-
     # Preallocate for cutTet
     nLevel=100
     nThread = Threads.nthreads()
@@ -22,14 +18,92 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
     d = Array{Float64}(undef, 4,nThread)
     newtet = Array{Float64}(undef, 3, 4,nThread)
 
-    # compute surface tension
+    # Compute interface curvature
     fill!(Curve,0.0)
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     end
 
+    # Compute surface tension force
     compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
-    # Loop overdomain
+
+    ########################
+    #    Convective term   #
+    ########################
+
+    # Compute convective fluxes : x faces
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+        uface = 0.5*(u[i-1,j,k] + u[i,j,k])
+        vface = 0.5*(v[i-1,j,k] + v[i,j,k])
+        wface = 0.5*(w[i-1,j,k] + w[i,j,k])
+        if abs(band[i-1,j,k]) <= 1 && abs(band[i,j,k]) <= 1 
+            # No flux needed : Both cells transported with SL
+            Fux[i,j,k] = 0
+            Fvx[i,j,k] = 0
+            Fwx[i,j,k] = 0
+        elseif abs(band[i-1,j,k]) <=1 || abs(band[i,j,k]) <= 1
+            # Compute flux with SL : One of cells transported with SL
+            vol = SLfluxVol(1,i,j,k,verts,tets,uf,vf,wf,dt,mesh)/dt
+            Fux[i,j,k] = -uface * vol
+            Fvx[i,j,k] = -vface * vol
+            Fwx[i,j,k] = -wface * vol
+        else
+            # Compute flux with FD : Neither cell transported with SL 
+            Fux[i,j,k] = -uface * dy*dz*uf[i,j,k]
+            Fvx[i,j,k] = -vface * dy*dz*uf[i,j,k]
+            Fwx[i,j,k] = -wface * dy*dz*uf[i,j,k]
+        end
+    end
+
+    # Compute convective fluxes : y faces
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+        uface = 0.5*(u[i,j-1,k] + u[i,j,k])
+        vface = 0.5*(v[i,j-1,k] + v[i,j,k])
+        wface = 0.5*(w[i,j-1,k] + w[i,j,k])
+        if abs(band[i,j-1,k]) <= 1 && abs(band[i,j,k]) <= 1 
+            # No flux needed : Both cells transported with SL
+            Fuy[i,j,k] = 0
+            Fvy[i,j,k] = 0
+            Fwy[i,j,k] = 0
+        elseif abs(band[i,j-1,k]) <=1 || abs(band[i,j,k]) <= 1
+            # Compute flux with SL : One of cells transported with SL
+            vol = SLfluxVol(2,i,j,k,verts,tets,uf,vf,wf,dt,mesh)/dt
+            Fuy[i,j,k] = -uface * vol
+            Fvy[i,j,k] = -vface * vol
+            Fwy[i,j,k] = -wface * vol
+        else
+            # Compute flux with FD : Neither cell transported with SL 
+            Fuy[i,j,k] = -uface * dx*dz*vf[i,j,k]
+            Fvy[i,j,k] = -vface * dx*dz*vf[i,j,k]
+            Fwy[i,j,k] = -wface * dx*dz*vf[i,j,k]
+        end
+    end
+    
+    # Compute convective fluxes : z faces
+    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+        uface = 0.5*(u[i,j,k-1] + u[i,j,k])
+        vface = 0.5*(v[i,j,k-1] + v[i,j,k])
+        wface = 0.5*(w[i,j,k-1] + w[i,j,k])
+        if abs(band[i,j,k-1]) <= 1 && abs(band[i,j,k]) <= 1 
+            # No flux needed : Both cells transported with SL
+            Fuz[i,j,k] = 0
+            Fvz[i,j,k] = 0
+            Fwz[i,j,k] = 0
+        elseif abs(band[i,j,k-1]) <=1 || abs(band[i,j,k]) <= 1
+            # Compute flux with SL : One of cells transported with SL
+            vol = SLfluxVol(3,i,j,k,verts,tets,uf,vf,wf,dt,mesh)/dt
+            Fuz[i,j,k] = -uface * vol
+            Fvz[i,j,k] = -vface * vol
+            Fwz[i,j,k] = -wface * vol
+        else
+            # Compute flux with FD : Neither cell transported with SL 
+            Fuz[i,j,k] = -uface * dx*dy*wf[i,j,k]
+            Fvz[i,j,k] = -vface * dx*dy*wf[i,j,k]
+            Fwz[i,j,k] = -wface * dx*dy*wf[i,j,k]
+        end
+    end
+    
+    # Perform transport
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         
         # Calculate inertia near or away from the interface
@@ -75,126 +149,77 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fx,Fy,Fz,VFnew,Cu
             VFnew[i,j,k] = VF[i,j,k]
         
             # u: x-velocity
-            for ii = i:i+1 # Loop over faces 
-                uface = 0.5*(u[ii-1,j,k] + u[ii,j,k])
-                Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*uface ) # uf*uf or uf*uface ???
-            end           
-            for jj = j:j+1 # Loop over faces 
-                uface = 0.5*(u[i,jj-1,k] + u[i,jj,k])
-                Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*uface )
-            end          
-            for kk = k:k+1 # Loop over faces 
-                uface = 0.5*(u[i,j,kk-1] + u[i,j,kk])
-                Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*uface )
-            end
             us[i,j,k] = u[i,j,k] + dt/(dx*dy*dz) * (
-                    Fx[i+1,j,k] - Fx[i,j,k] +
-                    Fy[i,j+1,k] - Fy[i,j,k] + 
-                    Fz[i,j,k+1] - Fz[i,j,k]
-                )
-
+                    Fux[i+1,j,k] - Fux[i,j,k] +
+                    Fuy[i,j+1,k] - Fuy[i,j,k] + 
+                    Fuz[i,j,k+1] - Fuz[i,j,k] )
             # v: y-velocity           
-            for ii = i:i+1 # Loop over faces 
-                vface = 0.5*(v[ii-1,j,k] + v[ii,j,k])
-                Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*vface ) # uf*uf or uf*uface ???
-            end           
-            for jj = j:j+1 # Loop over faces 
-                vface = 0.5*(v[i,jj-1,k] + v[i,jj,k])
-                Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*vface )
-            end       
-            for kk = k:k+1 # Loop over faces 
-                vface = 0.5*(v[i,j,kk-1] + v[i,j,kk])
-                Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*vface )
-            end
             vs[i,j,k] = v[i,j,k] + dt/(dx*dy*dz) * (
-                    Fx[i+1,j,k] - Fx[i,j,k] +
-                    Fy[i,j+1,k] - Fy[i,j,k] + 
-                    Fz[i,j,k+1] - Fz[i,j,k]
-                )
+                    Fvx[i+1,j,k] - Fvx[i,j,k] +
+                    Fvy[i,j+1,k] - Fvy[i,j,k] + 
+                    Fvz[i,j,k+1] - Fvz[i,j,k] )
 
             # w: z-velocity
-            for ii = i:i+1 # Loop over faces 
-                wface = 0.5*(w[ii-1,j,k] + w[ii,j,k])
-                Fx[ii,j,k] = dy*dz*( - uf[ii,j,k]*wface ) # uf*uf or uf*uface ??
-            end       
-            for jj = j:j+1 # Loop over faces 
-                wface = 0.5*(w[i,jj-1,k] + w[i,jj,k])
-                Fy[i,jj,k] = dx*dz*( - vf[i,jj,k]*wface )
-            end           
-            for kk = k:k+1 # Loop over faces 
-                wface = 0.5*(w[i,j,kk-1] + w[i,j,kk])
-                Fz[i,j,kk] = dx*dy*( - wf[i,j,kk]*wface )
-            end
             ws[i,j,k] = w[i,j,k] + dt/(dx*dy*dz) * (
-                    Fx[i+1,j,k] - Fx[i,j,k] +
-                    Fy[i,j+1,k] - Fy[i,j,k] + 
-                    Fz[i,j,k+1] - Fz[i,j,k]
-                )
+                    Fwx[i+1,j,k] - Fwx[i,j,k] +
+                    Fwy[i,j+1,k] - Fwy[i,j,k] + 
+                    Fwz[i,j,k+1] - Fwz[i,j,k] )
         end# band conditional
     end
 
-    # Loop overdomain
+    #######################################
+    # Viscous & Surface Tension & Gravity #
+    #######################################
+
+    # Compute viscous fluxes : x faces
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+        dudx = (u[i,j,k] - u[i-1,j,k])/dx
+        dvdx = (v[i,j,k] - v[i-1,j,k])/dx
+        dwdx = (w[i,j,k] - w[i-1,j,k])/dx
+        Fux[i,j,k] = dy*dz*( viscx[i,j,k]/̂denx[i,j,k]*dudx ) 
+        Fvx[i,j,k] = dy*dz*( viscx[i,j,k]/̂denx[i,j,k]*dvdx ) 
+        Fwx[i,j,k] = dy*dz*( viscx[i,j,k]/̂denx[i,j,k]*dwdx ) 
+    end
+    # Compute viscous fluxes : y faces
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+        dudy = (u[i,j,k] - u[i,j-1,k])/dy
+        dvdy = (v[i,j,k] - v[i,j-1,k])/dy
+        dwdy = (w[i,j,k] - w[i,j-1,k])/dy
+        Fuy[i,j,k] = dx*dz*( viscy[i,j,k]/̂deny[i,j,k]*dudy ) 
+        Fvy[i,j,k] = dx*dz*( viscy[i,j,k]/̂deny[i,j,k]*dvdy ) 
+        Fwy[i,j,k] = dx*dz*( viscy[i,j,k]/̂deny[i,j,k]*dwdy ) 
+    end
+    # Compute viscous fluxes : z faces
+    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+        dudz = (u[i,j,k] - u[i,j,k-1])/dz
+        dvdz = (v[i,j,k] - v[i,j,k-1])/dz
+        dwdz = (w[i,j,k] - w[i,j,k-1])/dz
+        Fuz[i,j,k] = dx*dy*( viscz[i,j,k]/̂denz[i,j,k]*dudz ) 
+        Fvz[i,j,k] = dx*dy*( viscz[i,j,k]/̂denz[i,j,k]*dvdz ) 
+        Fwz[i,j,k] = dx*dy*( viscz[i,j,k]/̂denz[i,j,k]*dwdz ) 
+    end
+    
+    # Apply viscous fluxes, surface tension force, and gravitational force
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         # u: x-velocity
-        for ii = i:i+1 # Loop over faces 
-            dudx = (u[ii,j,k] - u[ii-1,j,k])/dx
-            Fx[ii,j,k] = dy*dz*( viscx[ii,j,k]/̂denx[ii,j,k]*dudx ) 
-        end
-        for jj = j:j+1# Loop over faces 
-            dudy = (u[i,jj,k] - u[i,jj-1,k])/dy
-            Fy[i,jj,k] = dx*dz*( viscy[i,jj,k]/̂deny[i,jj,k]*dudy )
-        end
-        for kk = k:k+1# Loop over faces 
-            dudz = (u[i,j,kk] - u[i,j,kk-1])/dz
-            Fz[i,j,kk] = dx*dy*( viscz[i,j,kk]/̂denz[i,j,kk]*dudz )
-        end
-        us[i,j,k] = us[i,j,k] + dt/(dx*dy*dz) * (
-                Fx[i+1,j,k] - Fx[i,j,k] +
-                Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k]) +
-                # dt*sfx[i,j,k]/̂(denx[i,j,k])
+        us[i,j,k] = u[i,j,k] + dt/(dx*dy*dz) * (
+                Fux[i+1,j,k] - Fux[i,j,k] +
+                Fuy[i,j+1,k] - Fuy[i,j,k] + 
+                Fuz[i,j,k+1] - Fuz[i,j,k] ) +
                 dt*sfx[i,j,k]/̂(0.5*(denx[i+1,j,k]+denx[i,j,k]))
-
-        # v: y-velocity
-        for ii = i:i+1 # Loop over faces 
-            dvdx = (v[ii,j,k] - v[ii-1,j,k])/dx
-            Fx[ii,j,k] = dy*dz*( viscx[ii,j,k]/̂denx[ii,j,k]*dvdx) 
-        end
-        for jj = j:j+1# Loop over faces 
-            dvdy = (v[i,jj,k] - v[i,jj-1,k])/dy
-            Fy[i,jj,k] = dx*dz*( viscy[i,jj,k]/̂deny[i,jj,k]*dvdy )
-        end
-        for kk = k:k+1# Loop over faces 
-            dvdz = (v[i,j,kk] - v[i,j,kk-1])/dz
-            Fz[i,j,kk] = dx*dy*( viscz[i,j,kk]/̂denz[i,j,kk]*dvdz )
-        end
+        # v: y-velocity           
         vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
-                Fx[i+1,j,k] - Fx[i,j,k] +
-                Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k]) +
-                # dt*(sfy[i,j,k]/̂deny[i,j,k] -gravity)
+                Fvx[i+1,j,k] - Fvx[i,j,k] +
+                Fvy[i,j+1,k] - Fvy[i,j,k] + 
+                Fvz[i,j,k+1] - Fvz[i,j,k]) +
                 dt*(sfy[i,j,k]/̂(0.5*(deny[i,j+1,k]+deny[i,j,k])) - gravity)
-
         # w: z-velocity
-        for ii = i:i+1 # Loop over faces 
-            dwdx = (w[ii,j,k] - w[ii-1,j,k])/dx
-            Fx[ii,j,k] = dy*dz*(viscx[ii,j,k]/̂denx[ii,j,k]*dwdx ) 
-        end
-        for jj = j:j+1 # Loop over faces 
-            dwdy = (w[i,jj,k] - w[i,jj-1,k])/dy
-            Fy[i,jj,k] = dx*dz*( viscy[i,jj,k]/̂deny[i,jj,k]*dwdy )
-        end
-        for kk = k:k+1# Loop over faces 
-            dwdz = (w[i,j,kk] - w[i,j,kk-1])/dz
-            Fz[i,j,kk] = dx*dy*( viscz[i,j,kk]/̂denz[i,j,kk]*dwdz )
-        end
         ws[i,j,k] = ws[i,j,k] + dt/(dx*dy*dz) * (
-                Fx[i+1,j,k] - Fx[i,j,k] +
-                Fy[i,j+1,k] - Fy[i,j,k] + 
-                Fz[i,j,k+1] - Fz[i,j,k]) +
-                # dt*sfz[i,j,k]/̂denz[i,j,k] 
+                Fwx[i+1,j,k] - Fwx[i,j,k] +
+                Fwy[i,j+1,k] - Fwy[i,j,k] + 
+                Fwz[i,j,k+1] - Fwz[i,j,k]) +
                 dt*sfz[i,j,k]/̂(0.5*(denz[i,j,k+1]+denz[i,j,k]))
-    end # Domain loop
+    end
 
     # Finish updating VF 
     VF .= VFnew
