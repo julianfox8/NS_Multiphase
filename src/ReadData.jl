@@ -56,19 +56,19 @@ function pvd_file_cleanup!(t,param)
     @unpack VTK_dir = param
 
     # clean up XML file to remove iterations past restart timestep
-    doc = readxml(VTK_dir*"/Solver.pvd")
-    elements2remove = []
-    for i in eachelement(doc.root)
-        for j in eachelement(i)
-            if parse(Float64,j["timestep"]) >= t
-                push!(elements2remove,j)
+    for file in ["Solver.pvd","PLIC.pvd","restart.pvd"]
+        doc = readxml(joinpath(VTK_dir,file))
+        elements2remove = []
+        for i in eachelement(doc.root)
+            for j in eachelement(i)
+                if parse(Float64,j["timestep"]) >= t
+                    push!(elements2remove,j)
+                end
             end
         end
+        for n in elements2remove
+            unlink!(n)
+        end
+        write(joinpath(VTK_dir,file),doc)
     end
-
-    for n in elements2remove
-        unlink!(n)
-    end
-
-    write(VTK_dir*"/Solver.pvd",doc)
 end
