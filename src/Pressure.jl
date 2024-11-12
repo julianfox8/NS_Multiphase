@@ -197,7 +197,7 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
 
         HYPRE_LGMRESSetKDim(solver,20)
         HYPRE_LGMRESSetTol(solver, 1e-7) # conv. tolerance
-        HYPRE_LGMRESSetMaxIter(solver,100)
+        HYPRE_LGMRESSetMaxIter(solver,1000)
         # HYPRE_LGMRESSetPrintLevel(solver, 2) # print solve info
         HYPRE_LGMRESSetLogging(solver, 1) # needed to get run info later
 
@@ -235,7 +235,7 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
 
         # Set some parameters (See Reference Manual for more parameters)
         HYPRE_FlexGMRESSetKDim(solver,20) # restart
-        HYPRE_FlexGMRESSetMaxIter(solver, 100) # max iterations
+        HYPRE_FlexGMRESSetMaxIter(solver, 1000) # max iterations
         HYPRE_FlexGMRESSetTol(solver, 1e-7) # conv. tolerance
         # HYPRE_FlexGMRESSetPrintLevel(solver, 2) # print solve info
         HYPRE_FlexGMRESSetLogging(solver, 1) # needed to get run info later
@@ -967,9 +967,9 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
 
 
     #! determine the laplacian to use
-    #compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
     #compute_lap_op_pref!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    compute_lap_op_neg!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    # compute_lap_op_neg!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
 
     MPI.Barrier(comm)
     HYPRE_IJMatrixAssemble(jacob)
@@ -994,7 +994,7 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
         row_ = p_index[i,j,k]
         HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
-        HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([-RHS[i,j,k]])))
+        HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([RHS[i,j,k]])))
     end
     
     #! if pressure reference point is used set here
@@ -1018,7 +1018,8 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     precond_ref = Ref{HYPRE_Solver}(C_NULL)
     MPI.Barrier(par_env.comm)
 
-    iter = hyp_solve(solver_ref,precond_ref, parcsr_A, par_RHS, par_P ,par_env, "LGMRES")
+    # iter = hyp_solve(solver_ref,precond_ref, parcsr_A, par_RHS, par_P ,par_env, "LGMRES")
+    iter = hyp_solve(solver_ref,precond_ref, parcsr_A, par_RHS, par_P ,par_env, "GMRES-AMG")
 
     for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
         int_x = zeros(1)
