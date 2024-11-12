@@ -216,7 +216,7 @@ end
 """ 
 Compute liquid volume in cell using PLIC
 """
-function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)    
+function computePLIC2VF(i,j,k,nx,ny,nz,dist,param,mesh)    
     @unpack x,y,z = mesh
     @unpack dx,dy,dz = mesh
     
@@ -228,7 +228,7 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
     # ext = get_
     # Compute VF in this cell 
     VF=0.0
-    tetsign = cell2tets!(vert,tets,i,j,k,mesh)
+    tetsign = cell2tets!(vert,tets,i,j,k,param,mesh)
     for t=1:5
         # Copy verts
         for n=1:4
@@ -295,7 +295,7 @@ function PLIC2Mesh(nx,ny,nz,D,VF,verts,tets,param,mesh)
         # Check for interface
         if VF[i,j,k] >= VFlo && VF[i,j,k] <= VFhi
             # Construct tets in cell 
-            tetsign = cell2tets!(verts,tets,i,j,k,mesh)
+            tetsign = cell2tets!(verts,tets,i,j,k,param,mesh)
             for tet=1:5
                 # Copy verts
                 for n=1:4

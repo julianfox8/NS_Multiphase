@@ -25,7 +25,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     end
 
     # Compute surface tension force
-    compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
+    compute_sf!(sfx,sfy,sfz,VF,Curve,param,mesh)
 
     ########################
     #    Convective term   #
@@ -43,7 +43,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             Fwx[i,j,k] = 0
         elseif abs(band[i-1,j,k]) <=1 || abs(band[i,j,k]) <= 1
             # Compute flux with SL : One of cells transported with SL
-            vol = SLfluxVol(1,i,j,k,verts,tets,uf,vf,wf,dt,mesh)/dt
+            vol = SLfluxVol(1,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fux[i,j,k] = -uface * vol
             Fvx[i,j,k] = -vface * vol
             Fwx[i,j,k] = -wface * vol
@@ -67,7 +67,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             Fwy[i,j,k] = 0
         elseif abs(band[i,j-1,k]) <=1 || abs(band[i,j,k]) <= 1
             # Compute flux with SL : One of cells transported with SL
-            vol = SLfluxVol(2,i,j,k,verts,tets,uf,vf,wf,dt,mesh)/dt
+            vol = SLfluxVol(2,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fuy[i,j,k] = -uface * vol
             Fvy[i,j,k] = -vface * vol
             Fwy[i,j,k] = -wface * vol
@@ -91,7 +91,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             Fwz[i,j,k] = 0
         elseif abs(band[i,j,k-1]) <=1 || abs(band[i,j,k]) <= 1
             # Compute flux with SL : One of cells transported with SL
-            vol = SLfluxVol(3,i,j,k,verts,tets,uf,vf,wf,dt,mesh)/dt
+            vol = SLfluxVol(3,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fuz[i,j,k] = -uface * vol
             Fvz[i,j,k] = -vface * vol
             Fwz[i,j,k] = -wface * vol
@@ -112,13 +112,13 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             # ------------------------------
             # Form projected cell and break into tets using face velocities
             ntets = 5
-            tetsign = cell2tets!(verts,tets,i,j,k,mesh; 
+            tetsign = cell2tets!(verts,tets,i,j,k,param,mesh; 
                 project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,
                 compute_indices=true,inds=inds,vInds=vInds)
 
             if pressure_scheme == "finite-difference"
                 # Add correction tets 
-                tets,inds,ntets = add_correction_tets(ntets,verts,tets,inds,i,j,k,uf,vf,wf,dt,mesh)
+                tets,inds,ntets = add_correction_tets(ntets,verts,tets,inds,i,j,k,uf,vf,wf,dt,param,mesh)
             end
             
             # Compute VF in semi-Lagrangian cell 
@@ -170,7 +170,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     #######################################
     # Viscous & Surface Tension & Gravity #
     #######################################
-    
+
     # Compute viscous fluxes : x faces
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
         dudx = (u[i,j,k] - u[i-1,j,k])/dx

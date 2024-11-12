@@ -91,7 +91,7 @@ function check_normal!(err,nx_,ny_,nz_,nx,ny,nz,VF,i,j,k,param,mesh)
 
     # Loop over neighbors and compute error in VF
     for kk=k-1:k+1, jj=j-1:j+1, ii=i-1:i+1
-        VF_ = computePLIC2VF(ii,jj,kk,nx_,ny_,nz_,dist,mesh)
+        VF_ = computePLIC2VF(ii,jj,kk,nx_,ny_,nz_,dist,param,mesh)
            
         # Update L2 error
         err_ += (VF[ii,jj,kk] - VF_)^2
@@ -168,7 +168,7 @@ end
 """
 Compute surface tension force (using Continuous surface force method)
 """
-function compute_sf!(sfx,sfy,sfz,VF,Curve,mesh,param)
+function compute_sf!(sfx,sfy,sfz,VF,Curve,param,mesh)
     @unpack sigma = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     fill!(sfx,0.0)

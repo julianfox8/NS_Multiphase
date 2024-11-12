@@ -252,7 +252,8 @@ Semi-Lagrangian projection of point back in time
 - assumes face velocities
 - pt is updated by function
 """ 
-function project!(pt,i,j,k,uf,vf,wf,dt,mesh; projection_method = "RK4")
+function project!(pt,i,j,k,uf,vf,wf,dt,param,mesh)
+    @unpack projection_method = param
     if projection_method == "RK4"
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
         v2=get_velocity_face(pt+0.5dt*v1,i,j,k,uf,vf,wf,mesh)
@@ -262,32 +263,16 @@ function project!(pt,i,j,k,uf,vf,wf,dt,mesh; projection_method = "RK4")
         
     elseif projection_method == "Euler"
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
-        pt+=(-dt)*v1
+        pt[:]+=(-dt)*v1
     elseif projection_method == "Midpoint"
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
         v2=get_velocity_face(pt+0.5dt*v1,i,j,k,uf,vf,wf,mesh)
-        pt[:]+=(-dt)*(v1+0.5v2)
+        pt[:]+=(-dt)*(v2)
     else
         error("Unknown projection_method in project!")
     end
     return nothing 
 end
-
-# """ 
-# Semi-Lagrangian projection of all verts that used in transport 
-# - pVerts is updated by function
-# """
-# function projectVerts(pVert,uf,vf,wf,dt,mesh,param)
-#     @unpack x,y,z = mesh
-#     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-#         if minimum(abs(band[i-1:i,j-1:j,k-1:k])) <= 1
-#             # Vert will be used for SL transport => define and project
-#             pVert[:,i,j,k] = [x[i],y[j],z[k]]
-#             project!(pVert[:,i,j,k],i,j,k,uf,vf,wf,dt,mesh)
-#         end
-#     end
-#     return nothing
-# end
 
 """ 
 Determine which cell (index) a point lies within 
@@ -836,28 +821,6 @@ end
 # """
 # Density/Viscosity calculation
 # """
-# function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
-#     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-#     @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
-
-#     @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
-#         vfx = (VF[i,j,k]+VF[i-1,j,k])/2
-#         denx[i,j,k] = rho_liq*(vfx) + rho_gas*(1-vfx)
-#         viscx[i,j,k] = vfx*mu_liq+(1-vfx)*mu_gas
-#     end
-#     @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
-#         vfy = (VF[i,j,k]+VF[i,j-1,k])/2
-#         deny[i,j,k] = rho_liq*(vfy) +rho_gas*(1-vfy)
-#         viscy[i,j,k] = vfy*mu_liq+(1-vfy)*mu_gas
-#     end
-#     @loop param for  k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
-#         vfz = (VF[i,j,k]+VF[i,j,k-1])/2
-#         denz[i,j,k] = rho_liq*(vfz) +rho_gas*(1-vfz)
-#         viscz[i,j,k] = vfz*mu_liq+(1-vfz)*mu_gas
-#     end
-#     return nothing
-# end
-
 function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
@@ -890,14 +853,14 @@ function outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,de
     @unpack isroot = par_env
     iter=0; maxIter=1000    
     
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env)
     d = parallel_sum_all(AP*dx*dy*dz,par_env)
     while abs(d) > 1e-1*tol # || iter < 2
         iter += 1
         # Correct outflow 
         correction = -0.5d/outflow.area(mesh,par_env)
         outflow.correction(correction,uf,vf,wf,mesh,par_env)
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,mesh,param,par_env)
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env)
         dnew = parallel_sum_all(AP*dx*dy*dz,par_env)
         d=dnew
         if iter == maxIter

@@ -244,7 +244,7 @@ Create 5 tets to represent computational cell
             - ind (3x4x5) array is filled by this function
             - I (3x8 work array) is required
 """
-function cell2tets!(verts, tets, i, j, k, mesh; 
+function cell2tets!(verts, tets, i, j, k, param, mesh; 
     project_verts=false, uf=nothing, vf=nothing, wf=nothing, dt=nothing, 
     compute_indices=false, inds=nothing, vInds=nothing
     )
@@ -256,7 +256,7 @@ function cell2tets!(verts, tets, i, j, k, mesh;
     # Project if requested 
     if project_verts
         for n=1:8
-            project!(@view(verts[:,n]),i,j,k,uf,vf,wf,dt,mesh)
+            project!(@view(verts[:,n]),i,j,k,uf,vf,wf,dt,param,mesh)
         end
     end
 
@@ -280,71 +280,71 @@ Determine volume of semi-Lagrangian flux on face
 - verts is a 3x8 work array 
 - tets is a 3x4x5 work array 
 """
-function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,mesh)
+function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
     @unpack x,y,z = mesh
 
     # Form verts on flux volume 
     if dir == 1 # x
         if oddEvenCell(i,j,k)
             tetsign = +1.0
-            verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,2] = [x[i  ], y[j  ], z[k  ]];
-            verts[:,3] = [x[i  ], y[j+1], z[k  ]]; project!(@view(verts[:,3]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,3] = [x[i  ], y[j+1], z[k  ]]; project!(@view(verts[:,3]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,4] = [x[i  ], y[j+1], z[k  ]];
-            verts[:,5] = [x[i  ], y[j  ], z[k+1]]; project!(@view(verts[:,5]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,5] = [x[i  ], y[j  ], z[k+1]]; project!(@view(verts[:,5]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,6] = [x[i  ], y[j  ], z[k+1]];
-            verts[:,7] = [x[i  ], y[j+1], z[k+1]]; project!(@view(verts[:,7]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,7] = [x[i  ], y[j+1], z[k+1]]; project!(@view(verts[:,7]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,8] = [x[i  ], y[j+1], z[k+1]];
         else
             tetsign = -1.0
             verts[:,1] = [x[i  ], y[j  ], z[k  ]];
-            verts[:,2] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,2] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,3] = [x[i  ], y[j+1], z[k  ]];
-            verts[:,4] = [x[i  ], y[j+1], z[k  ]]; project!(@view(verts[:,4]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,4] = [x[i  ], y[j+1], z[k  ]]; project!(@view(verts[:,4]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,5] = [x[i  ], y[j  ], z[k+1]];
-            verts[:,6] = [x[i  ], y[j  ], z[k+1]]; project!(@view(verts[:,6]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,6] = [x[i  ], y[j  ], z[k+1]]; project!(@view(verts[:,6]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,7] = [x[i  ], y[j+1], z[k+1]];
-            verts[:,8] = [x[i  ], y[j+1], z[k+1]]; project!(@view(verts[:,8]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,8] = [x[i  ], y[j+1], z[k+1]]; project!(@view(verts[:,8]),i,j,k,uf,vf,wf,dt,param,mesh)
         end
     elseif dir == 2 # y
         if oddEvenCell(i,j,k)
             tetsign = +1.0
-            verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,2] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,2] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,3] = [x[i  ], y[j  ], z[k  ]]; 
             verts[:,4] = [x[i+1], y[j  ], z[k  ]];
-            verts[:,5] = [x[i  ], y[j  ], z[k+1]]; project!(@view(verts[:,5]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,6] = [x[i+1], y[j  ], z[k+1]]; project!(@view(verts[:,6]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,5] = [x[i  ], y[j  ], z[k+1]]; project!(@view(verts[:,5]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,6] = [x[i+1], y[j  ], z[k+1]]; project!(@view(verts[:,6]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,7] = [x[i  ], y[j  ], z[k+1]]; 
             verts[:,8] = [x[i+1], y[j  ], z[k+1]];
         else
             tetsign = -1.0
-            verts[:,1] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,2] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,1] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,2] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,3] = [x[i+1], y[j  ], z[k  ]]; 
             verts[:,4] = [x[i  ], y[j  ], z[k  ]];
-            verts[:,5] = [x[i+1], y[j  ], z[k+1]]; project!(@view(verts[:,5]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,6] = [x[i  ], y[j  ], z[k+1]]; project!(@view(verts[:,6]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,5] = [x[i+1], y[j  ], z[k+1]]; project!(@view(verts[:,5]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,6] = [x[i  ], y[j  ], z[k+1]]; project!(@view(verts[:,6]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,7] = [x[i+1], y[j  ], z[k+1]]; 
             verts[:,8] = [x[i  ], y[j  ], z[k+1]];
         end
     elseif dir == 3 # z
         if oddEvenCell(i,j,k)
             tetsign = +1.0
-            verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,2] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,3] = [x[i  ], y[j+1], z[k  ]]; project!(@view(verts[:,3]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,4] = [x[i+1], y[j+1], z[k  ]]; project!(@view(verts[:,4]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,2] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,3] = [x[i  ], y[j+1], z[k  ]]; project!(@view(verts[:,3]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,4] = [x[i+1], y[j+1], z[k  ]]; project!(@view(verts[:,4]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,5] = [x[i  ], y[j  ], z[k  ]]; 
             verts[:,6] = [x[i+1], y[j  ], z[k  ]]; 
             verts[:,7] = [x[i  ], y[j+1], z[k  ]]; 
             verts[:,8] = [x[i+1], y[j+1], z[k  ]];
         else
             tetsign = -1.0
-            verts[:,1] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,2] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,3] = [x[i+1], y[j+1], z[k  ]]; project!(@view(verts[:,3]),i,j,k,uf,vf,wf,dt,mesh)
-            verts[:,4] = [x[i  ], y[j+1], z[k  ]]; project!(@view(verts[:,4]),i,j,k,uf,vf,wf,dt,mesh)
+            verts[:,1] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,2] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,3] = [x[i+1], y[j+1], z[k  ]]; project!(@view(verts[:,3]),i,j,k,uf,vf,wf,dt,param,mesh)
+            verts[:,4] = [x[i  ], y[j+1], z[k  ]]; project!(@view(verts[:,4]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,5] = [x[i+1], y[j  ], z[k  ]]; 
             verts[:,6] = [x[i  ], y[j  ], z[k  ]]; 
             verts[:,7] = [x[i+1], y[j+1], z[k  ]]; 
@@ -366,7 +366,7 @@ end
 """
 Add correction tets on to semi-Lagrangian cell
 """
-function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, mesh)
+function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, param, mesh)
     @unpack dx,dy,dz = mesh
 
     """ 
@@ -377,7 +377,7 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, me
         # Create seperate tets work array to not impact exisiting tets 
         tets_work  = Array{Float64}(undef, 3, 4, 5)
         # Constrct SL flux volume - compute volume and set verts 
-        flux_vol = SLfluxVol(1,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
+        flux_vol = SLfluxVol(1,i,j,k,verts,tets_work,uf,vf,wf,dt,param,mesh)
         # Compute required volume 
         divg_vol = dt*dy*dz*uf[i,j,k]
         # Create array with 2 additional tets appended 
@@ -396,7 +396,7 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, me
         # Create seperate tets work array to not impact exisiting tets 
         tets_work  = Array{Float64}(undef, 3, 4, 5)
         # Constrct SL flux volume - compute volume and set verts 
-        flux_vol = SLfluxVol(2,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
+        flux_vol = SLfluxVol(2,i,j,k,verts,tets_work,uf,vf,wf,dt,param,mesh)
         # Compute required volume 
         divg_vol = dt*dx*dz*vf[i,j,k]
         # Create array with 2 additional tets appended 
@@ -415,7 +415,7 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, me
         # Create seperate tets work array to not impact exisiting tets 
         tets_work  = Array{Float64}(undef, 3, 4, 5)
         # Constrct SL flux volume - compute volume and set verts 
-        flux_vol = SLfluxVol(3,i,j,k,verts,tets_work,uf,vf,wf,dt,mesh)
+        flux_vol = SLfluxVol(3,i,j,k,verts,tets_work,uf,vf,wf,dt,param,mesh)
         # Compute required volume 
         divg_vol = dt*dx*dy*wf[i,j,k]
         # Create array with 2 additional tets appended 

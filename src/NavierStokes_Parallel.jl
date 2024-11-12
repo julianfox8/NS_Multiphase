@@ -107,7 +107,7 @@ function run_solver(param, IC!, BC!, outflow)
 
     dt = compute_dt(u,v,w,param,mesh,par_env)
 
-    divergence!(divg,uf,vf,wf,dt,band,verts,tets,mesh,param,par_env)
+    divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
 
     # Initialize VTK outputs
     if restart == true && isroot == true
@@ -124,7 +124,7 @@ function run_solver(param, IC!, BC!, outflow)
     t_last =[-100.0,]
     h_last =[100]
 
-    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,0,mesh,param,par_env)
+    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,0,param,mesh,par_env)
     !restart && VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
 
     # Loop over time
@@ -150,6 +150,9 @@ function run_solver(param, IC!, BC!, outflow)
 
         # Update bands with transported VF
         computeBand!(band,VF,param,mesh,par_env)
+
+        # Update density and viscosity with transported VF
+        compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
     
         if solveNS
   
@@ -170,20 +173,19 @@ function run_solver(param, IC!, BC!, outflow)
             update_borders!(u,mesh,par_env)
             update_borders!(v,mesh,par_env)
             update_borders!(w,mesh,par_env)
-
-            
+    
         end
-        #! grab terminal velocity
+
+        # Compute case specific outputs
         terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
-        # println(terminal_vel)
-        # # Check divergence
-        divergence!(divg,uf,vf,wf,dt,band,verts,tets,mesh,param,par_env)
-        compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+        
+        # Check divergence
+        divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
+
         # Output
-        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter,mesh,param,par_env)
+        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter,param,mesh,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
 
-        # error("stop")
     end
 
     # Finalize

@@ -63,6 +63,7 @@ using Parameters
     normalMethod :: String = "ELVIRA" 
     # Velocity used for Vf transport when solveNS = false
     VFVelocity :: String  = "Nothing" 
+    projection_method :: String = "RK4"
 
     # Iterator type 
     # - standard : standard julia for loop  
