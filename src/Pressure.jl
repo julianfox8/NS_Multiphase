@@ -472,7 +472,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
         copyto!(AP_k,AP)
         res_par = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         
-        if res_par < tol
+        if res_par < tol || iter == 50
             HYPRE_ParVectorDestroy(par_AP_old)
             HYPRE_ParVectorDestroy(par_P_new)
             return iter
