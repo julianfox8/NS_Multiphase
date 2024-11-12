@@ -46,14 +46,12 @@ param = parameters(
     # restart = true,
     restart_itr = 107,
 
-    # pressureSolver = "NLsolve",
-    # pressureSolver = "sparseSecant",
+    pressure_scheme = "semi-lagrangian",
     pressureSolver = "hypreSecant",
-    # pressureSolver = "GaussSeidel",
-    # pressureSolver = "ConjugateGradient",
-    # pressure_scheme = "semi-lagrangian",
+    
     # pressureSolver = "FC_hypre",
     # pressure_scheme = "finite-difference",
+    
     iter_type = "standard",
     VTK_dir= "VTK_viscous_bubble_FD_31x110x31_flux_corrected"
 
