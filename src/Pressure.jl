@@ -313,7 +313,7 @@ function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gra
     end
 end
 
-function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,outflow,param,mesh,par_env,jacob)
+function Secant_jacobian_hypre_old!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,outflow,param,mesh,par_env,jacob)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -475,6 +475,166 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
             # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
             @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env))
             # J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
+        end
+    end    
+end
+
+function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,param,mesh,par_env,jacob)
+    @unpack tol,Nx,Ny,Nz = param
+    @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack dx,dy,dz = mesh
+    @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
+
+    # Local names for temp arrays 
+    LHS     = tmp1
+    Pnew    = tmp1
+    AP      = tmp2
+    APnew   = tmp4
+    p_index = tmp3  
+    dP      = tmp5
+    JdP     = tmp6
+
+    # HYPRE.Init()
+    fill!(LHS,0.0)
+    fill!(AP,0.0)
+    fill!(p_index,0.0)
+
+    res_par = parallel_max_all(abs.(AP),par_env)
+    p_min,p_max = prepare_indices(p_index,par_env,mesh)
+
+    cols_ = OffsetArray{Int32}(undef,1:27); fill!(cols_,0)
+    values_ = OffsetArray{Float64}(undef,1:27); fill!(values_,0.0)
+
+    parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
+    HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
+    parcsr_J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
+
+    # #! prepare Hyper vectors to solve J⋅dP = A(P)
+    AP_ref = Ref{HYPRE_IJVector}(C_NULL)
+    dP_ref = Ref{HYPRE_IJVector}(C_NULL)
+    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,AP_ref)
+    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,dP_ref)
+    AP_hyp = AP_ref[]
+    dP_hyp = dP_ref[]
+    HYPRE_IJVectorSetObjectType(AP_hyp,HYPRE_PARCSR)
+    HYPRE_IJVectorSetObjectType(dP_hyp,HYPRE_PARCSR)
+    HYPRE_IJVectorInitialize(AP_hyp)
+    HYPRE_IJVectorInitialize(dP_hyp)
+    # for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+    #     row_ = p_index[i,j,k]
+    #     HYPRE_IJVectorSetValues(dP_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
+    #     HYPRE_IJVectorSetValues(AP_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
+    # end
+    # HYPRE_IJVectorAssemble(AP_old)
+    # HYPRE_IJVectorAssemble(dP_old)
+    par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
+    par_dP_ref = Ref{Ptr{Cvoid}}(C_NULL)
+    HYPRE_IJVectorGetObject(AP_hyp, par_AP_ref)
+    HYPRE_IJVectorGetObject(dP_hyp, par_dP_ref)
+    par_AP_hyp = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
+    par_dP_hyp = convert(Ptr{HYPRE_ParVector}, par_dP_ref[])
+
+    # Iterate 
+    iter=0
+    while true
+        iter += 1
+
+        # Compute A(P) with current pressure (used in compute Jacobian)
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+
+        # Compute Jacobian on 1st and then every 5th iteration
+        if iter ==1 || iter % 5 == 1  
+            HYPRE_IJMatrixInitialize(jacob)
+            compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+            HYPRE_IJMatrixAssemble(jacob)
+        else 
+            # Update Jacobian using Broyden's Method
+
+        end
+    
+        # Set values for dP and A(P) to prepare for solve of J⋅dP = A(P)
+        for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+            row_ = p_index[i,j,k]
+            HYPRE_IJVectorSetValues(dP_hyp,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
+            HYPRE_IJVectorSetValues(AP_hyp,1,pointer(Int32.([row_])),pointer(Float64.([AP[i,j,k]])))
+        end
+        HYPRE_IJVectorAssemble(AP_hyp)
+        HYPRE_IJVectorAssemble(dP_hyp)
+
+        solver_ref = Ref{HYPRE_Solver}(C_NULL)
+        precond_ref = Ref{HYPRE_Solver}(C_NULL)
+
+        # Solve linear system J⋅dP = A(P) for dP
+        hyp_iter = hyp_solve(solver_ref, precond_ref, parcsr_J, par_AP_hyp, par_dP_hyp, par_env, "LGMRES")
+
+        # Extract dP 
+        mydP=zeros(1)
+        for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
+            HYPRE_IJVectorGetValues(dP_hyp,1,pointer(Int32.([p_index[i,j,k]])),mydP)
+            dP[i,j,k] = -mydP[1]  # Note negative here
+        end
+
+        # Compute J⋅dP for line search
+        fill!(JdP,0.0)
+        ncols_arr = zeros(Int32,1)
+        for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
+            # Get non-zero columns on this row 
+            row = p_index[i,j,k]
+            HYPRE_IJMatrixGetRowCounts(jacob, 1, pointer(Int32.([row])), ncols_arr)
+            ncols = ncols_arr[1]
+            cols = zeros(Int32,  ncols)
+            Jvals = zeros(Float64,ncols)
+            dPvals = zeros(Float64,ncols)
+            # Note returns cols (with 0 index) and vals
+            HYPRE_IJMatrixGetValues(jacob, -1, ncols_arr,pointer(Int32.([row])),cols,Jvals)
+            cols .+= 1 # shift column index to be 1 based
+            HYPRE_IJVectorGetValues(dP_hyp,ncols,cols,dPvals)
+            JdP[i,j,k] = dot(Jvals,dPvals)
+        end
+
+        # Line search to find largest damping parameter
+        c=0.01
+        λ = 1
+        mydP = zeros(1)
+        line_iter = 0
+        AP_mag    = mag(  AP[imin:imax,jmin:jmax,kmin:kmax],par_env)
+        JdP_mag   = mag( JdP[imin:imax,jmin:jmax,kmin:kmax],par_env)
+        while true
+            line_iter += 1
+            Pnew .= P .+ λ*dP
+            A!(APnew,uf,vf,wf,Pnew,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+            APnew_mag = mag(APnew[imin:imax,jmin:jmax,kmin:kmax],par_env)
+            # Check if λ is small enough
+            if APnew_mag <= AP_mag - c*λ*JdP_mag
+                copy!(P,Pnew)
+                break
+            end
+            # Reduce λ
+            λ /= 2
+            # Max number of iter
+            if line_iter == 10
+                println("Iter=$iter: Reached $line_iter sub-iterations on line search λ=$λ")
+                break
+            end
+        end
+ 
+        # Shift P so mean stays 0
+        P .-=parallel_mean_all(P,par_env)
+        
+        # Compute A(P) with new pressure for next iteration
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+
+        # outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
+
+        res_par = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
+        
+        if res_par < tol || iter == 50
+            HYPRE_ParVectorDestroy(par_AP_hyp)
+            HYPRE_ParVectorDestroy(par_dP_hyp)
+            return iter
+        end
+        if iter % 10 == 0
+            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env))
         end
     end    
 end

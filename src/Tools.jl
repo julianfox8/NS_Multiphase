@@ -17,6 +17,21 @@ function Neumann!(A,mesh,par_env)
     return nothing
 end
 
+"""
+Compute the magnitude of an array
+""" 
+function mag(A,par_env)
+    # Compute ∑(A_i^2)
+    mag = 0
+    for i in eachindex(A)
+        mag += A[i]^2
+    end
+    # Parallel sum 
+    parallel_sum_all(mag,par_env)
+    # Compute √(∑A_i^2)
+    return sqrt(mag)
+end
+
 
 """ 
 Macro to easily change looping behavior throughout code 
