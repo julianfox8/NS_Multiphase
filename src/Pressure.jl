@@ -520,13 +520,6 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     HYPRE_IJVectorSetObjectType(dP_hyp,HYPRE_PARCSR)
     HYPRE_IJVectorInitialize(AP_hyp)
     HYPRE_IJVectorInitialize(dP_hyp)
-    # for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
-    #     row_ = p_index[i,j,k]
-    #     HYPRE_IJVectorSetValues(dP_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
-    #     HYPRE_IJVectorSetValues(AP_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
-    # end
-    # HYPRE_IJVectorAssemble(AP_old)
-    # HYPRE_IJVectorAssemble(dP_old)
     par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
     par_dP_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJVectorGetObject(AP_hyp, par_AP_ref)
@@ -534,23 +527,19 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     par_AP_hyp = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
     par_dP_hyp = convert(Ptr{HYPRE_ParVector}, par_dP_ref[])
 
+    # Compute A(P) with current pressure (used in compute Jacobian)
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+
+    # Compute initial Jacobian 
+    HYPRE_IJMatrixInitialize(jacob)
+    compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    HYPRE_IJMatrixAssemble(jacob)
+
     # Iterate 
     iter=0
     while true
         iter += 1
 
-        # Compute A(P) with current pressure (used in compute Jacobian)
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
-
-        # Compute Jacobian on 1st and then every 5th iteration
-        if iter ==1 || iter % 5 == 1  
-            HYPRE_IJMatrixInitialize(jacob)
-            compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
-            HYPRE_IJMatrixAssemble(jacob)
-        else 
-            # Update Jacobian using Broyden's Method
-
-        end
     
         # Set values for dP and A(P) to prepare for solve of J⋅dP = A(P)
         for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
@@ -606,33 +595,47 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
             APnew_mag = mag(APnew[imin:imax,jmin:jmax,kmin:kmax],par_env)
             # Check if λ is small enough
             if APnew_mag <= AP_mag - c*λ*JdP_mag
-                copy!(P,Pnew)
                 break
             end
             # Reduce λ
             λ /= 2
             # Max number of iter
             if line_iter == 10
-                println("Iter=$iter: Reached $line_iter sub-iterations on line search λ=$λ")
+                println("Iter=$iter: Reached $line_iter subiterations on line search λ=$λ")
                 break
             end
         end
  
         # Shift P so mean stays 0
-        P .-=parallel_mean_all(P,par_env)
-        
-        # Compute A(P) with new pressure for next iteration
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        Pnew .-=parallel_mean_all(Pnew,par_env)
 
-        # outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
-
-        res_par = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
-        
+        # Check if converged or max iter reached
+        res_par = parallel_max_all(abs.(APnew[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         if res_par < tol || iter == 50
             HYPRE_ParVectorDestroy(par_AP_hyp)
             HYPRE_ParVectorDestroy(par_dP_hyp)
             return iter
         end
+        
+        # Update Jacobian 
+        if iter % 5 == 0
+            # Recompute every 5 iterations
+            HYPRE_IJMatrixInitialize(jacob)
+            compute_hypre_jacobian!(jacob,p_index,cols_,values_,Pnew,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,APnew,LHS,tmp4,verts,tets,par_env,mesh)
+            HYPRE_IJMatrixAssemble(jacob)
+        else 
+            # Update Jacobian using Broyden's Method
+            dPmag = mag(dP[imin:imax,jmin:jmax,kmin:kmax],par_env)
+            ((APnew .- AP) .- JdP)/dPmag^2
+        end
+
+        # Transfer P for next iteration 
+        copy!( P, Pnew)
+        copy!(AP,APnew)
+
+        # Need to think about where to put this!!!! 
+        # outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
+
         if iter % 10 == 0
             @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env))
         end
