@@ -15,7 +15,8 @@ using NLsolve
 using Statistics
 using LinearAlgebra
 using SparseArrays
-using HYPRE.LibHYPRE
+# using HYPRE.LibHYPRE
+using HYPRE
 using EzXML
 using JSON
 
@@ -87,6 +88,8 @@ function run_solver(param, IC!, BC!, outflow)
     
     # Initialize Jacobian matrix
     jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
+    b = HYPREVector(comm, Int32(p_min), Int32(p_max))
+    x = HYPREVector(comm, Int32(p_min), Int32(p_max))
     
     # Compute density and viscosity at intial conditions
     compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
@@ -155,7 +158,7 @@ function run_solver(param, IC!, BC!, outflow)
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,outflow,BC!,jacob)
+            iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,outflow,BC!,jacob,b,x)
             # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
 
             # Corrector face velocities

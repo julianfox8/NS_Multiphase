@@ -1,6 +1,6 @@
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,outflow,BC!,jacob)
+function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,outflow,BC!,jacob,b,x)
     @unpack pressure_scheme = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -18,19 +18,19 @@ function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,d
     else
         RHS = nothing
     end
-    iter = poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,BC!,jacob)
+    iter = poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,BC!,jacob,b,x)
 
     return iter
 end
 
-function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,BC!,jacob)
+function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,BC!,jacob,b,x)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     if pressureSolver == "FC_hypre"
-        iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp4,param,mesh,par_env,jacob)
+        iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp4,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,param,mesh,par_env,jacob)
+        iter = Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,param,mesh,par_env,jacob,b,x)
     else
         error("Unknown pressure solver $pressureSolver")
     end
@@ -284,7 +284,7 @@ function compute_hypre_jacobian!(mat_assembler,coeff_index,cols_,values_,P,uf,vf
     end
 end
 
-function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,outflow,param,mesh,par_env,jacob)
+function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,outflow,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -304,11 +304,10 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
     
     J_assembler = HYPRE.start_assemble!(jacob)
-    up_compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
     J = HYPRE.finish_assemble!(J_assembler)
 
-    b = HYPREVector(comm, Int32(p_min), Int32(p_max))
-    x = HYPREVector(comm, Int32(p_min), Int32(p_max))
+
 
     # Iterate 
     iter=0
@@ -318,7 +317,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
         # if iter > 10
         if iter % 5 == 1 
             J_assembler = HYPRE.start_assemble!(jacob)
-            up_compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+            compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
             J = HYPRE.finish_assemble!(J_assembler)
         end
         
@@ -456,7 +455,7 @@ function compute_lap_op!(mat_assembler,coeff_index,cols_,values_,denx,deny,denz,
     end
 end
 
-function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
+function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -468,11 +467,9 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
     values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
 
-    b = HYPREVector(comm, Int32(p_min), Int32(p_max))
     RHS_assembler = HYPRE.start_assemble!(b)
-
-    x = HYPREVector(comm,Int32(p_min), Int32(p_max))
     x_assembler = HYPRE.start_assemble!(x)
+
     for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
         row_ = p_index[i,j,k]
         HYPRE.assemble!(x_assembler,[row_],[P[i,j,k]])
@@ -484,7 +481,7 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     
     J_assembler = HYPRE.start_assemble!(jacob)
     
-    up_compute_lap_op!(J_assembler,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    compute_lap_op!(J_assembler,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
     
     J = HYPRE.finish_assemble!(J_assembler)
 
