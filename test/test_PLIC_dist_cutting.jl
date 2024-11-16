@@ -44,7 +44,7 @@
         dist = NS.computeDist(i,j,k,nx,ny,nz,VF,param,mesh)
 
         # Now compute VOF from PLIC to compare with specified value
-        VF_calc = NS.computePLIC2VF(i,j,k,nx,ny,nz,dist,mesh)
+        VF_calc = NS.computePLIC2VF(i,j,k,nx,ny,nz,dist,param,mesh)
         
         tol = 1e-12
         return VF_calc,VF,tol
