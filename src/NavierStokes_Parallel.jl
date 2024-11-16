@@ -52,7 +52,7 @@ function run_solver(param, IC!, BC!, outflow)
     # Create work arrays
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,tets,verts,inds,vInds = initArrays(mesh)
 
-    HYPRE.Init()
+    HYPRE_Init()
 
     p_min,p_max = prepare_indices(tmp3,par_env,mesh)
 
@@ -82,16 +82,11 @@ function run_solver(param, IC!, BC!, outflow)
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
     end
 
-    csv_init(param,par_env)
+    csv_init!(param,par_env)
     terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
-    # error("stop")
-
+    
     # Initialize Jacobian matrix
-    jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
-    HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
-    jacob = jacob_ref[]
-    HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
-    HYPRE_IJMatrixInitialize(jacob)
+    jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
     
     # Compute density and viscosity at intial conditions
     compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
@@ -135,7 +130,7 @@ function run_solver(param, IC!, BC!, outflow)
 
         # Update step counter
         nstep += 1
-
+        
         # Compute timestep and update time
         dt = compute_dt(u,v,w,param,mesh,par_env)
         t += dt

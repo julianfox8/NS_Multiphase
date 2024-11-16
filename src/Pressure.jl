@@ -27,7 +27,11 @@ function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
+    if pressureSolver == "FC_hypre"
+        iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp4,param,mesh,par_env,jacob)
     elseif pressureSolver == "hypreSecant"
+        iter = Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,param,mesh,par_env,jacob)
+    else
         error("Unknown pressure solver $pressureSolver")
     end
 
@@ -169,13 +173,14 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         HYPRE_LGMRESSetLogging(solver, 1) # needed to get run info later
 
         # Now set up the AMG preconditioner and specify any parameters
+        # # Now set up the AMG preconditioner and specify any parameters
         HYPRE_BoomerAMGCreate(precond_ref)
         precond = precond_ref[]
         # HYPRE_BoomerAMGSetPrintLevel(precond, 1) # print amg solution info
         HYPRE_BoomerAMGSetCoarsenType(precond, 0)
-        # HYPRE_BoomerAMGSetInterpType(precond, 17)
+        HYPRE_BoomerAMGSetInterpType(precond, 12)
         HYPRE_BoomerAMGSetOldDefault(precond)
-        HYPRE_BoomerAMGSetRelaxType(precond, 6) # Sym G.S./Jacobi hybrid
+        HYPRE_BoomerAMGSetRelaxType(precond, 3) # Sym G.S./Jacobi hybrid
         HYPRE_BoomerAMGSetNumSweeps(precond, 2)
         HYPRE_BoomerAMGSetTol(precond, 0.0) # conv. tolerance zero
         HYPRE_BoomerAMGSetMaxIter(precond, 1) # do only one iteration!
@@ -235,8 +240,7 @@ end
 
 
 # Semi-Lagrangian pressure solvers
-
-function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,tmp4,p,tets_arr,par_env,mesh)
+function compute_hypre_jacobian!(mat_assembler,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,tmp4,p,tets_arr,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_,kmin_,kmax_,kmino_,kmaxo_,Nx,Nz,Ny = mesh
     
     delta = 1
@@ -276,7 +280,7 @@ function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gra
         rows_ = coeff_index[i,j,k]
 
         # Call function to set matrix values
-        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
+        HYPRE.assemble!(mat_assembler,[rows_], cols_[1:ncols],values_[:,1:ncols])
     end
 end
 
@@ -295,54 +299,16 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     res_par = parallel_max_all(abs.(AP),par_env)
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
-    cols_ = OffsetArray{Int32}(undef,1:27); fill!(cols_,0)
-    values_ = OffsetArray{Float64}(undef,1:27); fill!(values_,0.0)
     
-    compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
-    MPI.Barrier(comm)
-    HYPRE_IJMatrixAssemble(jacob)
+    cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
+    values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
+    
+    J_assembler = HYPRE.start_assemble!(jacob)
+    up_compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    J = HYPRE.finish_assemble!(J_assembler)
 
-    parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
-    HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
-    parcsr_J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
-
-    # #! prepare Pressure vectors (P_old and P_new)
-    AP_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,AP_ref)
-    AP_old = AP_ref[]
-    HYPRE_IJVectorSetObjectType(AP_old,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(AP_old)
-
-    Pn_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,Pn_ref)
-    P_new = Pn_ref[]
-    HYPRE_IJVectorSetObjectType(P_new, HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(P_new)
-
-    for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
-        row_ = p_index[i,j,k]
-        # HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
-        HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
-        HYPRE_IJVectorSetValues(AP_old, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
-    end
-
-    MPI.Barrier(par_env.comm)
-
-
-    HYPRE_IJVectorAssemble(AP_old)
-    par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
-    HYPRE_IJVectorGetObject(AP_old, par_AP_ref)
-    par_AP_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
-
-    HYPRE_IJVectorAssemble(P_new)
-    par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
-    HYPRE_IJVectorGetObject(P_new, par_Pn_ref)
-    par_P_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
-
-
-    # # #! create old Pressure and A(P) arrays
-    copyto!(P_k,P)
-    copyto!(AP_k,AP)
+    b = HYPREVector(comm, Int32(p_min), Int32(p_max))
+    x = HYPREVector(comm, Int32(p_min), Int32(p_max))
 
     # Iterate 
     iter=0
@@ -351,46 +317,32 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
 
         # if iter > 10
         if iter % 5 == 1 
-            HYPRE_IJMatrixInitialize(jacob)
-            compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
-            HYPRE_IJMatrixAssemble(jacob)
+            J_assembler = HYPRE.start_assemble!(jacob)
+            up_compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+            J = HYPRE.finish_assemble!(J_assembler)
         end
         
         # #! reinit
-        HYPRE_IJVectorInitialize(AP_old)
-        HYPRE_IJVectorInitialize(P_new)
-        # if iter > 1
+        b_assembler = HYPRE.start_assemble!(b)
+        x_assembler = HYPRE.start_assemble!(x)
+
         for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
             row_ = p_index[i,j,k]
-            # HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
-            HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
-            HYPRE_IJVectorSetValues(AP_old, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
+            HYPRE.assemble!(b_assembler,[row_],[AP[i,j,k]]) 
+            HYPRE.assemble!(x_assembler,[row_],[0.0])        
         end
-
-        MPI.Barrier(par_env.comm)
-
-
-        HYPRE_IJVectorAssemble(AP_old)
-        par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
-        HYPRE_IJVectorGetObject(AP_old, par_AP_ref)
-        par_AP_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
-
-        HYPRE_IJVectorAssemble(P_new)
-        par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
-        HYPRE_IJVectorGetObject(P_new, par_Pn_ref)
-        par_P_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
-
-        # end
+    
+        b = HYPRE.finish_assemble!(b_assembler)
+        x = HYPRE.finish_assemble!(x_assembler)
 
         solver_ref = Ref{HYPRE_Solver}(C_NULL)
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
-        MPI.Barrier(par_env.comm)
 
-        hyp_iter = hyp_solve(solver_ref,precond_ref, parcsr_J, par_AP_old, par_P_new,par_env, "LGMRES")
-
+        hyp_iter = hyp_solve(solver_ref,precond_ref, J, b, x, par_env, "LGMRES")
+     
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             int_x = zeros(1)
-            HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)
+            HYPRE_IJVectorGetValues(x,1,pointer(Int32.([p_index[i,j,k]])),int_x)
             # P_step[i,j,k] = int_x[1]
             if iter> 10
                 P[i,j,k] -= 0.5*int_x[1]
@@ -399,17 +351,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
             end
         end
 
-        MPI.Barrier(par_env.comm)
-
-        MPI.Barrier(par_env.comm)
         P .-=parallel_mean_all(P,par_env)
-
-        MPI.Barrier(par_env.comm)
-        # if isroot; println("outflow gradient calculated within p iterations at iter ", iter); end
-        # outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,verts,tets,param,mesh,par_env)
-        # if isroot; println("a op gradient calc within p iter at iter ", iter); end
-
-        MPI.Barrier(par_env.comm)
         
         #update new Ap
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
@@ -417,11 +359,9 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
         res_par = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         
         if res_par < tol || iter == 50
-            HYPRE_ParVectorDestroy(par_AP_old)
-            HYPRE_ParVectorDestroy(par_P_new)
             return iter
         end
-        # if iter >1 && t>109
+
         if iter % 10 == 0
         # if t == 6
             # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
@@ -433,7 +373,7 @@ end
 
 # Flux-Corrected solvers 
 #! laplace operator containing face centered densities
-function compute_lap_op!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
+function compute_lap_op!(mat_assembler,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
@@ -512,191 +452,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env
         ncols = nst
         rows_ = coeff_index[i,j,k]
 
-
-        # Call function to set matrix values
-        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
-    end
-end
-
-#! laplace operator containing face centered densities multiplied by negative 1
-function compute_lap_op_neg!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
-    nrows = 1
-    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
-        #define jacobian
-        fill!(cols_,0)
-        fill!(values_,0.0)
-        nst = 0
-        #! main diagonal
-        nst+=1
-        cols_[nst] = coeff_index[i,j,k]
-        values_[nst] = (1.0 / (denx[i, j, k] * dx^2) + 1.0 / (denx[i+1, j, k] * dx^2) + 
-                        1.0 / (deny[i, j, k] * dy^2) + 1.0 / (deny[i, j+1, k] * dy^2) + 
-                        1.0 / (denz[i, j, k] * dz^2) + 1.0 / (denz[i, j, k+1] * dz^2))
-
-        #! x-dir off-diags
-        if i-1 < imin
-            values_[1] -= 1.0/(denx[i,j,k]*dx^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i-1,j,k]
-            values_[nst] = -1.0 / (denx[i,j,k] * dx^2)
-        end
-
-        if i+1 > imax
-            values_[1] -= 1.0/(denx[i+1,j,k]*dx^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i+1,j,k]
-            values_[nst] = -1.0 / (denx[i+1,j,k] * dx^2)
-        end
-
-        #! y-dir off-diags
-        if j-1 < jmin
-            values_[1] -= 1.0/(deny[i,j,k]*dy^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i,j-1,k]
-            values_[nst] = -1.0 / (deny[i,j,k] * dy^2)
-        end
-
-        if j+1 > jmax
-            values_[1] -= 1.0/(deny[i,j+1,k]*dy^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i,j+1,k]
-            values_[nst] = -1.0 / (deny[i,j+1,k] * dy^2)
-        end
-
-        #! z-dir off-diags
-        if k-1 < kmin
-            values_[1] -= 1.0/(denz[i,j,k]*dz^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i,j,k-1]
-            values_[nst] = -1.0 / (denz[i,j,k] * dz^2)
-        end
-
-        if k+1 > kmax
-            values_[1] -= 1.0/(denz[i,j,k+1]*dz^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i,j,k+1]
-            values_[nst] = -1.0 / (denz[i,j,k+1] * dz^2)
-        end
-
-        for st in 1:nst
-            ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
-            tmpr = values_[st]
-            values_[st] = values_[ind]
-            values_[ind] = tmpr
-            tmpi = cols_[st]
-            cols_[st] = cols_[ind]
-            cols_[ind] = tmpi
-        end
-        
-        ncols = nst
-        rows_ = coeff_index[i,j,k]
-
-        # Call function to set matrix values
-        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
-    end
-end
-
-#! laplace operator containing face centered densities with pressure reference point
-function compute_lap_op_pref!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
-    nrows = 1
-    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
-        #define jacobian
-        fill!(cols_,0)
-        fill!(values_,0.0)
-        nst = 0
-        if i == 15 && j == 110 && k==15
-            nst+=1
-            cols_[nst] = coeff_index[i,j,k]
-            values_[1] = 1
-        else
-            #! main diagonal
-            nst+=1
-            cols_[nst] = coeff_index[i,j,k]
-            values_[nst] = -(1.0 / (denx[i, j, k] * dx^2) + 1.0 / (denx[i+1, j, k] * dx^2) + 
-                            1.0 / (deny[i, j, k] * dy^2) + 1.0 / (deny[i, j+1, k] * dy^2) + 
-                            1.0 / (denz[i, j, k] * dz^2) + 1.0 / (denz[i, j, k+1] * dz^2))
-
-            #! x-dir off-diags
-            if i-1 < imin
-                values_[1] += 1.0/(denx[i,j,k]*dx^2)
-            else 
-                nst+=1
-                cols_[nst] = coeff_index[i-1,j,k]
-                values_[nst] = 1.0 / (denx[i,j,k] * dx^2)
-            end
-
-            if i+1 > imax
-                values_[1] += 1.0/(denx[i+1,j,k]*dx^2)
-            else 
-                nst+=1
-                cols_[nst] = coeff_index[i+1,j,k]
-                values_[nst] = 1.0 / (denx[i+1,j,k] * dx^2)
-            end
-
-            #! y-dir off-diags
-            if j-1 < jmin
-                values_[1] += 1.0/(deny[i,j,k]*dy^2)
-            else 
-                nst+=1
-                cols_[nst] = coeff_index[i,j-1,k]
-                values_[nst] = 1.0 / (deny[i,j,k] * dy^2)
-            end
-
-            if j+1 > jmax
-                values_[1] += 1.0/(deny[i,j+1,k]*dy^2)
-            else 
-                nst+=1
-                cols_[nst] = coeff_index[i,j+1,k]
-                values_[nst] = 1.0 / (deny[i,j+1,k] * dy^2)
-            end
-
-            #! z-dir off-diags
-            if k-1 < kmin
-                values_[1] += 1.0/(denz[i,j,k]*dz^2)
-            else 
-                nst+=1
-                cols_[nst] = coeff_index[i,j,k-1]
-                values_[nst] = 1.0 / (denz[i,j,k] * dz^2)
-            end
-
-            if k+1 > kmax
-                values_[1] += 1.0/(denz[i,j,k+1]*dz^2)
-            else 
-                nst+=1
-                cols_[nst] = coeff_index[i,j,k+1]
-                values_[nst] = 1.0 / (denz[i,j,k+1] * dz^2)
-            end
-        end
-        for st in 1:nst
-            ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
-            tmpr = values_[st]
-            values_[st] = values_[ind]
-            values_[ind] = tmpr
-            tmpi = cols_[st]
-            cols_[st] = cols_[ind]
-            cols_[ind] = tmpi
-        end
-        
-        ncols = nst
-        rows_ = coeff_index[i,j,k]
-        # if i > imin && j > jmin
-        # println(1/(dx^2*denx[i,j,k]))
-        # println(1/(dy^2*deny[i,j,k]))
-        #     println(cols_)
-        #     println(values_)
-        #     error("stop")
-        # end
-
-        # Call function to set matrix values
-        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
+        HYPRE.assemble!(mat_assembler,[rows_],cols_[1:ncols],values_[:,1:ncols])
     end
 end
 
@@ -706,76 +462,52 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob)
     @unpack dx,dy,dz = mesh
     @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
     
-
     #! prep indices
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
-    cols_ = OffsetArray{Int32}(undef,1:27); fill!(cols_,0)
-    values_ = OffsetArray{Float64}(undef,1:27); fill!(values_,0.0)
+    cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
+    values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
 
+    b = HYPREVector(comm, Int32(p_min), Int32(p_max))
+    RHS_assembler = HYPRE.start_assemble!(b)
 
-    #! determine the laplacian to use
-    compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    #compute_lap_op_pref!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    # compute_lap_op_neg!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
-
-    MPI.Barrier(comm)
-    HYPRE_IJMatrixAssemble(jacob)
-    parcsr_A_ref = Ref{Ptr{Cvoid}}(C_NULL)
-    HYPRE_IJMatrixGetObject(jacob, parcsr_A_ref)
-    parcsr_A = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_A_ref[])
-
-    #! prepare Pressure vectors (P_old and P_new)
-    RHS_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,RHS_ref)
-    RHS_hyp = RHS_ref[]
-    HYPRE_IJVectorSetObjectType(RHS_hyp,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(RHS_hyp)
-
-    Pn_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,Pn_ref)
-    P_new = Pn_ref[]
-    HYPRE_IJVectorSetObjectType(P_new, HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(P_new)
-
-
+    x = HYPREVector(comm,Int32(p_min), Int32(p_max))
+    x_assembler = HYPRE.start_assemble!(x)
     for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
         row_ = p_index[i,j,k]
-        HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
-        HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([RHS[i,j,k]])))
+        HYPRE.assemble!(x_assembler,[row_],[P[i,j,k]])
+        HYPRE.assemble!(RHS_assembler,[row_],[RHS[i,j,k]])
     end
     
-    #! if pressure reference point is used set here
-
-    # row_ = p_index[15,110,15]
-    # HYPRE_IJVectorSetValues(RHS_hyp, 1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
-    MPI.Barrier(par_env.comm)
-
-
-    HYPRE_IJVectorAssemble(P_new)
-    par_P_ref = Ref{Ptr{Cvoid}}(C_NULL)
-    HYPRE_IJVectorGetObject(P_new, par_P_ref)
-    par_P = convert(Ptr{HYPRE_ParVector}, par_P_ref[])
-
-    HYPRE_IJVectorAssemble(RHS_hyp)
-    par_RHS_ref = Ref{Ptr{Cvoid}}(C_NULL)
-    HYPRE_IJVectorGetObject(RHS_hyp, par_RHS_ref)
-    par_RHS = convert(Ptr{HYPRE_ParVector}, par_RHS_ref[])
+    b = HYPRE.finish_assemble!(RHS_assembler)
+    x = HYPRE.finish_assemble!(x_assembler)
+    
+    J_assembler = HYPRE.start_assemble!(jacob)
+    
+    up_compute_lap_op!(J_assembler,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    
+    J = HYPRE.finish_assemble!(J_assembler)
 
     solver_ref = Ref{HYPRE_Solver}(C_NULL)
     precond_ref = Ref{HYPRE_Solver}(C_NULL)
-    MPI.Barrier(par_env.comm)
 
-    # iter = hyp_solve(solver_ref,precond_ref, parcsr_A, par_RHS, par_P ,par_env, "LGMRES")
-    iter = hyp_solve(solver_ref,precond_ref, parcsr_A, par_RHS, par_P ,par_env, "GMRES-AMG")
+    #! HYPRE.jl solver setup (not as expansive and more tricky to converge)
+    # precond = HYPRE.BoomerAMG(; MaxIter = 1, RelaxType = 3,CoarsenType = 0, InterpType = 12,NumSweeps= 2)
+    # solver = HYPRE.GMRES(comm; Tol= tol, KDim = 20, Precond=precond)
+    # HYPRE.solve!(solver,x,J,b)
+    # iter = HYPRE.GetNumIterations(solver)
 
+    #! HYPRE.LibHYPRE c function call solver
+    iter = hyp_solve(solver_ref,precond_ref, J, b, x,par_env, "GMRES-AMG")
+    
     for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
         int_x = zeros(1)
-        HYPRE_IJVectorGetValues(P_new,1,pointer(Int32.([p_index[i,j,k]])),int_x)
+        HYPRE.HYPRE_IJVectorGetValues(x,1,pointer(Int32.([p_index[i,j,k]])),int_x)
         P[i,j,k] = int_x[1]
     end
 
     Neumann!(P,mesh,par_env)
     update_borders!(P,mesh,par_env)
+    
     return iter
 end

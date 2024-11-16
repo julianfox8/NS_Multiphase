@@ -1,7 +1,7 @@
 using WriteVTK
 using Printf
 
-function csv_init(param,par_env)
+function csv_init!(param,par_env)
     @unpack isroot = par_env
     @unpack VTK_dir = param
     if isroot
