@@ -1,4 +1,3 @@
-# using JSON
 
 # Solve Poisson equation: δP form
 function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,outflow,BC!,jacob)
@@ -24,47 +23,15 @@ function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,d
     return iter
 end
 
-
-
 function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,BC!,jacob)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
-    if pressureSolver == "GaussSeidel"
-        iter = GaussSeidel!(P,RHS,uf,vf,wf,t,denx,deny,denz,dt,outflow,BC!,param,mesh,par_env)
-    elseif pressureSolver == "ConjugateGradient"
-        iter = conjgrad!(P,RHS,denx,deny,denz,tmp2,tmp3,tmp4,dt,param,mesh,par_env)
-    elseif pressureSolver == "FC_hypre"
-        iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp4,param,mesh,par_env,jacob)
-    elseif pressureSolver == "Secant"
-        iter = Secant_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env)
-    elseif pressureSolver == "sparseSecant"
-        iter = Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env,J,nstep)
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,param,mesh,par_env,jacob)
-    elseif pressureSolver == "NLsolve"
-        iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
-    elseif pressureSolver == "Jacobi"
-        Pois = Poisson(P,uf,vf,wf,denx,deny,denz,band,dt,param,par_env,mesh)
-        iter = Jacobi!(Pois)
-     else
         error("Unknown pressure solver $pressureSolver")
     end
 
     return iter
-end
-
-
-function lap!(L,P,denx,deny,denz,param,mesh)
-    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    fill!(L,0.0)
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        L[i,j,k] = (
-            (P[i+1,j,k]-P[i,j,k])/̂(denx[i+1,j,k]*dx^2)-(P[i,j,k]-P[i-1,j,k])/̂(denx[i,j,k]*dx^2) +
-            (P[i,j+1,k]-P[i,j,k])/̂(deny[i,j+1,k]*dy^2)-(P[i,j,k]-P[i,j-1,k])/̂(deny[i,j,k]*dy^2) +
-            (P[i,j,k+1]-P[i,j,k])/̂(denz[i,j,k+1]*dz^2)-(P[i,j,k]-P[i,j,k-1])/̂(denz[i,j,k]*dz^2) )
-    end
-    return nothing
 end
 
 # LHS of pressure poisson equation
@@ -335,7 +302,6 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     MPI.Barrier(comm)
     HYPRE_IJMatrixAssemble(jacob)
 
-
     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
     parcsr_J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
@@ -391,29 +357,30 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
         end
         
         # #! reinit
-
-        if iter > 1
-            for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
-                row_ = p_index[i,j,k]
-                HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
-                # HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
-                HYPRE_IJVectorSetValues(AP_old, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
-            end
-
-            MPI.Barrier(par_env.comm)
-
-
-            HYPRE_IJVectorAssemble(AP_old)
-            par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
-            HYPRE_IJVectorGetObject(AP_old, par_AP_ref)
-            par_AP_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
-
-            HYPRE_IJVectorAssemble(P_new)
-            par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
-            HYPRE_IJVectorGetObject(P_new, par_Pn_ref)
-            par_P_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
-
+        HYPRE_IJVectorInitialize(AP_old)
+        HYPRE_IJVectorInitialize(P_new)
+        # if iter > 1
+        for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+            row_ = p_index[i,j,k]
+            # HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
+            HYPRE_IJVectorSetValues(P_new,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
+            HYPRE_IJVectorSetValues(AP_old, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
         end
+
+        MPI.Barrier(par_env.comm)
+
+
+        HYPRE_IJVectorAssemble(AP_old)
+        par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        HYPRE_IJVectorGetObject(AP_old, par_AP_ref)
+        par_AP_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
+
+        HYPRE_IJVectorAssemble(P_new)
+        par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        HYPRE_IJVectorGetObject(P_new, par_Pn_ref)
+        par_P_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
+
+        # end
 
         solver_ref = Ref{HYPRE_Solver}(C_NULL)
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
@@ -447,21 +414,6 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
         #update new Ap
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
 
-        #! interpolate between the k and k+1 iterations
-        # if t >109 && iter>1
-        #     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        #         P_temp = P_k[i,j,k] - AP_k[i,j,k]*(P[i,j,k]-P_k[i,j,k])/(AP[i,j,k]-AP_k[i,j,k])
-        #         P_temp = min(max(P_k[i,j,k],P[i,j,k]),P_temp)
-        #         P[i,j,k] = max(min(P_k[i,j,k],P[i,j,k]),P_temp)
-        #     end
-        #     outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
-        #     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env)
-        # end
-
-        # println("this is iter $iter")
-        # outflowCorrection!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,outflow,p,tets_arr,param,mesh,par_env)
-        copyto!(P_k,P)
-        copyto!(AP_k,AP)
         res_par = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         
         if res_par < tol || iter == 50
@@ -645,13 +597,6 @@ function compute_lap_op_neg!(matrix,coeff_index,cols_,values_,denx,deny,denz,par
         
         ncols = nst
         rows_ = coeff_index[i,j,k]
-        # if i > imin && j > jmin
-        # println(1/(dx^2*denx[i,j,k]))
-        # println(1/(dy^2*deny[i,j,k]))
-        #     println(cols_)
-        #     println(values_)
-        #     error("stop")
-        # end
 
         # Call function to set matrix values
         HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
