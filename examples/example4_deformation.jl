@@ -12,6 +12,7 @@ param = parameters(
     rho_liq=1.0,           # Density
     rho_gas = 0.01,
     sigma = 1,
+    gravity = 0.0,
     Lx=5.0,            # Domain size
     Ly=5.0,
     Lz=1/50,
@@ -40,10 +41,9 @@ param = parameters(
     # Turn off NS solver
     solveNS = false,
     VFVelocity = "Deformation",
-    VTK_dir= "VTK_example_static_bubble1"
 
     # Iteration method used in @loop macro
-    #iter_type = "standard",
+    iter_type = "standard",
     #iter_type = "floop",
 )
 
@@ -86,6 +86,6 @@ function BC!(u,v,w,mesh,par_env)
     # Not needed when solveNS=false
     return nothing
 end
-
+outflow = nothing
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!)
+run_solver(param, IC!, BC!,outflow)

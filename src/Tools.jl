@@ -1036,12 +1036,13 @@ function term_vel(uf,vf,wf,VF,param,mesh,par_env)
     #! odd number of cells in x and z-direction assumed
     mid_x = div(length(xm[imin_:imax_]),2)+1
     mid_z = div(length(zm[kmin_:kmax_]),2)+1
-    
-    for j = jmax_:-1:jmin_
-        if VF[mid_x,j,mid_z] < VFhi
-            term_vel_height = dy*(1-VF[mid_x,j,mid_z])+y[j]
-            terminal_vel = vf[mid_x,j,mid_z] + (vf[mid_x,j+1,mid_z]-vf[mid_x,j,mid_z])/(y[j+1]-y[j])*(term_vel_height-y[j])
-            return term_vel_height,terminal_vel
+    if iseven(mid_x) && iseven(mid_z)
+        for j = jmax_:-1:jmin_
+            if VF[mid_x,j,mid_z] < VFhi
+                term_vel_height = dy*(1-VF[mid_x,j,mid_z])+y[j]
+                terminal_vel = vf[mid_x,j,mid_z] + (vf[mid_x,j+1,mid_z]-vf[mid_x,j,mid_z])/(y[j+1]-y[j])*(term_vel_height-y[j])
+                return term_vel_height,terminal_vel
+            end
         end
     end
     return term_vel_height,terminal_vel

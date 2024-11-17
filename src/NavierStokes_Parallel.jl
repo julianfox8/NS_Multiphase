@@ -53,7 +53,7 @@ function run_solver(param, IC!, BC!, outflow)
     # Create work arrays
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,tets,verts,inds,vInds = initArrays(mesh)
 
-    HYPRE_Init()
+    solveNS && HYPRE_Init()
 
     p_min,p_max = prepare_indices(tmp3,par_env,mesh)
 

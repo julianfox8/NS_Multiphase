@@ -11,16 +11,17 @@ param = parameters(
     mu_gas = 0.01,
     rho_liq=1.0,           # Density
     rho_gas = 0.01,
-    sigma = 1,
+    sigma = 0.0,
+    gravity = 0.0,
     Lx=1.0,            # Domain size
     Ly=1.0,
     Lz=1.0,
     tFinal=3.0,      # Simulation time
     
     # Discretization inputs
-    Nx=25,           # Number of grid cells
-    Ny=25,
-    Nz=25,
+    Nx=64,           # Number of grid cells
+    Ny=64,
+    Nz=64,
     max_dt = 1.0/64/2.0*0.9,
     stepMax=10000,   # Maximum number of timesteps
     CFL=0.4 ,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -28,19 +29,21 @@ param = parameters(
     tol = 1e-3,
 
     # Processors 
-    nprocx = 1,
-    nprocy = 1,
-    nprocz = 1,
+    nprocx = 2,
+    nprocy = 2,
+    nprocz = 2,
 
     # Periodicity
     xper = false,
     yper = false,
-    zper = true,
+    zper = false,
 
     # Turn off NS solver
     solveNS = false,
     VFVelocity = "Deformation3D",
-    VTK_dir= "VTK_example_static_bubble1"
+    VTK_dir= "VTK_example_static_bubble64_nosurf",
+
+    iter_type = "standard"
 )
 
 """
@@ -65,10 +68,11 @@ end
 """
 Boundary conditions for velocity
 """
-function BC!(u,v,w,mesh,par_env)
+function BC!(u,v,w,t,mesh,par_env)
     # Not needed when solveNS=false
     return nothing
 end
 
+outflow = nothing
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!)
+run_solver(param, IC!, BC!,outflow)
