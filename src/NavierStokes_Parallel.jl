@@ -15,12 +15,10 @@ using NLsolve
 using Statistics
 using LinearAlgebra
 using SparseArrays
-# using HYPRE.LibHYPRE
+using HYPRE.LibHYPRE
 using HYPRE
 using EzXML
 using JSON
-
-
 
 include("Parameters.jl")
 include("Mesh.jl")
@@ -34,7 +32,6 @@ include("VFgeom.jl")
 include("ELVIRA.jl")
 include("WriteData.jl")
 include("ReadData.jl")
-# include("hyp.jl")
 
 function run_solver(param, IC!, BC!, outflow)
     @unpack Nx,stepMax,tFinal,solveNS,pressure_scheme,restart,tol = param
