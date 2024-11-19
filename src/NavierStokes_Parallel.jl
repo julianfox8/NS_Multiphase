@@ -160,7 +160,7 @@ function run_solver(param, IC!, BC!, outflow)
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,outflow,BC!,jacob)
+            iter = pressure_solver!(P,uf,vf,wf,nstep,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,gradx,grady,gradz,verts,tets,outflow,BC!,jacob)
             # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
 
             # Corrector face velocities

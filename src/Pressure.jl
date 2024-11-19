@@ -1,7 +1,7 @@
 # using JSON
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,outflow,BC!,jacob)
+function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,gradx,grady,gradz,verts,tets,outflow,BC!,jacob)
     @unpack pressure_scheme = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -19,14 +19,14 @@ function pressure_solver!(P,uf,vf,wf,t,dt,band,VF,param,mesh,par_env,denx,deny,d
     else
         RHS = nothing
     end
-    iter = poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,BC!,jacob)
+    iter = poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,verts,tets,outflow,BC!,jacob)
 
     return iter
 end
 
 
 
-function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,BC!,jacob)
+function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,verts,tets,outflow,BC!,jacob)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
@@ -41,7 +41,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,t,gradx,grady,gradz,band,VF,dt,param,mesh
     elseif pressureSolver == "sparseSecant"
         iter = Secant_sparse_jacobian!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,outflow,param,mesh,par_env,J,nstep)
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,param,mesh,par_env,jacob)
+        iter = Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,verts,tets,outflow,param,mesh,par_env,jacob)
     elseif pressureSolver == "NLsolve"
         iter = computeNLsolve!(P,uf,vf,wf,gradx,grady,gradz,band,den,dt,param,mesh,par_env)
     elseif pressureSolver == "Jacobi"
@@ -479,7 +479,7 @@ function Secant_jacobian_hypre_old!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,
     end    
 end
 
-function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,outflow,param,mesh,par_env,jacob)
+function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,verts,tets,outflow,param,mesh,par_env,jacob)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -487,12 +487,13 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
 
     # Local names for temp arrays 
     LHS     = tmp1
-    Pnew    = tmp1
-    AP      = tmp2
+    B       = tmp1 # be careful! 
+    Pnew    = tmp2
+    AP      = tmp3
     APnew   = tmp4
-    p_index = tmp3  
-    dP      = tmp5
-    JdP     = tmp6
+    p_index = tmp5  
+    dP      = tmp6
+    JdP     = tmp7
 
     # HYPRE.Init()
     fill!(LHS,0.0)
@@ -539,7 +540,6 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
     iter=0
     while true
         iter += 1
-
     
         # Set values for dP and A(P) to prepare for solve of J⋅dP = A(P)
         for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
@@ -600,7 +600,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
             # Reduce λ
             λ /= 2
             # Max number of iter
-            if line_iter == 10
+            if line_iter == 4
                 println("Iter=$iter: Reached $line_iter subiterations on line search λ=$λ")
                 break
             end
@@ -624,9 +624,27 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,t,gradx,grady,gradz,band,dt,denx,deny
             compute_hypre_jacobian!(jacob,p_index,cols_,values_,Pnew,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,APnew,LHS,tmp4,verts,tets,par_env,mesh)
             HYPRE_IJMatrixAssemble(jacob)
         else 
-            # Update Jacobian using Broyden's Method
-            dPmag = mag(dP[imin:imax,jmin:jmax,kmin:kmax],par_env)
-            ((APnew .- AP) .- JdP)/dPmag^2
+            # # Update Jacobian using Broyden's Method
+            # dPmag = mag(dP[imin:imax,jmin:jmax,kmin:kmax],par_env)
+            # B .= (((APnew .- AP) .- JdP)/dPmag^2)
+            # ncols_arr = zeros(Int32,1)
+            # for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
+            #     # Get non-zero columns on this row 
+            #     row = p_index[i,j,k]
+            #     HYPRE_IJMatrixGetRowCounts(jacob, 1, pointer(Int32.([row])), ncols_arr)
+            #     ncols = ncols_arr[1]
+            #     cols = zeros(Int32,  ncols)
+            #     Jvals = zeros(Float64,ncols)
+            #     dPvals = zeros(Float64,ncols)
+            #     # Note returns cols (with 0 index) and vals
+            #     HYPRE_IJMatrixGetValues(jacob, -1, ncols_arr,pointer(Int32.([row])),cols,Jvals)
+            #     cols .+= 1 # shift column index to be 1 based
+            #     HYPRE_IJVectorGetValues(dP_hyp,ncols,cols,dPvals)
+            #     dJacob = dot(Jvals,dPvals)
+
+                # Set new values    
+            #end
+
         end
 
         # Transfer P for next iteration 
