@@ -30,10 +30,10 @@ param = parameters(
  
     
     # Discretization inputs
-    Nx=50,         # Number of grid cells
-    Ny=50,
+    Nx=10,         # Number of grid cells
+    Ny=10,
     Nz=1,
-    stepMax=200,   # Maximum number of timesteps
+    stepMax=100,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -41,8 +41,8 @@ param = parameters(
     tol = 1e-6,
 
     # Processors 
-    nprocx = 2,
-    nprocy = 2,
+    nprocx = 1,
+    nprocy = 1,
     nprocz = 1,
 
     # Periodicity
@@ -63,7 +63,7 @@ param = parameters(
 
 function IC!(u,mesh,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,Lx,x,y,Ly,xm,ym,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-    @unpack iroot,isroot,irankx,nprocx,iranky,irank = par_env
+    @unpack iroot,isroot,irankx,nprocx,iranky,irank,nproc,comm = par_env
     
     # # # #Sin IC
     # amp = 10.0
@@ -75,9 +75,20 @@ function IC!(u,mesh,par_env)
     # #Gaussian kernel
     μ = Lx / 2.0  # Mean (center) of the Gaussian
     σ = 0.5     # Standard deviation (spread) of the Gaussian
-    for k = 1, j = jmin_:jmax_, i = imin_:imax_
-        u[i, j, k] = 10*exp(-((x[i] - μ)^2+(y[j]-μ)^2)  / (2 * σ^2)) / sqrt(2π * σ^2)
+    for n in 0:nproc
+        if irank == n
+            println("proc $n")
+            for k = 1, j = jmin_:jmax_, i = imin_:imax_
+                println("x loc $(x[i]) and y loc $(y[j])")
+                u[i, j, k] = 10*exp(-((x[i] - μ)^2+(y[j]-μ)^2)  / (2 * σ^2)) / sqrt(2π * σ^2)
+            end
+        end
+        MPI.Barrier(comm)
     end
+
+    # for k = 1, j = jmin_:jmax_, i = imin_:imax_
+    #     u[i, j, k] = 10*exp(-((x[i] - μ)^2+(y[j]-μ)^2)  / (2 * σ^2)) / sqrt(2π * σ^2)
+    # end
 end
 
 
@@ -386,7 +397,7 @@ function diffusion_hypre_parallel(param,IC!)
                     if nx_ != 1
                         ni = i + st # Get neighbor index in the x direction
                         nj = j # No change in the y direction
-                        if ni in imino_:imaxo_ && nj in jmino_:jmaxo_ && coeff_index[ni,nj] != -1
+                        if ni in imin_:imax_ && nj in jmin_:jmax_ && coeff_index[ni,nj] != -1
                             nst += 1
                             cols_[nst] = coeff_index[ni,nj]
                             values_[nst] = -F
@@ -397,7 +408,7 @@ function diffusion_hypre_parallel(param,IC!)
                     if ny_ != 1
                         ni = i # No change in the x direction
                         nj = j + st # Get neighbor index in the y direction
-                        if ni in imino_:imaxo_ && nj in jmino_:jmaxo_ && coeff_index[ni,nj] != -1
+                        if ni in imin_:imax_ && nj in jmin_:jmax_ && coeff_index[ni,nj] != -1
                             nst += 1
                             cols_[nst] = coeff_index[ni,nj]
                             values_[nst] = -F
@@ -429,8 +440,8 @@ function diffusion_hypre_parallel(param,IC!)
     fill_matrix_coefficients!(A,coeff_index,offset,cols_,values_,mesh)
 
     HYPRE_IJMatrixAssemble(A)
-
-
+    HYPRE_IJMatrixPrint(A,"old_A")
+    error("stop")
     parcsr_A_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJMatrixGetObject(A, parcsr_A_ref)
     parcsr_A = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_A_ref[])
@@ -585,9 +596,266 @@ function diffusion_hypre_parallel(param,IC!)
     # parallel_finalize()
 end
 
+function diffusion_hypre_wrap(param,IC!)
+    par_env = NS.parallel_init(param)
+    @unpack iroot,isroot,irankx,nprocx,comm,nproc,irank = par_env
+
+    if isroot; println("Starting solver ..."); end 
+    print("on $(Threads.nthreads()) threads\n")
+    HYPRE_Init()
+
+    # Create mesh
+    mesh = NS.create_mesh(param,par_env)
+
+    # Create work arrays
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,tets,verts,inds,vInds = NS.initArrays(mesh)
+
+    @unpack Nx,Ny,dx,imin_,imino_,imax_,imaxo_,jmin_,jmino_,jmax_,jmaxo_,imin,imax,jmin,jmax = mesh
+    @unpack mu_liq,CFL,max_dt,tFinal,stepMax = param
+
+    # Viscous Δt 
+    viscous_dt = dx/mu_liq
+    dt = min(max_dt,CFL*minimum(viscous_dt))
+
+    #Fourier mesh coefficients
+    # F = dt*mu_liq/2*dx^2
+    F = 0.25
+    t = 0.0 :: Float64
+    #Apply IC
+    IC!(u,mesh,par_env)
+    
+    offset = [-Nx, -1, 0, 1, Nx] # Define the offset
+
+    function prepare_indices(temp_index,par_env,mesh)
+        @unpack Nx,Ny,jmino_,imino_,jmaxo_,imaxo_,jmin_,imin_,jmax_,imax_= mesh
+        @unpack comm,nproc,irank,iroot,isroot,iranky = par_env
+        ntemps = 0
+        local_ntemps = 0
+        for j = jmin_:jmax_,i = imin_:imax_
+                local_ntemps += 1
+        end
+    
+        MPI.Allreduce!([local_ntemps], [ntemps], MPI.SUM, par_env.comm)
+    
+        ntemps_proc = zeros(Int, nproc)
+    
+        MPI.Allgather!([local_ntemps], ntemps_proc, comm)
+    
+        ntemps_proc = cumsum(ntemps_proc)
+        local_count = ntemps_proc[irank+1] - local_ntemps
+        for j = jmin_:jmax_, i = imin_:imax_
+                local_count += 1
+                temp_index[i, j,1] = local_count
+        end
+
+        MPI.Barrier(par_env.comm)
+
+        NS.update_borders!(temp_index,mesh,par_env)
+        
+        temp_max = -1
+        temp_min = maximum(temp_index)
+        for j in jmin_:jmax_, i in imin_:imax_
+            if temp_index[i,j,1] != -1
+                temp_min = min(temp_min,temp_index[i,j,1])
+                temp_max = max(temp_max,temp_index[i,j,1])
+            end
+        end
+        return temp_min,temp_max
+    
+    end
+
+    coeff_index = OffsetArray{Int32}(undef,imino_:imaxo_,jmino_:jmaxo_,1); fill!(coeff_index,0.0)
+
+    temp_min,temp_max = prepare_indices(coeff_index,par_env,mesh)
+    println(typeof(temp_min))
+    A = HYPREMatrix(par_env.comm, temp_min,temp_max,temp_min,temp_max)
+    A_assembler= HYPRE.start_assemble!(A)
+
+    function fill_matrix_coefficients!(matrix_assembler,coeff_index,offset, cols_, values_,mesh)
+        @unpack  Nx,Ny,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_ = mesh
+        nrows = 1
+
+        for j = jmin_:jmax_,i = imin_:imax_
+            if i == 1 || i == Nx || j == 1 || j == Ny
+                fill!(cols_,0)
+                fill!(values_,0.0)
+                nst = 1
+                cols_[nst] = coeff_index[i,j]
+                values_[nst] = 0.0
+                ncols = nst
+                rows_ = coeff_index[i,j]
+                HYPRE.assemble!(matrix_assembler,[rows_],[cols_[1]],hcat(values_[1]))
+            elseif coeff_index[i,j] != -1
+                fill!(cols_,0)
+                fill!(values_,0.0)
+                nst = 0
+
+                # Diagonal
+                nst += 1
+                cols_[nst] = coeff_index[i,j]
+                values_[nst] = 1+4*F
+    
+                for st in offset
+                    if st == 0
+                        continue
+                    end
+                    # Left-Right
+                    ni = i + st # Get neighbor index in the x direction
+                    nj = j # No change in the y direction
+                    
+                    if ni in imin_:imax_ && nj in jmin_:jmax_ && coeff_index[ni,nj] != -1
+                        nst += 1
+                        cols_[nst] = coeff_index[ni,nj]
+                        values_[nst] = -F
+                    end
+                
+                    
+                    # Top-Bottom
+                    ni = i # No change in the x direction
+                    nj = j + st # Get neighbor index in the y direction
+                    if ni in imin_:imax_ && nj in jmin_:jmax_ && coeff_index[ni,nj] != -1
+                        nst += 1
+                        cols_[nst] = coeff_index[ni,nj]
+                        values_[nst] = -F
+                    end
+                end
+    
+                # Sort the points
+                for st in 1:nst
+                    ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
+                    tmpr = values_[st]
+                    values_[st] = values_[ind]
+                    values_[ind] = tmpr
+                    tmpi = cols_[st]
+                    cols_[st] = cols_[ind]
+                    cols_[ind] = tmpi
+                end
+                
+                ncols = nst
+                rows_ = coeff_index[i,j]
+
+                # Call function to set matrix values
+                HYPRE.assemble!(matrix_assembler,[rows_],cols_,reshape(values_,(1,size(cols_,1))))
+            end
+        end
+    end
+
+    # cols_ = OffsetArray{Int32}(undef,1:size(offset,1)); fill!(cols_,0)
+    cols_ = Vector{Int32}(undef,size(offset,1) );fill!(cols_,0)
+    # values_ = OffsetArray{Float64}(undef,1:size(offset,1)); fill!(values_,0.0)
+    values_ = Matrix{Float64}(undef, 1, size(offset,1) );; fill!(values_,0.0)
+
+    fill_matrix_coefficients!(A_assembler,coeff_index,offset,cols_,values_,mesh)
+
+    A = HYPRE.finish_assemble!(A_assembler)
+    HYPRE_IJMatrixPrint(A,"new_A")
+    # divg = NS.divergence!(uf,vf,wf,dt,band,mesh,param,par_env)
+
+    # Initialize VTK outputs
+    pvd,pvd_PLIC = NS.VTK_init(param,par_env)
+
+    # NS.VTK(0,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
+    # Define path for the GIF
+    gif_path = "test/3d_surface_evolution.gif"
+    fps = 10  # Frames per second
+
+    # Initialize an empty list to store frames
+    frames = []
+    xlims = (1,Nx)
+    ylims = (1,Ny)
+    zlims = (0,5)
+    for step in 1:stepMax
+
+        t+=dt
+
+        b = HYPREVector(par_env.comm,temp_min,temp_max)
+        b_assembler = HYPRE.start_assemble!(b)
+
+        
+
+        for j in jmin_:jmax_, i in imin_:imax_
+            row_ = coeff_index[i,j]
+            if i == imin
+                HYPRE.assemble!(b_assembler,[row_],[0.0])
+            elseif i == imax
+                HYPRE.assemble!(b_assembler,[row_],[0.0])
+            elseif j == jmin
+                HYPRE.assemble!(b_assembler,[row_],[0.0])
+            elseif j == jmax
+                HYPRE.assemble!(b_assembler,[row_],[0.0])
+            else
+                HYPRE.assemble!(b_assembler,[row_],[u[i,j,1]])
+            end
+        end
+
+        b = HYPRE.finish_assemble!(b_assembler)
+        MPI.Barrier(par_env.comm)
+        
+        # solver = HYPRE.BiCGSTAB(par_env.comm;Tol = 1e-5)
+        precond = HYPRE.BoomerAMG(; RelaxType = 6, CoarsenType = 6)
+        solver = HYPRE.GMRES(comm; Tol= 1e-6, Precond = precond)
+        x = HYPRE.solve(solver,A,b)
+        int_x = zeros(1)
+        for j in jmin_:jmax_,i in imin_:imax_
+            HYPRE_IJVectorGetValues(x,1,pointer(Int32.([coeff_index[i,j,1]])),int_x)
+            u[i,j,1] = int_x[1]
+        end
+
+
+        MPI.Barrier(par_env.comm)
+        g_u = MPI.Gather(u[imin_:imax_,jmin_:jmax_,1],par_env.comm; root =0)
+        if isroot
+            # Reshape `g_u` appropriately after gathering for plotting
+            # Assuming `g_u` is gathered as a contiguous vector, reshape it
+            # gathered_data = reshape(g_u, Nx, Ny)  # Adjust `Nx` and `Ny` as needed based on domain decomposition
+            
+            # # Define the x and y axis ranges for the plot
+            # x_vals = range(1, stop=Nx, length=Nx)
+            # y_vals = range(1, stop=Ny, length=Ny)
+
+            # # Create a 3D surface plot
+            # p = surface(x_vals, y_vals, gathered_data,
+            #             xlabel="X Location", ylabel="Y Location", zlabel="Value",
+            #             title="3D Surface at Time Step $step")
+            
+            # # Save the figure
+            # savefig(p, "test/2d_diff/time_$step.pdf")
+
+            # Reshape `g_u` into the correct dimensions
+            gathered_data = reshape(g_u, Nx, Ny)  # Adjust Nx and Ny based on the domain decomposition
+    
+            # Define the x and y axis ranges for the plot
+            x_vals = range(1, stop=Nx, length=Nx)
+            y_vals = range(1, stop=Ny, length=Ny)
+    
+            # Plot the 3D surface for this timestep
+            p = surface(x_vals, y_vals, gathered_data,
+                    xlabel="X Location", ylabel="Y Location", zlabel="Value",
+                    title="3D Surface at Time Step $step",
+                    color=:viridis,
+                    xlims=xlims, ylims=ylims, zlims=zlims)
+        
+            push!(frames,p)
+        end
+        # NS.VTK(step,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
+
+    end
+
+    if isroot 
+        animation = @animate for frame in frames
+            plot!(frame)
+        end
+    
+        # Save the animation as a GIF
+        gif(animation, gif_path, fps = fps)
+    end
+    # parallel_finalize()
+end
+
 # @time diffusion_sparse(param,IC!)
 # @time diffusion_parallel(param,IC!)
-diffusion_hypre_parallel(param,IC!)
+# diffusion_hypre_parallel(param,IC!)
+diffusion_hypre_wrap(param,IC!)
 # @time diffusion(param,IC!)
 
 

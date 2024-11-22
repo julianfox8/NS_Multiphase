@@ -39,7 +39,7 @@ param = parameters(
     tol = 1e-6,
 
     # Processors 
-    nprocx = 2,
+    nprocx = 1,
     nprocy = 1,
     nprocz = 1,
 
@@ -48,12 +48,6 @@ param = parameters(
     yper = true,
     zper = true,
 
-    # pressureSolver = "NLsolve",
-    # pressureSolver = "Secant",
-    pressureSolver = "sparseSecant",
-    # pressureSolver = "GaussSeidel",
-    # pressureSolver = "ConjugateGradient",
-    # pressure_scheme = "finite-difference",
     iter_type = "standard",
     VTK_dir= "1D_diffusion"
 
@@ -521,8 +515,8 @@ function diffusion_hypre_parallel(param,IC!)
         # HYPRE_ParCSRPCGSetup(solver, parcsr_A, par_b, par_x)
         # HYPRE_ParCSRPCGSolve(solver, parcsr_A, par_b, par_x)
 
-        # HYPRE_IJVectorPrint(b,"b")
-        # HYPRE_IJVectorPrint(x,"x")
+        HYPRE_IJVectorPrint(b,"b")
+        HYPRE_IJMatrixPrint(A,"A")
 
         # Create solver
         HYPRE_BoomerAMGCreate(solver_ref)
@@ -572,9 +566,107 @@ function diffusion_hypre_parallel(param,IC!)
     parallel_finalize()
 end
 
+function diffusion_hypre_wrap(param,IC!)
+    par_env = NS.parallel_init(param)
+    @unpack iroot,isroot,irankx = par_env
+
+    if isroot; println("Starting solver ..."); end 
+    print("on $(Threads.nthreads()) threads\n")
+    HYPRE_Init()
+
+    # Create mesh
+    mesh = NS.create_mesh(param,par_env)
+
+    # Create work arrays
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,main,lower,upper = NS.initArrays(mesh)
+
+    @unpack Nx,dx,imin_,imax_,imino_,imaxo_ = mesh
+    @unpack mu_liq,CFL,max_dt,tFinal,stepMax = param
+
+    # Viscous Δt 
+    viscous_dt = dx/mu_liq
+    dt = min(max_dt,CFL*minimum(viscous_dt))
+
+    #Fourier mesh coefficients
+    F = dt*mu_liq/dx^2
+
+    #Apply IC
+    IC!(us,mesh)
+
+    A = HYPREMatrix(par_env.comm, imin_, imax_)
+    A_assembler = HYPRE.start_assemble!(A)
+    
+    function vals_and_inds(n,Nx)
+        if n == 1
+            idx = [n, n+1]
+            a = Float64[1 0]
+        elseif n == Nx
+            idx = [n-1, n]
+            a = Float64[0 1]
+        else
+            idx = [n-1, n, n+1]
+            a = Float64[-F 1+2*F -F]
+        end
+        return idx,a
+    end
+
+    for i in imin_:imax_
+        ind,Ae = vals_and_inds(i,Nx)
+        println(ind)
+        println(Ae)
+        error("stop")
+        HYPRE.assemble!(A_assembler,[i],ind,Ae)
+    end
+    
+    A = HYPRE.finish_assemble!(A_assembler)
+    
+    b = HYPREVector(par_env.comm, imin_, imax_)
+
+    for n in range(0,stepMax)
+
+        b_assembler = HYPRE.start_assemble!(b)
+
+        for i in imin_:imax_
+            if i == 1
+                be = 0.0
+            elseif i == Nx
+                be = 0.0
+            else
+                be = us[i,1,1]
+            end
+            HYPRE.assemble!(b_assembler,[i],[be])
+        end
+
+        b = HYPRE.finish_assemble!(b_assembler)
+       
+
+        #create preconditioner
+        # precond = HYPRE.BoomerAMG(; RelaxType = 6, CoarsenType = 6)
+
+        # Create solver
+        # solver = HYPRE.PCG(; MaxIter = 1000, Tol = 1e-9, Precond = precond)
+        solver = HYPRE.BiCGSTAB(par_env.comm;Tol = 1e-5)
+    
+        x = HYPRE.solve(solver,A,b)
+
+        int_x = zeros(1)
+        for i in imin_:imax_
+            HYPRE_IJVectorGetValues(x,1,[i],int_x)
+            us[i,1,1] = int_x[1]
+        end
+
+        g_u = MPI.Gather(us[imin_:imax_,1,1],par_env.comm; root =0)
+        if irankx == 0
+            p = plot(xlims=(1, Nx), ylims=(0, 50), xlabel="Location", ylabel="Value")
+            plot!(p,g_u, label = "Time step: $n")
+            savefig(p,"test/1d_diff/time_$n.pdf")
+        end
+    end
+end
+
 # @time diffusion_sparse(param,IC!)
-# @time diffusion_parallel(param,IC!)
-@time diffusion_hypre_parallel(param,IC!)
+# @time diffusion_hypre_parallel(param,IC!)
+@time diffusion_hypre_wrap(param,IC!)
 # @time diffusion(param,IC!)
 
 # gif(anim,"diffusion_1D.gif",fps = 15 )
