@@ -9,33 +9,33 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=1.25,       # Dynamic viscosity of liquid (N/m)
+    mu_liq=1.265,       # Dynamic viscosity of liquid (N/m)
     mu_gas = 1.79e-5, # Dynamic viscosity of gas (N/m)
-    rho_liq= 1340,           # Density of liquid (kg/m^3)
+    rho_liq= 1346.5,           # Density of liquid (kg/m^3)
     rho_gas =1.225,  # Density of gas (kg/m^3)
-    sigma = 0.0769, # surface tension coefficient (Ns/m^2)
+    sigma = 0.0769, # surface tension coefficient (N/m^2)
     gravity = 9.8, # Gravity (m/s^2)
-    Lx=0.21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
-    Ly=0.63,             
-    Lz=0.21,
+    Lx=0.25,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
+    Ly=0.25,             
+    Lz=0.25,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputs
-    Nx=21,           # Number of grid cells
-    Ny=63,
-    Nz=21,
-    stepMax=1000,   # Maximum number of timesteps
+    Nx=45,           # Number of grid cells
+    Ny=45,
+    Nz=45,
+    stepMax=300,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-6,
+    tol = 1e-5,
 
     # Processors 
-    nprocx = 1,
-    nprocy = 1,
-    nprocz = 1,
+    nprocx = 2,
+    nprocy = 2,
+    nprocz = 2,
 
     # Periodicity
     xper = false,
@@ -44,7 +44,7 @@ param = parameters(
 
     # Restart  
     # restart = true,
-    restart_itr = 107,
+    # restart_itr = 223,
 
     pressure_scheme = "semi-lagrangian",
     pressureSolver = "hypreSecant",
@@ -77,10 +77,10 @@ function IC!(P,u,v,w,VF,mesh)
 
     # fill!(VF,1.0)
     # Volume Fraction
-    rad=0.026
-    xo=0.105
-    yo=0.105
-    zo = 0.105
+    rad=0.013
+    xo=0.125
+    yo=0.125
+    zo = 0.125
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
         # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
