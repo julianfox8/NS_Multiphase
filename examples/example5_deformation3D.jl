@@ -41,7 +41,11 @@ param = parameters(
     # Turn off NS solver
     solveNS = false,
     VFVelocity = "Deformation3D",
-    VTK_dir= "VTK_example_static_bubble64_nosurf",
+    VTK_dir= "VTK_example_static_bubble32_nosurf",
+
+
+    pressureSolver = "FC_hypre",
+    pressure_scheme = "finite-difference",
 
     iter_type = "standard"
 )
