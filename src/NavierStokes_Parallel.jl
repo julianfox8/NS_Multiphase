@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, VFcircle, VFsphere, VFbubble2d, VFbubble3d, @unpack
+export run_solver, parameters, VFcircle, VFsphere, VFbubble2d, VFdroplet2d, VFbubble3d, VFdroplet3d, @unpack
 
 using MPI
 using HYPRE
@@ -80,7 +80,7 @@ function run_solver(param, IC!, BC!, outflow)
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
     end
 
-    csv_init!(param,par_env)
+    !restart && csv_init!(param,par_env)
     terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
     
     # Initialize Jacobian matrix
