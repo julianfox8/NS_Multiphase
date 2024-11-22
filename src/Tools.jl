@@ -818,6 +818,46 @@ function VFbubble3d(xmin,xmax,ymin,ymax,zmin,zmax,rad,xo,yo,zo)
     return VF
 end
 
+"""
+VF values for 2D Bubble
+"""
+function VFdroplet2d(xmin,xmax,ymin,ymax,rad,xo,yo)
+    nF = 20
+    VF=0.0
+    VFsubcell = 1.0/nF^2
+    # Loop over finer grid to evaluate VF 
+    for j=1:nF, i=1:nF
+        xh = xmin + i/(nF+1)*(xmax-xmin)
+        yh = ymin + j/(nF+1)*(ymax-ymin)
+        G = rad^2 - ((xh-xo)^2 + (yh-yo)^2 )
+        if G > 0.0
+            VF += VFsubcell
+        end
+    end
+    return VF
+end
+
+
+"""
+VF values for 3D bubble
+"""
+function VFdroplet3d(xmin,xmax,ymin,ymax,zmin,zmax,rad,xo,yo,zo)
+    nF = 20
+    VF=0.0
+    VFsubcell = 1.0/nF^3
+    # Loop over finer grid to evaluate VF 
+    for k=1:nF, j=1:nF, i=1:nF
+        xh = xmin + i/(nF+1)*(xmax-xmin)
+        yh = ymin + j/(nF+1)*(ymax-ymin)
+        zh = zmin + k/(nF+1)*(zmax-zmin)
+        G = rad^2 - ((xh-xo)^2 + (yh-yo)^2 + (zh-zo)^2)
+        if G > 0.0
+            VF += VFsubcell
+        end
+    end
+    return VF
+end
+
 # """
 # Density/Viscosity calculation
 # """
