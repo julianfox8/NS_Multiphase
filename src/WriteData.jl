@@ -25,9 +25,8 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter
     max_w    = parallel_max(abs.(w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_divg = parallel_max(abs.(divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
     sum_VF = parallel_sum(VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]*dx*dy*dz,par_env)
-    vel_t_height = parallel_max(terminal_vel[1],par_env)
-    vel_t = parallel_max(terminal_vel[2],par_env)
-    # println(vel_t_height)
+    vel_t_height = parallel_max(terminal_vel,par_env)
+
     if isroot
         if (now = time()) - t_last[1] > std_out_period
             t_last[1] = now
@@ -35,12 +34,12 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter
             # Write header
             if h_last[1] >= 10
                 h_last[1] = 0
-                @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)  sum(mass_err)  vel_t_height vel_t Piters\n")
+                @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)  sum(mass_err)  vel_t_height Piters\n")
             end
             # Write values
-            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g    %9.3g %12.3g  %8.3g %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,VF_init-sum_VF,vel_t_height,vel_t,iter)
+            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g    %9.3g %9.3f  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,VF_init-sum_VF,vel_t_height,iter)
             open(VTK_dir*".csv","a") do io
-                println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$VF_init-$sum_VF,$vel_t_height,$vel_t,$iter"))
+                println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$VF_init-$sum_VF,$vel_t_height,$iter"))
             end
         end
     end
