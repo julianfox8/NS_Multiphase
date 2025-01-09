@@ -9,38 +9,33 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=1,       # Dynamic viscosity of liquid (N/m)
-    mu_gas = 1e-5, # Dynamic viscosity of gas (N/m)
-    rho_liq= 1000,           # Density of liquid (kg/m^3)
-    rho_gas =1,  # Density of gas (kg/m^3)
-    sigma = 0.072, # surface tension coefficient (Ns/m^2)
-    gravity = 10, # Gravity (m/s^2)
-    # Lx=21,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
-    # Ly=78, 
-    Lx=5.0,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
-    Ly=10.0,             
+    mu_liq=1.265,       # Dynamic viscosity of liquid (N/m)
+    mu_gas = 1.79e-5, # Dynamic viscosity of gas (N/m)
+    rho_liq= 1346.5,           # Density of liquid (kg/m^3)
+    rho_gas =1.225,  # Density of gas (kg/m^3)
+    sigma = 0.0769, # surface tension coefficient (N/m^2)
+    gravity = 0.0, # Gravity (m/s^2)
+    Lx=5.0,            # Domain size of 8Dx30Dx8D where D is bubble diameter(cm)
+    Ly=5.0,             
     Lz=5.0,
     tFinal=100.0,      # Simulation time
  
     
-    # Discretization inputsc
-    # Nx=64,           # Number of grid cells
-    # Ny=240,
-    # Nz=64 ,
-    Nx=50,           # Number of grid cells
-    Ny=100,
-    Nz=50,
-    stepMax=10000,   # Maximum number of timesteps
+    # Discretization inputs
+    Nx=51,           # Number of grid cells
+    Ny=51,
+    Nz=51,
+    stepMax=100,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-8,
+    tol = 1e-5,
 
     # Processors 
-    nprocx = 2,
-    nprocy = 2,
-    nprocz = 2,
+    nprocx = 1,
+    nprocy = 1,
+    nprocz = 1,
 
     # Periodicity
     xper = false,
@@ -48,18 +43,15 @@ param = parameters(
     zper = false,
 
     # Restart 
-    # restart = true,
+    restart = true,
 
-    # pressureSolver = "NLsolve",
-    # pressureSolver = "sparseSecant",
     pressureSolver = "hypreSecant",
-    # pressureSolver = "GaussSeidel",
-    # pressureSolver = "ConjugateGradient",
     pressure_scheme = "semi-lagrangian",
+
     # pressureSolver = "FC_hypre",
     # pressure_scheme = "finite-difference",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble_3D_SL"
+    test_case= "static_bubble"
 
 )
 
@@ -88,8 +80,8 @@ function IC!(P,u,v,w,VF,mesh)
     yo=2.5
     zo = 2.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+        # VF[i,j,k]=VFdroplet3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
         VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
-        # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end
 
     return nothing    

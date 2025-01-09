@@ -33,7 +33,7 @@ using Parameters
     # Number of iterations between writing output files
     std_out_period :: Float64 = 1.0
     out_period :: Int64
-    VTK_dir :: String = "VTK" 
+     
    
     # Procs
     nprocx :: Int64
@@ -71,5 +71,9 @@ using Parameters
     # - floop : parallelizes loop with FLoop
     iter_type :: String = "floop"
 
+
+    # Dynamic VTK directory creation
+    test_case :: String
+    VTK_dir :: String = "VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
 
 end

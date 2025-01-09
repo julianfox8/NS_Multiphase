@@ -12,17 +12,17 @@ param = parameters(
     rho_liq= 1000,           # Density
     rho_gas =1, 
     sigma = 0.0072, #surface tension coefficient
-    gravity = 10,
+    gravity = 0,
     Lx=3.0,            # Domain size
     Ly=3.0,
-    Lz=1.0,
+    Lz=1/50,
     tFinal=1.0,      # Simulation time
     
     # Discretization inputs
-    Nx=30,           # Number of grid cells
-    Ny=30,
+    Nx=100,           # Number of grid cells
+    Ny=100,
     Nz=1,
-    stepMax=50,   # Maximum number of timesteps
+    stepMax=200,   # Maximum number of timesteps
     max_dt = 1e-4,
     CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -39,14 +39,13 @@ param = parameters(
     yper = false,
     zper = true,
 
-    # pressureSolver = "GaussSeidel",
-    pressureSolver = "ConjugateGradient",
-    # pressureSolver = "sparseSecant",
-    # pressureSolver = "NLsolve",
+    # pressure_scheme = "semi-lagrangian",
+    # pressureSolver = "hypreSecant",
     pressure_scheme = "finite-difference",
+    pressureSolver = "FC_hypre",
     iter_type = "standard",
     # VTK_dir= "VTK_example_3"
-    VTK_dir= "VTK_example_static_lid_driven"
+    test_case= "lid_driven_test"
 
 )
 
@@ -69,14 +68,6 @@ function IC!(P,u,v,w,VF,mesh)
 
     # Volume Fraction
     fill!(VF,1.0)
-    # rad=0.5
-    # xo=2.5
-    # yo=2.5
-    # zo = 2.5
-    # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-    #     # VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
-    #     VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
-    # end
 
     return nothing    
 end
@@ -84,7 +75,7 @@ end
 """
 Boundary conditions for velocity
 """
-function BC!(u,v,w,mesh,par_env)
+function BC!(u,v,w,t,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
     @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
     @unpack jmin_,jmax_ = mesh
@@ -109,7 +100,7 @@ function BC!(u,v,w,mesh,par_env)
     if irankx == nprocx-1
         i = imax+1
         for j=jmin_:jmax_
-            if ym[j] >= 1.5
+            if ym[j] <= 1.5
                 uright = 1.0
             else
                 uright = 0.0

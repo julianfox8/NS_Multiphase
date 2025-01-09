@@ -83,7 +83,7 @@ function run_solver(param, IC!, BC!)
     !restart && csv_init!(param,par_env)
     terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
     
-    # Initialize Jacobian matrix
+    # Initialize hypre matrices
     jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
     b = HYPREVector(comm, Int32(p_min), Int32(p_max))
     x = HYPREVector(comm, Int32(p_min), Int32(p_max))

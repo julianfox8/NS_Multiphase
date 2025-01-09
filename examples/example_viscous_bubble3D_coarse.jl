@@ -22,20 +22,20 @@ param = parameters(
  
     
     # Discretization inputs
-    Nx=45,           # Number of grid cells
-    Ny=45,
-    Nz=45,
+    Nx=51,           # Number of grid cells
+    Ny=51,
+    Nz=51,
     stepMax=300,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-5,
+    tol = 1e-8,
 
     # Processors 
-    nprocx = 2,
-    nprocy = 2,
-    nprocz = 2,
+    nprocx = 1,
+    nprocy = 1,
+    nprocz = 1,
 
     # Periodicity
     xper = false,
@@ -44,16 +44,16 @@ param = parameters(
 
     # Restart  
     # restart = true,
-    # restart_itr = 223,
+    # restart_itr = 183,
 
-    pressure_scheme = "semi-lagrangian",
-    pressureSolver = "hypreSecant",
+    # pressure_scheme = "semi-lagrangian",
+    # pressureSolver = "hypreSecant",
     
-    # pressureSolver = "FC_hypre",
-    # pressure_scheme = "finite-difference",
+    pressureSolver = "FC_hypre",
+    pressure_scheme = "finite-difference",
     
     iter_type = "standard",
-    VTK_dir= "VTK_viscous_bubble_FD_31x110x31_flux_corrected"
+    test_case = "viscous_bubble_test"
 
 )
 
