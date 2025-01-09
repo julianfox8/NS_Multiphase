@@ -152,29 +152,6 @@ function BC!(u,v,w,mesh,par_env)
     return nothing
 end
 
-# """
-# Apply outflow correction to region
-# """
-# function outflow_correction!(correction,uf,vf,wf,mesh,par_env)
-#     @unpack ym,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-#     @unpack iranky,nprocy = par_env
-#     # right side is the outflow
-#     if iranky == nprocy-1
-#         uf[imax+1,1:jmax/2,:] .+= correction 
-#     end
-# end
-
-# """
-# Define area of outflow region
-# """
-# function outflow_area(mesh,par_env)
-#     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-#     @unpack y,z = mesh 
-#     myArea = (y[jmax_+1]-y[jmin_]) * (z[kmax_+1]-z[kmin_])
-#     return NavierStokes_Parallel.parallel_sum_all(myArea,par_env)
-# end
-# outflow =(area=outflow_area,correction=outflow_correction!)
-
 # Simply run solver on 1 processor
-@time run_solver(param, IC!, BC!,outflow)
+@time run_solver(param, IC!, BC!)
 

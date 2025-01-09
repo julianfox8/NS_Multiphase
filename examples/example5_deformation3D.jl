@@ -77,6 +77,5 @@ function BC!(u,v,w,t,mesh,par_env)
     return nothing
 end
 
-outflow = nothing
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!,outflow)
+run_solver(param, IC!, BC!)

@@ -146,34 +146,5 @@ function BC!(u,v,w,t,mesh,par_env)
     return nothing
 end
 
-"""
-Apply outflow correction to region
-"""
-function outflow_correction!(correction,uf,vf,wf,mesh,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack iranky,nprocy = par_env
-    # Top is the outflow
-    if iranky == nprocy-1
-        vf[:,jmax_+1,:] .+= correction 
-    end
-end
-
-"""
-Define area of outflow region
-"""
-function outflow_area(mesh,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack x,z = mesh 
-    myArea = (x[imax_+1]-x[imin_]) * (z[kmax_+1]-z[kmin_])
-    return NavierStokes_Parallel.parallel_sum_all(myArea,par_env)
-end
-outflow =(area=outflow_area,correction=outflow_correction!)
-
-pvtr_file = "VTK_viscous_bubble_SL_50x100x50/Solver_00009.pvtr"
-xF_pvtr,yF_pvtr,zF_pvtr = "VTK_viscous_bubble_SL_50x100x50/xFvel_00009.pvtr","VTK_viscous_bubble_SL_50x100x50/yFvel_00009.pvtr","VTK_viscous_bubble_SL_50x100x50/zFvel_00009.pvtr"
-pvd_file = "VTK_viscous_bubble_SL_50x100x50/Solver.pvd"
-restart_files = (cell_data=pvtr_file,xFace_data=xF_pvtr,yFace_data=yF_pvtr,zFace_data=zF_pvtr,pvd_data=pvd_file)
-
-
 # Simply run solver on 1 processor
-@time run_solver(param, IC!, BC!,outflow,restart_files)
+@time run_solver(param, IC!, BC!)
