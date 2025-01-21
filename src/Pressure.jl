@@ -281,7 +281,8 @@ function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gra
         rows_ = coeff_index[i,j,k]
 
         # Call function to set matrix values
-        HYPRE.assemble!(mat_assembler,[rows_], cols_[1:ncols],values_[:,1:ncols])
+        # HYPRE.assemble!(mat_assembler,[rows_], cols_[1:ncols],values_[:,1:ncols])
+        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
     end
 end
 
@@ -301,13 +302,21 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
     res_par = parallel_max_all(abs.(AP),par_env)
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
-    
     cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
     values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
     
-    J_assembler = HYPRE.start_assemble!(jacob)
-    compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
-    J = HYPRE.finish_assemble!(J_assembler)
+
+    # J_assembler = HYPRE.start_assemble!(jacob)
+    # compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    # J = HYPRE.finish_assemble!(J_assembler)
+
+    HYPRE_IJMatrixInitialize(jacob)
+    compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    HYPRE_IJMatrixAssemble(jacob)
+
+    parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
+    HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
+    J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
 
     #! used to grab jacobian rows at (12,13,11) & (14,13,11)
     #! output JSON dictionary is the input for the jacobian_check.jl function
@@ -345,25 +354,38 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
             compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
             J = HYPRE.finish_assemble!(J_assembler)
         end
+        #! reinit
+        # b_assembler = HYPRE.start_assemble!(b)
+        # x_assembler = HYPRE.start_assemble!(x)
         
-        # #! reinit
-        b_assembler = HYPRE.start_assemble!(b)
-        x_assembler = HYPRE.start_assemble!(x)
+        # b = HYPRE.finish_assemble!(b_assembler)
+        # x = HYPRE.finish_assemble!(x_assembler)
 
+        HYPRE_IJVectorInitialize(b)
+        HYPRE_IJVectorInitialize(x)
         for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
             row_ = p_index[i,j,k]
-            HYPRE.assemble!(b_assembler,[row_],[AP[i,j,k]]) 
-            HYPRE.assemble!(x_assembler,[row_],[0.0])        
+            HYPRE_IJVectorSetValues(x,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
+            HYPRE_IJVectorSetValues(b, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
         end
     
-        b = HYPRE.finish_assemble!(b_assembler)
-        x = HYPRE.finish_assemble!(x_assembler)
+        MPI.Barrier(par_env.comm)
+        HYPRE_IJVectorAssemble(b)
+        par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        HYPRE_IJVectorGetObject(b, par_AP_ref)
+        par_b_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
+        HYPRE_IJVectorAssemble(x)
+        par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        HYPRE_IJVectorGetObject(x, par_Pn_ref)
+        par_x_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
+
 
         solver_ref = Ref{HYPRE_Solver}(C_NULL)
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
 
         hyp_iter = hyp_solve(solver_ref,precond_ref, J, b, x, par_env, "LGMRES")
      
+        hyp_iter = hyp_solve(solver_ref,precond_ref, J, par_b_old, par_x_new, par_env, "LGMRES")
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             int_x = zeros(1)
             HYPRE_IJVectorGetValues(x,1,pointer(Int32.([p_index[i,j,k]])),int_x)
@@ -374,8 +396,9 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
                 P[i,j,k] -= int_x[1]
             end
         end
+        # account for drift
+        P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
 
-        P .-=parallel_mean_all(P,par_env)
         
         pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
         #update new Ap
