@@ -84,9 +84,27 @@ function run_solver(param, IC!, BC!)
     terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
     
     # Initialize hypre matrices
-    jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
-    b = HYPREVector(comm, Int32(p_min), Int32(p_max))
-    x = HYPREVector(comm, Int32(p_min), Int32(p_max))
+    # jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
+    # b_vec = HYPREVector(comm, Int32(p_min), Int32(p_max))
+    # x_vec = HYPREVector(comm, Int32(p_min), Int32(p_max))
+
+    jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
+    HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
+    jacob = jacob_ref[]
+    HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
+    HYPRE_IJMatrixInitialize(jacob)
+
+    b_ref = Ref{HYPRE_IJVector}(C_NULL)
+    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
+    b_vec = b_ref[]
+    HYPRE_IJVectorSetObjectType(b_vec,HYPRE_PARCSR)
+    HYPRE_IJVectorInitialize(b_vec)
+
+    x_ref = Ref{HYPRE_IJVector}(C_NULL)
+    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
+    x_vec = x_ref[]
+    HYPRE_IJVectorSetObjectType(x_vec,HYPRE_PARCSR)
+    HYPRE_IJVectorInitialize(x_vec)
     
     # Compute density and viscosity at intial conditions
     compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
