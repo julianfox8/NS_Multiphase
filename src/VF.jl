@@ -217,19 +217,27 @@ end
 Compute liquid volume in cell using PLIC
 """
 function computePLIC2VF(i,j,k,nx,ny,nz,dist,param,mesh)    
-    @unpack x,y,z = mesh
-    @unpack dx,dy,dz = mesh
-    
+    @unpack x,y,z,dx,dy,dz = mesh
+    @unpack tesselation = param
+
+    if tesselation == "6_tets"
+        num_tets = 6
+    elseif tesselation == "5_tets"
+        num_tets = 5
+    else
+        error("incompatible tesselation called")
+    end
+
     # Allocate work arrays 
     tet = Array{Float64}(undef,3,4)
-    tets = Array{Float64}(undef,3,4,5)
+    tets = Array{Float64}(undef,3,4,6)
     vert = Array{Float64}(undef,3,8)
     d = Array{Float64}(undef,4)
     # ext = get_
     # Compute VF in this cell 
     VF=0.0
     tetsign = cell2tets!(vert,tets,i,j,k,param,mesh)
-    for t=1:5
+    for t=1:num_tets
         # Copy verts
         for n=1:4
             for p=1:3
@@ -275,10 +283,17 @@ Compute unstructured mesh representing PLIC
 """
 function PLIC2Mesh(nx,ny,nz,D,VF,verts,tets,param,mesh)
     @unpack x,y,z = mesh
-    @unpack VFlo, VFhi = param
+    @unpack tesselation, VFlo, VFhi = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh 
     
-    
+    if tesselation == "6_tets"
+        num_tets = 6
+    elseif tesselation == "5_tets"
+        num_tets = 5
+    else
+        error("incompatible tesselation called")
+    end
+
     # Initialize output with nodata 
     pts  = Vector{Point}(undef,0)
     tris = Vector{Tri}(undef,0)
@@ -296,7 +311,7 @@ function PLIC2Mesh(nx,ny,nz,D,VF,verts,tets,param,mesh)
         if VF[i,j,k] >= VFlo && VF[i,j,k] <= VFhi
             # Construct tets in cell 
             tetsign = cell2tets!(verts,tets,i,j,k,param,mesh)
-            for tet=1:5
+            for tet=1:num_tets
                 # Copy verts
                 for n=1:4
                     vert[:,n] = tets[:,n,tet]

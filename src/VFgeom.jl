@@ -168,19 +168,25 @@ const cut_side = SArray{Tuple{6,16}}([
 Classify cell as either even (true) or odd (false) based on index
 - used to set ordering of vertices to make discretization of faces consistent
 """
-function oddEvenCell(i,j,k)
-    return (i+j+k) % 2 == 0
+function oddEvenCell(i,j,k,param)
+    @unpack tesselation = param
+
+    if tesselation == "5_tets"
+        return (i+j+k) % 2 == 0
+    elseif tesselation == "6_tets"
+        return true
+    end
 end
 
 """
 Determine verts for a cell in ordering that triangulates faces consistently
     - verts is a 3x8 array and that is filled by this function
 """
-function cell2verts!(verts,i,j,k,mesh)
+function cell2verts!(verts,i,j,k,param,mesh)
     @unpack x, y, z = mesh
 
     # Determine verts for odd or even cell
-    if oddEvenCell(i,j,k)
+    if oddEvenCell(i,j,k,param)
         tetsign = +1.0
         verts[:,1] = [x[i  ], y[j  ], z[k  ]]
         verts[:,2] = [x[i+1], y[j  ], z[k  ]]
@@ -208,28 +214,59 @@ end
 Make 5 tets out of a polyhedron represented by 8 vertices
     - tets is is a 3x4x5 array that is filled by this function
 """
-function verts2tets!(tets,p)
-    # Make five tets 
-    tets[:, 1, 1] = p[:, 1]
-    tets[:, 2, 1] = p[:, 2]
-    tets[:, 3, 1] = p[:, 4]
-    tets[:, 4, 1] = p[:, 6]
-    tets[:, 1, 2] = p[:, 1]
-    tets[:, 2, 2] = p[:, 4]
-    tets[:, 3, 2] = p[:, 3]
-    tets[:, 4, 2] = p[:, 7]
-    tets[:, 1, 3] = p[:, 1]
-    tets[:, 2, 3] = p[:, 5]
-    tets[:, 3, 3] = p[:, 6]
-    tets[:, 4, 3] = p[:, 7]
-    tets[:, 1, 4] = p[:, 4]
-    tets[:, 2, 4] = p[:, 7]
-    tets[:, 3, 4] = p[:, 6]
-    tets[:, 4, 4] = p[:, 8]
-    tets[:, 1, 5] = p[:, 1]
-    tets[:, 2, 5] = p[:, 4]
-    tets[:, 3, 5] = p[:, 7]
-    tets[:, 4, 5] = p[:, 6]
+function verts2tets!(tets,p,param)
+    @unpack tesselation = param
+
+    fill!(tets,0.0)
+    if tesselation == "5_tets"
+        # Make five tets 
+        tets[:, 1, 1] = p[:, 1]
+        tets[:, 2, 1] = p[:, 2]
+        tets[:, 3, 1] = p[:, 4]
+        tets[:, 4, 1] = p[:, 6]
+        tets[:, 1, 2] = p[:, 1]
+        tets[:, 2, 2] = p[:, 4]
+        tets[:, 3, 2] = p[:, 3]
+        tets[:, 4, 2] = p[:, 7]
+        tets[:, 1, 3] = p[:, 1]
+        tets[:, 2, 3] = p[:, 5]
+        tets[:, 3, 3] = p[:, 6]
+        tets[:, 4, 3] = p[:, 7]
+        tets[:, 1, 4] = p[:, 4]
+        tets[:, 2, 4] = p[:, 7]
+        tets[:, 3, 4] = p[:, 6]
+        tets[:, 4, 4] = p[:, 8]
+        tets[:, 1, 5] = p[:, 1]
+        tets[:, 2, 5] = p[:, 4]
+        tets[:, 3, 5] = p[:, 7]
+        tets[:, 4, 5] = p[:, 6]
+    elseif tesselation == "6_tets"
+        # Make six tets
+        tets[:, 1, 1] = p[:, 5]
+        tets[:, 2, 1] = p[:, 6]
+        tets[:, 3, 1] = p[:, 4]
+        tets[:, 4, 1] = p[:, 8]
+        tets[:, 1, 2] = p[:, 5]
+        tets[:, 2, 2] = p[:, 6]
+        tets[:, 3, 2] = p[:, 2]
+        tets[:, 4, 2] = p[:, 4]
+        tets[:, 1, 3] = p[:, 5]
+        tets[:, 2, 3] = p[:, 2]
+        tets[:, 3, 3] = p[:, 1]
+        tets[:, 4, 3] = p[:, 4]
+        tets[:, 1, 4] = p[:, 5]
+        tets[:, 2, 4] = p[:, 4]
+        tets[:, 3, 4] = p[:, 7]
+        tets[:, 4, 4] = p[:, 8]
+        tets[:, 1, 5] = p[:, 3]
+        tets[:, 2, 5] = p[:, 4]
+        tets[:, 3, 5] = p[:, 7]
+        tets[:, 4, 5] = p[:, 5]
+        tets[:, 1, 6] = p[:, 1]
+        tets[:, 2, 6] = p[:, 4]
+        tets[:, 3, 6] = p[:, 3]
+        tets[:, 4, 6] = p[:, 5]
+    end
     return nothing
 end
 
@@ -251,7 +288,7 @@ function cell2tets!(verts, tets, i, j, k, param, mesh;
     @unpack x, y, z = mesh
     
     # Cell vertices 
-    tetsign = cell2verts!(verts,i,j,k,mesh)
+    tetsign = cell2verts!(verts,i,j,k,param,mesh)
 
     # Project if requested 
     if project_verts
@@ -261,14 +298,14 @@ function cell2tets!(verts, tets, i, j, k, param, mesh;
     end
 
     # Make five tets 
-    verts2tets!(tets,verts)
+    verts2tets!(tets,verts,param)
 
     # Compute indices if requested
     if compute_indices
         for n=1:8
             pt2index!(@view(vInds[:,n]),@view(verts[:,n]),i,j,k,mesh)
         end 
-        verts2tets!(inds,vInds)
+        verts2tets!(inds,vInds,param)
     end
     
     return tetsign
@@ -285,7 +322,7 @@ function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
 
     # Form verts on flux volume 
     if dir == 1 # x
-        if oddEvenCell(i,j,k)
+        if oddEvenCell(i,j,k,param)
             tetsign = +1.0
             verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,2] = [x[i  ], y[j  ], z[k  ]];
@@ -307,7 +344,7 @@ function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
             verts[:,8] = [x[i  ], y[j+1], z[k+1]]; project!(@view(verts[:,8]),i,j,k,uf,vf,wf,dt,param,mesh)
         end
     elseif dir == 2 # y
-        if oddEvenCell(i,j,k)
+        if oddEvenCell(i,j,k,param)
             tetsign = +1.0
             verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,2] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,param,mesh)
@@ -329,7 +366,7 @@ function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
             verts[:,8] = [x[i  ], y[j  ], z[k+1]];
         end
     elseif dir == 3 # z
-        if oddEvenCell(i,j,k)
+        if oddEvenCell(i,j,k,param)
             tetsign = +1.0
             verts[:,1] = [x[i  ], y[j  ], z[k  ]]; project!(@view(verts[:,1]),i,j,k,uf,vf,wf,dt,param,mesh)
             verts[:,2] = [x[i+1], y[j  ], z[k  ]]; project!(@view(verts[:,2]),i,j,k,uf,vf,wf,dt,param,mesh)
@@ -355,7 +392,7 @@ function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
     end
     
     # Make five tets 
-    verts2tets!(tets,verts)
+    verts2tets!(tets,verts,param)
 
      # Compute flux volume 
      flux_vol = tets_vol(tets) * tetsign

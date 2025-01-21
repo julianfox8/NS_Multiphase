@@ -12,8 +12,8 @@ param = parameters(
     mu_liq=1.265,       # Dynamic viscosity of liquid (N/m)
     mu_gas = 1.79e-5, # Dynamic viscosity of gas (N/m)
     rho_liq= 1346.5,           # Density of liquid (kg/m^3)
-    rho_gas =1.225,  # Density of gas (kg/m^3)
-    sigma = 0.0769, # surface tension coefficient (N/m^2)
+    rho_gas =1346.5,#1.225,  # Density of gas (kg/m^3)
+    sigma = 0.0,#0.0769, # surface tension coefficient (N/m^2)
     gravity = 9.8, # Gravity (m/s^2)
     Lx=0.25,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
     Ly=0.25,             
@@ -22,9 +22,9 @@ param = parameters(
  
     
     # Discretization inputs
-    Nx=51,           # Number of grid cells
-    Ny=51,
-    Nz=51,
+    Nx=25,           # Number of grid cells
+    Ny=25,
+    Nz=25,
     stepMax=300,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -46,14 +46,17 @@ param = parameters(
     # restart = true,
     # restart_itr = 183,
 
-    # pressure_scheme = "semi-lagrangian",
-    # pressureSolver = "hypreSecant",
     
-    pressureSolver = "FC_hypre",
-    pressure_scheme = "finite-difference",
+    pressure_scheme = "semi-lagrangian",
+    pressureSolver = "hypreSecant",
+    
+    projection_method = "RK4",
+    tesselation = "6_tets",
+    # pressureSolver = "FC_hypre",
+    # pressure_scheme = "finite-difference",
     
     iter_type = "standard",
-    test_case = "viscous_bubble_test"
+    test_case = "viscous_bubble_test_new"
 
 )
 

@@ -64,6 +64,7 @@ using Parameters
     # Velocity used for Vf transport when solveNS = false
     VFVelocity :: String  = "Nothing" 
     projection_method :: String = "RK4"
+    tesselation :: String = "6_tets"
 
     # Iterator type 
     # - standard : standard julia for loop  

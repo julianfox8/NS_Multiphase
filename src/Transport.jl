@@ -1,9 +1,16 @@
 
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,Fvy,Fvz,Fwx,Fwy,Fwz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
-    @unpack gravity,pressure_scheme,VFlo,VFhi = param
+    @unpack gravity,pressure_scheme,tesselation,VFlo,VFhi = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     
+    if tesselation == "6_tets"
+        num_tets = 6
+    elseif tesselation == "5_tets"
+        num_tets = 5
+    else
+        error("incompatible tesselation called")
+    end
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
     
@@ -111,7 +118,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             # Semi-Lagrangian near interface 
             # ------------------------------
             # Form projected cell and break into tets using face velocities
-            ntets = 5
+            ntets = num_tets
             tetsign = cell2tets!(verts,tets,i,j,k,param,mesh; 
                 project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,
                 compute_indices=true,inds=inds,vInds=vInds)
