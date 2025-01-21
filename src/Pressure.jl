@@ -309,7 +309,30 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
     compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
     J = HYPRE.finish_assemble!(J_assembler)
 
+    #! used to grab jacobian rows at (12,13,11) & (14,13,11)
+    #! output JSON dictionary is the input for the jacobian_check.jl function
+    jacobians = Dict(
+    "12,13,11" => Vector{Tuple{String, Float64}}(),
+    "14,13,11" => Vector{Tuple{String, Float64}}()
+    )
+    count = 0
+    for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+        count+=1
+        int_x1 = zeros(1)
+        HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[12,13,11]])),pointer(Int32.([p_index[i,j,k]])),int_x1)
+        if int_x1[1] != 0.0
+            push!(jacobians["12,13,11"], ("$i,$j,$k",int_x1[1]))
+        end
+        int_x2 = zeros(1)
+        HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[14,13,11]])),pointer(Int32.([p_index[i,j,k]])),int_x2)
+        if int_x2[1] != 0.0
+            push!(jacobians["14,13,11"], ("$i,$j,$k",int_x2[1]))
+        end
+    end
 
+    open("jacob_comp_dict.json","w") do file
+        JSON.print(file,jacobians)
+    end
 
     # Iterate 
     iter=0
