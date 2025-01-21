@@ -278,3 +278,55 @@ function tets2VTK(tets,filename)
     end
 
 end
+
+function pVTK_init(param,par_env)
+    @unpack isroot = par_env
+    dir = joinpath(pwd(),"Piter_fields")
+
+    if isroot
+        isdir(dir) && rm(dir, recursive=true)
+        mkdir(dir)
+    end
+
+    pvd_pressure = paraview_collection(joinpath(dir,"P_Solver"),append=true)
+    return pvd_pressure,dir
+end
+
+function pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
+    @unpack x,y,z,xm,ym,zm,
+    imin_,imax_,jmin_,jmax_,kmin_,kmax_,
+    imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,
+    Gimin_,Gimax_,Gjmin_,Gjmax_,Gkmin_,Gkmax_,
+    Gimino_,Gimaxo_,Gjmino_,Gjmaxo_,Gkmino_,Gkmaxo_ = mesh
+    @unpack irank,nproc = par_env
+
+
+    # Build extents array
+    p=1; extents=[(Gimin_[p]:Gimax_[p]+1,Gjmin_[p]:Gjmax_[p]+1,Gkmin_[p]:Gkmax_[p]+1), ]
+    for p = 2:nproc
+        push!(extents,(Gimin_[p]:Gimax_[p]+1,Gjmin_[p]:Gjmax_[p]+1,Gkmin_[p]:Gkmax_[p]+1))
+    end
+
+    pvtk_grid(
+        joinpath(pwd(),dir,"Piter_field_$iter"),
+        x[imin_:imax_+1], 
+        y[jmin_:jmax_+1],
+        z[kmin_:kmax_+1],
+        part = irank+1,
+        nparts = nproc,
+        extents = extents,
+    ) do pvtk 
+        pvtk["Pressure"] = @views P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        pvtk["AP"] = @views AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        pvtk["SFx"] = @views sfx[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        pvtk["SFy"] = @views sfy[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        pvtk["SFz"] = @views sfz[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        pvd_pressure[iter] = pvtk
+    end
+
+    if isopen(pvd_pressure)
+        WriteVTK.save_file(pvd_pressure.xdoc, pvd_pressure.path)
+    end
+
+    return nothing
+end
