@@ -175,12 +175,16 @@ function compute_sf!(sfx,sfy,sfz,VF,Curve,param,mesh)
     fill!(sfy,0.0)
     fill!(sfz,0.0)
 
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+        sfx[i,j,k] = -sigma/(2*dx)*(VF[i,j,k]-VF[i-1,j,k])*(Curve[i,j,k]+Curve[i-1,j,k])
+    end
 
-    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-        sfx[i,j,k] = -sigma/(2*dx)*(VF[i+1,j,k]-VF[i-1,j,k])*Curve[i,j,k]
-        sfy[i,j,k] = -sigma/(2*dy)*(VF[i,j+1,k]-VF[i,j-1,k])*Curve[i,j,k]
-        sfz[i,j,k] = -sigma/(2*dz)*(VF[i,j,k+1]-VF[i,j,k-1])*Curve[i,j,k]
-
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+        sfy[i,j,k] = -sigma/(2*dy)*(VF[i,j,k]-VF[i,j-1,k])*(Curve[i,j,k]+Curve[i,j-1,k])
+    end
+    
+    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+        sfz[i,j,k] = -sigma/(2*dz)*(VF[i,j,k]-VF[i,j,k-1])*(Curve[i,j,k]+Curve[i,j,k-1])
     end
     return nothing
 end
