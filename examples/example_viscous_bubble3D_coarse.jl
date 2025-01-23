@@ -49,11 +49,13 @@ param = parameters(
     
     pressure_scheme = "semi-lagrangian",
     pressureSolver = "hypreSecant",
-    
-    projection_method = "RK4",
-    tesselation = "6_tets",
+
     # pressureSolver = "FC_hypre",
     # pressure_scheme = "finite-difference",
+
+    projection_method = "RK4",
+    tesselation = "6_tets",
+
     
     iter_type = "standard",
     test_case = "viscous_bubble_test_new"

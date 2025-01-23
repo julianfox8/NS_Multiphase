@@ -410,9 +410,9 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, pa
     Add correction tets on faces 
         - verts is a 3x8 work array 
     """
-    function add_correction_tets_x(tets,verts,i,j,k)
+    function add_correction_tets_x(tets,verts,i,j,k,param)
         # Create seperate tets work array to not impact exisiting tets 
-        tets_work  = Array{Float64}(undef, 3, 4, 5)
+        tets_work  = Array{Float64}(undef, 3, 4, 6)
         # Constrct SL flux volume - compute volume and set verts 
         flux_vol = SLfluxVol(1,i,j,k,verts,tets_work,uf,vf,wf,dt,param,mesh)
         # Compute required volume 
@@ -422,16 +422,16 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, pa
         newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
         newtets[:,:,1:ntets] = tets
         # Construct correction tets
-        if oddEvenCell(i,j,k)
+        if oddEvenCell(i,j,k,param)
             newtets[:,:,ntets+1:ntets+2] = correction_tets_x(verts[:,5],verts[:,7],verts[:,3],verts[:,1],+(divg_vol - flux_vol))
         else
             newtets[:,:,ntets+1:ntets+2] = correction_tets_x(verts[:,8],verts[:,6],verts[:,2],verts[:,4],-(divg_vol - flux_vol))
         end
         return newtets
     end
-    function add_correction_tets_y(tets,verts,i,j,k)
+    function add_correction_tets_y(tets,verts,i,j,k,param)
         # Create seperate tets work array to not impact exisiting tets 
-        tets_work  = Array{Float64}(undef, 3, 4, 5)
+        tets_work  = Array{Float64}(undef, 3, 4, 6)
         # Constrct SL flux volume - compute volume and set verts 
         flux_vol = SLfluxVol(2,i,j,k,verts,tets_work,uf,vf,wf,dt,param,mesh)
         # Compute required volume 
@@ -441,16 +441,16 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, pa
         newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
         newtets[:,:,1:ntets] = tets
         # Construct correction tets
-        if oddEvenCell(i,j,k)
+        if oddEvenCell(i,j,k,param)
             newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,6],verts[:,5],verts[:,1],+(divg_vol - flux_vol))
         else
             newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,6],verts[:,5],verts[:,1],-(divg_vol - flux_vol))
         end
         return newtets
     end
-    function add_correction_tets_z(tets,verts,i,j,k)
+    function add_correction_tets_z(tets,verts,i,j,k,param)
         # Create seperate tets work array to not impact exisiting tets 
-        tets_work  = Array{Float64}(undef, 3, 4, 5)
+        tets_work  = Array{Float64}(undef, 3, 4, 6)
         # Constrct SL flux volume - compute volume and set verts 
         flux_vol = SLfluxVol(3,i,j,k,verts,tets_work,uf,vf,wf,dt,param,mesh)
         # Compute required volume 
@@ -460,7 +460,7 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, pa
         newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
         newtets[:,:,1:ntets] = tets
         # Construct correction tets
-        if oddEvenCell(i,j,k)
+        if oddEvenCell(i,j,k,param)
             newtets[:,:,ntets+1:ntets+2] = correction_tets_z(verts[:,2],verts[:,1],verts[:,3],verts[:,4],+(divg_vol - flux_vol))
         else
             newtets[:,:,ntets+1:ntets+2] = correction_tets_z(verts[:,2],verts[:,1],verts[:,3],verts[:,4],-(divg_vol - flux_vol))
@@ -510,12 +510,12 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, pa
 
     # Add 2 tets to correct flux on each face 
     new_tets = tets[:,:,1:5]
-    new_tets = add_correction_tets_x(new_tets,verts,i  ,j,k); ntets += 2
-    new_tets = add_correction_tets_x(new_tets,verts,i+1,j,k); ntets += 2
-    new_tets = add_correction_tets_y(new_tets,verts,i,j  ,k); ntets += 2
-    new_tets = add_correction_tets_y(new_tets,verts,i,j+1,k); ntets += 2
-    new_tets = add_correction_tets_z(new_tets,verts,i,j,k  ); ntets += 2
-    new_tets = add_correction_tets_z(new_tets,verts,i,j,k+1); ntets += 2
+    new_tets = add_correction_tets_x(new_tets,verts,i  ,j,k,param); ntets += 2
+    new_tets = add_correction_tets_x(new_tets,verts,i+1,j,k,param); ntets += 2
+    new_tets = add_correction_tets_y(new_tets,verts,i,j  ,k,param); ntets += 2
+    new_tets = add_correction_tets_y(new_tets,verts,i,j+1,k,param); ntets += 2
+    new_tets = add_correction_tets_z(new_tets,verts,i,j,k  ,param); ntets += 2
+    new_tets = add_correction_tets_z(new_tets,verts,i,j,k+1,param); ntets += 2
     # Compute indices of new tets 
     new_inds = Array{eltype(inds)}(undef, size(new_tets))
     new_inds[:,:,1:5] = inds[:,:,1:5] # transfer original indices 

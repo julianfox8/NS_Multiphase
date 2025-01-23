@@ -34,12 +34,12 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter
             # Write header
             if h_last[1] >= 10
                 h_last[1] = 0
-                @printf(" Iteration      Time    max(u)    max(v)    max(w) max(divg)  sum(mass_err)  vel_t_height Piters\n")
+                @printf(" Iteration      Time    max(u)    max(v)    max(w)  max(divg)  sum(mass_err)  vel_t_height   Piters\n")
             end
             # Write values
-            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g  %8.3g    %9.3g %9.3f  %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,VF_init-sum_VF,vel_t_height,iter)
+            @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g   %8.3g      %9.3g     %9.3f %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,VF_init-sum_VF,vel_t_height,iter)
             open(VTK_dir*".csv","a") do io
-                println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$VF_init-$sum_VF,$vel_t_height,$iter"))
+                println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$(VF_init-sum_VF),$vel_t_height,$iter"))
             end
         end
     end
@@ -127,9 +127,9 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
             pvtk["SFx"] = @views sfx[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["SFy"] = @views sfy[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             pvtk["SFz"] = @views sfz[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            pvtk["rho_x"] = @views denx[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            pvtk["rho_y"] = @views deny[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            pvtk["rho_z"] = @views denz[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            pvtk["rho_x"] = @views 0.5*(denx[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ denx[imin_+1:imax_+1,jmin_:jmax_,kmin_:kmax_])
+            pvtk["rho_y"] = @views 0.5*(deny[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ deny[imin_:imax_,jmin_+1:jmax_+1,kmin_:kmax_])
+            pvtk["rho_z"] = @views 0.5*(denz[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ denz[imin_:imax_,jmin_:jmax_,kmin_+1:kmax_+1])
             # Indices for debugging
             for i=imin_:imax_; tmp[i,:,:] .= i; end
             pvtk["i_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
