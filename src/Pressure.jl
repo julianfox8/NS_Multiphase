@@ -241,10 +241,13 @@ end
 
 
 # Semi-Lagrangian pressure solvers
-function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,tmp4,p,tets_arr,par_env,mesh)
+function compute_hypre_jacobian!(iter,matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,LHS2,p,tets_arr,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_,kmin_,kmax_,kmino_,kmaxo_,Nx,Nz,Ny = mesh
-    
-    delta = 1
+    # if iter == 0
+    delta = 1e5
+    # else
+        # delta = 1e-1
+    # end
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
         #define jacobian
@@ -260,10 +263,14 @@ function compute_hypre_jacobian!(matrix,coeff_index,cols_,values_,P,uf,vf,wf,gra
                 add_perturb!(P,delta,ii,jj,kk,mesh,par_env)
                 cols_[nst] = coeff_index[ii,jj,kk]
                 A!(i,j,k,LHS1,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env)
-                values_[nst] = ((LHS1[i,j,k]
-                - AP[i,j,k])
-                /̂delta)
                 remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
+                add_perturb!(P,-delta,ii,jj,kk,mesh,par_env)
+                cols_[nst] = coeff_index[ii,jj,kk]
+                A!(i,j,k,LHS2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env)
+                remove_perturb!(P,-delta,ii,jj,kk,mesh,par_env)
+                values_[nst] = ((LHS1[i,j,k]
+                - LHS2[i,j,k])
+                /̂2delta)
             end
         end
 
@@ -310,8 +317,9 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
     # compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
     # J = HYPRE.finish_assemble!(J_assembler)
 
+    iter=0
     HYPRE_IJMatrixInitialize(jacob)
-    compute_hypre_jacobian!(jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    compute_hypre_jacobian!(iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
     HYPRE_IJMatrixAssemble(jacob)
 
     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
@@ -344,7 +352,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
     end
 
     # Iterate 
-    iter=0
+    
     while true
         iter += 1
 
