@@ -432,7 +432,7 @@ end
 
 # Flux-Corrected solvers 
 #! laplace operator containing face centered densities
-function compute_lap_op!(mat_assembler,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
+function compute_lap_op!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
@@ -511,11 +511,12 @@ function compute_lap_op!(mat_assembler,coeff_index,cols_,values_,denx,deny,denz,
         ncols = nst
         rows_ = coeff_index[i,j,k]
 
-        HYPRE.assemble!(mat_assembler,[rows_],cols_[1:ncols],values_[:,1:ncols])
+        # HYPRE.assemble!(matrix,[rows_],cols_[1:ncols],values_[:,1:ncols])
+        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
     end
 end
 
-function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob,b,x)
+function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob,b_vec,x_vec)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -527,23 +528,53 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob,b
     cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
     values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
 
-    RHS_assembler = HYPRE.start_assemble!(b)
-    x_assembler = HYPRE.start_assemble!(x)
+    HYPRE_IJVectorInitialize(x_vec)
+    HYPRE_IJVectorInitialize(b_vec)
 
+    # println("RHS at 12,13,11 = ",RHS[12,13,11])
+    # println("RHS at 14,13,11 = ",RHS[14,13,11])
     for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
         row_ = p_index[i,j,k]
-        HYPRE.assemble!(x_assembler,[row_],[P[i,j,k]])
-        HYPRE.assemble!(RHS_assembler,[row_],[RHS[i,j,k]])
+        HYPRE_IJVectorSetValues(b_vec,1, pointer(Int32.([row_])), pointer(Float64.([RHS[i,j,k]])))
+        HYPRE_IJVectorSetValues(x_vec,1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
     end
+
+    HYPRE_IJVectorAssemble(x_vec)
+    par_x_ref = Ref{Ptr{Cvoid}}(C_NULL)
+    HYPRE_IJVectorGetObject(x_vec, par_x_ref)
+    par_x = convert(Ptr{HYPRE_ParVector}, par_x_ref[])
+
+    HYPRE_IJVectorAssemble(b_vec)
+    par_b_ref = Ref{Ptr{Cvoid}}(C_NULL)
+    HYPRE_IJVectorGetObject(b_vec, par_b_ref)
+    par_b = convert(Ptr{HYPRE_ParVector}, par_b_ref[])
+
     
-    b = HYPRE.finish_assemble!(RHS_assembler)
-    x = HYPRE.finish_assemble!(x_assembler)
+    # RHS_assembler = HYPRE.start_assemble!(b)
+    # x_assembler = HYPRE.start_assemble!(x)
+
+    # for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+    #     row_ = p_index[i,j,k]
+    #     HYPRE.assemble!(RHS_assembler,[row_],[RHS[i,j,k]])
+    #     HYPRE.assemble!(x_assembler,[row_],[0.0])
+    # end
     
-    J_assembler = HYPRE.start_assemble!(jacob)
+    # b = HYPRE.finish_assemble!(RHS_assembler)
+    # x = HYPRE.finish_assemble!(x_assembler)
     
-    compute_lap_op!(J_assembler,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    # J_assembler = HYPRE.start_assemble!(jacob)
+
+    # compute_lap_op!(J_assembler,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
     
-    J = HYPRE.finish_assemble!(J_assembler)
+    # par_A = HYPRE.finish_assemble!(J_assembler)
+    # HYPRE_IJMatrixPrint(par_A,"par_A")
+    compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+
+    HYPRE_IJMatrixAssemble(jacob)
+    parcsr_A_ref = Ref{Ptr{Cvoid}}(C_NULL)
+    HYPRE_IJMatrixGetObject(jacob, parcsr_A_ref)
+    par_A = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_A_ref[])
+    
 
     solver_ref = Ref{HYPRE_Solver}(C_NULL)
     precond_ref = Ref{HYPRE_Solver}(C_NULL)
@@ -555,14 +586,20 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob,b
     # iter = HYPRE.GetNumIterations(solver)
 
     #! HYPRE.LibHYPRE c function call solver
-    iter = hyp_solve(solver_ref,precond_ref, J, b, x,par_env, "GMRES-AMG")
+    iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "LGMRES")
     
     for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
         int_x = zeros(1)
-        HYPRE.HYPRE_IJVectorGetValues(x,1,pointer(Int32.([p_index[i,j,k]])),int_x)
+        HYPRE.HYPRE_IJVectorGetValues(x_vec,1,pointer(Int32.([p_index[i,j,k]])),int_x)
+        
         P[i,j,k] = int_x[1]
     end
-
+    
+    # account for drift
+    P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+    
+    # println("P at 12,13,11 = ",P[12,13,11])
+    # println("P at 14,13,11 = ",P[14,13,11])
     Neumann!(P,mesh,par_env)
     update_borders!(P,mesh,par_env)
     
