@@ -356,12 +356,15 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
     while true
         iter += 1
 
-        # if iter > 10
-        if iter % 5 == 1 
-            J_assembler = HYPRE.start_assemble!(jacob)
-            compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
-            J = HYPRE.finish_assemble!(J_assembler)
-        end
+        #? save for recomputing jacobian
+        # if iter == 2
+        #     HYPRE_IJMatrixInitialize(jacob)
+        #     compute_hypre_jacobian!(iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+        #     HYPRE_IJMatrixAssemble(jacob)
+        #     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        #     HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
+        #     J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
+        # end
         #! reinit
         # b_assembler = HYPRE.start_assemble!(b)
         # x_assembler = HYPRE.start_assemble!(x)
