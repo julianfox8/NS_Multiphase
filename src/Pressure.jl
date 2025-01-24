@@ -394,7 +394,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
         solver_ref = Ref{HYPRE_Solver}(C_NULL)
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
 
-        hyp_iter = hyp_solve(solver_ref,precond_ref, J, b, x, par_env, "LGMRES")
+        # hyp_iter = hyp_solve(solver_ref,precond_ref, J, b, x, par_env, "LGMRES")
      
         hyp_iter = hyp_solve(solver_ref,precond_ref, J, par_b_old, par_x_new, par_env, "LGMRES")
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
