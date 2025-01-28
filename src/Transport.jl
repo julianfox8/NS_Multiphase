@@ -8,8 +8,10 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
         num_tets = 6
     elseif tesselation == "5_tets"
         num_tets = 5
+    elseif tesselation == "24_tets"
+        num_tets = 24
     else
-        error("incompatible tesselation called")
+        error("Unknown Tesselation: $tesselation")
     end
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)

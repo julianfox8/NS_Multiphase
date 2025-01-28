@@ -168,13 +168,12 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         solver = solver_ref[]
 
         HYPRE_LGMRESSetKDim(solver,20)
-        HYPRE_LGMRESSetTol(solver, 1e-7) # conv. tolerance
+        HYPRE_LGMRESSetTol(solver, 1e-9) # conv. tolerance
         HYPRE_LGMRESSetMaxIter(solver,1000)
         # HYPRE_LGMRESSetPrintLevel(solver, 2) # print solve info
         HYPRE_LGMRESSetLogging(solver, 1) # needed to get run info later
 
         # Now set up the AMG preconditioner and specify any parameters
-        # # Now set up the AMG preconditioner and specify any parameters
         HYPRE_BoomerAMGCreate(precond_ref)
         precond = precond_ref[]
         # HYPRE_BoomerAMGSetPrintLevel(precond, 1) # print amg solution info
@@ -304,7 +303,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
     fill!(AP,0.0)
     fill!(p_index,0.0)
 
-    pvd_pressure,dir = pVTK_init(param,par_env)
+    # pvd_pressure,dir = pVTK_init(param,par_env)
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
     res_par = parallel_max_all(abs.(AP),par_env)
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
@@ -326,33 +325,32 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
     HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
     J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
 
-    #! used to grab jacobian rows at (12,13,11) & (14,13,11)
-    #! output JSON dictionary is the input for the jacobian_check.jl function
-    jacobians = Dict(
-    "12,13,11" => Vector{Tuple{String, Float64}}(),
-    "14,13,11" => Vector{Tuple{String, Float64}}()
-    )
-    count = 0
-    for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
-        count+=1
-        int_x1 = zeros(1)
-        HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[12,13,11]])),pointer(Int32.([p_index[i,j,k]])),int_x1)
-        if int_x1[1] != 0.0
-            push!(jacobians["12,13,11"], ("$i,$j,$k",int_x1[1]))
-        end
-        int_x2 = zeros(1)
-        HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[14,13,11]])),pointer(Int32.([p_index[i,j,k]])),int_x2)
-        if int_x2[1] != 0.0
-            push!(jacobians["14,13,11"], ("$i,$j,$k",int_x2[1]))
-        end
-    end
+    # #! used to grab jacobian rows at (12,13,11) & (14,13,11)
+    # #! output JSON dictionary is the input for the jacobian_check.jl function
+    # jacobians = Dict(
+    # "12,11,12" => Vector{Tuple{String, Float64}}(),
+    # "12,15,12" => Vector{Tuple{String, Float64}}()
+    # )
+    # count = 0
+    # for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+    #     count+=1
+    #     int_x1 = zeros(1)
+    #     HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[12,11,12]])),pointer(Int32.([p_index[i,j,k]])),int_x1)
+    #     if int_x1[1] != 0.0
+    #         push!(jacobians["12,11,12"], ("$i,$j,$k",int_x1[1]))
+    #     end
+    #     int_x2 = zeros(1)
+    #     HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[12,15,12]])),pointer(Int32.([p_index[i,j,k]])),int_x2)
+    #     if int_x2[1] != 0.0
+    #         push!(jacobians["12,15,12"], ("$i,$j,$k",int_x2[1]))
+    #     end
+    # end
 
-    open("jacob_comp_dict.json","w") do file
-        JSON.print(file,jacobians)
-    end
+    # open("jacob_comp_dict_24tets.json","w") do file
+    #     JSON.print(file,jacobians)
+    # end
 
-    # Iterate 
-    
+    # Iterate     
     while true
         iter += 1
 
@@ -411,7 +409,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
         P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
 
         
-        pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
+
         #update new Ap
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
 

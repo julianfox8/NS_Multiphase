@@ -174,7 +174,12 @@ function oddEvenCell(i,j,k,param)
     if tesselation == "5_tets"
         return (i+j+k) % 2 == 0
     elseif tesselation == "6_tets"
+        # return (i+j+k) % 2 == 0
         return true
+    elseif tesselation == "24_tets"
+        return true
+    else 
+        error("Unknown tesselation: $tesselation")
     end
 end
 
@@ -210,11 +215,20 @@ function cell2verts!(verts,i,j,k,param,mesh)
     return tetsign
 end  
 
+# determines the most common element in an array
+function most_common(p)
+    unique_elements = unique(p)
+    counts = [count(x -> x == elem, p) for elem in unique_elements]
+    return unique_elements[argmax(counts)]
+end
+
 """ 
 Make 5 tets out of a polyhedron represented by 8 vertices
     - tets is is a 3x4x5 array that is filled by this function
 """
-function verts2tets!(tets,p,param)
+function verts2tets!(tets,p,param; 
+    mesh=nothing,midvInds=nothing,
+    i=nothing,j=nothing,k=nothing)
     @unpack tesselation = param
 
     fill!(tets,0.0)
@@ -254,10 +268,10 @@ function verts2tets!(tets,p,param)
         tets[:, 2, 3] = p[:, 2]
         tets[:, 3, 3] = p[:, 1]
         tets[:, 4, 3] = p[:, 4]
-        tets[:, 1, 4] = p[:, 5]
-        tets[:, 2, 4] = p[:, 4]
-        tets[:, 3, 4] = p[:, 7]
-        tets[:, 4, 4] = p[:, 8]
+        tets[:, 1, 4] = p[:, 7]
+        tets[:, 2, 4] = p[:, 8]
+        tets[:, 3, 4] = p[:, 5]
+        tets[:, 4, 4] = p[:, 4]
         tets[:, 1, 5] = p[:, 3]
         tets[:, 2, 5] = p[:, 4]
         tets[:, 3, 5] = p[:, 7]
@@ -266,6 +280,53 @@ function verts2tets!(tets,p,param)
         tets[:, 2, 6] = p[:, 4]
         tets[:, 3, 6] = p[:, 3]
         tets[:, 4, 6] = p[:, 5]
+    elseif tesselation == "24_tets"
+        if typeof(tets) == Array{Float64, 3}
+            m = mean(eachcol(p))
+            if !isnothing(midvInds)
+                pt2index!(midvInds[:,1],m,i,j,k,mesh)
+            end
+        elseif typeof(tets) == Array{Int32, 3}
+            m = midvInds[:,1]
+        end
+
+        vts = [1 3 7 5;  # xmin
+               2 6 8 4;  # xmax
+               1 5 6 2;  # ymin 
+               3 4 8 7;  # ymax
+               1 2 4 3;  # zmin
+               5 7 8 6]  # zmax
+        # Loop over faces 
+        for n=1:6
+            if typeof(tets) == Array{Float64, 3}
+                f = mean(eachcol(p[:,vts[n,:]]))
+                if !isnothing(midvInds)
+                    pt2index!(midvInds[:,n+1],f,i,j,k,mesh)
+                end
+            elseif typeof(tets) == Array{Int32, 3}
+                f = midvInds[:,n+1]
+            end
+            # Tet 1
+            tets[:,1,(n-1)*4+1] = p[:,vts[n,4]]
+            tets[:,2,(n-1)*4+1] = p[:,vts[n,1]]
+            tets[:,3,(n-1)*4+1] = f
+            tets[:,4,(n-1)*4+1] = m
+            # Tet 2
+            tets[:,1,(n-1)*4+2] = p[:,vts[n,1]]
+            tets[:,2,(n-1)*4+2] = p[:,vts[n,2]]
+            tets[:,3,(n-1)*4+2] = f
+            tets[:,4,(n-1)*4+2] = m
+            # Tet 3
+            tets[:,1,(n-1)*4+3] = p[:,vts[n,2]]
+            tets[:,2,(n-1)*4+3] = p[:,vts[n,3]]
+            tets[:,3,(n-1)*4+3] = f
+            tets[:,4,(n-1)*4+3] = m
+            # Tet 4
+            tets[:,1,(n-1)*4+4] = p[:,vts[n,3]]
+            tets[:,2,(n-1)*4+4] = p[:,vts[n,4]]
+            tets[:,3,(n-1)*4+4] = f
+            tets[:,4,(n-1)*4+4] = m
+        end
     end
     return nothing
 end
@@ -283,10 +344,14 @@ Create 5 tets to represent computational cell
 """
 function cell2tets!(verts, tets, i, j, k, param, mesh; 
     project_verts=false, uf=nothing, vf=nothing, wf=nothing, dt=nothing, 
-    compute_indices=false, inds=nothing, vInds=nothing
+    compute_indices=false, inds=nothing, vInds=nothing,iter=nothing
     )
     @unpack x, y, z = mesh
-    
+    @unpack tesselation = param
+    if !isnothing(inds)
+        fill!(inds,0.0)
+        fill!(vInds,0.0)
+    end
     # Cell vertices 
     tetsign = cell2verts!(verts,i,j,k,param,mesh)
 
@@ -297,15 +362,21 @@ function cell2tets!(verts, tets, i, j, k, param, mesh;
         end
     end
 
-    # Make five tets 
-    verts2tets!(tets,verts,param)
-
+    # Make tets based on tesselation
+    if tesselation == "24_tets"
+        midvInds = Array{Int32}(undef, 3, 7);fill!(midvInds,0.0)
+        verts2tets!(tets,verts,param,mesh=mesh,midvInds=midvInds,i=i,j=j,k=k)
+    else
+        midvInds = nothing
+        verts2tets!(tets,verts,param)
+    end
+    
     # Compute indices if requested
     if compute_indices
         for n=1:8
             pt2index!(@view(vInds[:,n]),@view(verts[:,n]),i,j,k,mesh)
         end 
-        verts2tets!(inds,vInds,param)
+        verts2tets!(inds,vInds,param,midvInds=midvInds)
     end
     
     return tetsign

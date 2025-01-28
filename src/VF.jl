@@ -224,13 +224,15 @@ function computePLIC2VF(i,j,k,nx,ny,nz,dist,param,mesh)
         num_tets = 6
     elseif tesselation == "5_tets"
         num_tets = 5
+    elseif tesselation == "24_tets"
+        num_tets = 24
     else
         error("incompatible tesselation called")
     end
 
     # Allocate work arrays 
     tet = Array{Float64}(undef,3,4)
-    tets = Array{Float64}(undef,3,4,6)
+    tets = Array{Float64}(undef,3,4,num_tets)
     vert = Array{Float64}(undef,3,8)
     d = Array{Float64}(undef,4)
     # ext = get_
@@ -290,6 +292,8 @@ function PLIC2Mesh(nx,ny,nz,D,VF,verts,tets,param,mesh)
         num_tets = 6
     elseif tesselation == "5_tets"
         num_tets = 5
+    elseif tesselation == "24_tets"
+        num_tets = 24
     else
         error("incompatible tesselation called")
     end
