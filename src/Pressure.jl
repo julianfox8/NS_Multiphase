@@ -1,7 +1,7 @@
 using JSON
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,sfx,sfy,sfz,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,BC!,jacob,b,x)
+function pressure_solver!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,BC!,jacob,b,x)
     @unpack pressure_scheme = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -19,19 +19,19 @@ function pressure_solver!(P,uf,vf,wf,sfx,sfy,sfz,t,dt,band,VF,param,mesh,par_env
     else
         RHS = nothing
     end
-    iter = poisson_solve!(P,RHS,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,jacob,b,x)
+    iter = poisson_solve!(nstep,P,RHS,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,jacob,b,x)
 
     return iter
 end
 
-function poisson_solve!(P,RHS,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,jacob,b,x)
+function poisson_solve!(nstep,P,RHS,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,jacob,b,x)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     if pressureSolver == "FC_hypre"
         iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp4,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,param,mesh,par_env,jacob,b,x)
+        iter = Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,param,mesh,par_env,jacob,b,x)
     else
         error("Unknown pressure solver $pressureSolver")
     end
@@ -242,11 +242,11 @@ end
 # Semi-Lagrangian pressure solvers
 function compute_hypre_jacobian!(iter,matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,LHS2,p,tets_arr,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_,kmin_,kmax_,kmino_,kmaxo_,Nx,Nz,Ny = mesh
-    # if iter == 0
-    delta = 1e5
-    # else
-        # delta = 1e-1
-    # end
+    if iter == 2
+        delta = 10
+    else
+        delta = 1
+    end
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
         #define jacobian
@@ -292,7 +292,7 @@ function compute_hypre_jacobian!(iter,matrix,coeff_index,cols_,values_,P,uf,vf,w
     end
 end
 
-function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,param,mesh,par_env,jacob,b,x)
+function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -315,10 +315,10 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,
     # J_assembler = HYPRE.start_assemble!(jacob)
     # compute_hypre_jacobian!(J_assembler,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
     # J = HYPRE.finish_assemble!(J_assembler)
-
+    
     iter=0
     HYPRE_IJMatrixInitialize(jacob)
-    compute_hypre_jacobian!(iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    compute_hypre_jacobian!(nstep,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
     HYPRE_IJMatrixAssemble(jacob)
 
     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
