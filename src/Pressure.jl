@@ -240,10 +240,13 @@ end
 
 
 # Semi-Lagrangian pressure solvers
-function compute_hypre_jacobian!(iter,matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,LHS2,p,tets_arr,par_env,mesh)
+function compute_hypre_jacobian!(dynamic_dP,matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,LHS2,p,tets_arr,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_,kmin_,kmax_,kmino_,kmaxo_,Nx,Nz,Ny = mesh
-    
-    delta = norm(AP,Inf)
+    if dynamic_dP
+        delta = norm(AP,Inf)
+    else 
+        delta = 1
+    end
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
         #define jacobian
@@ -302,7 +305,12 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
 
     # pvd_pressure,dir = pVTK_init(param,par_env)
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
-    res_par = parallel_max_all(abs.(AP),par_env)
+    # println("norms before P iters")
+    # println("Euclidean norm: $(norm(AP))")
+    # println("L_Inf norm: $(norm(AP, Inf))")
+   
+    # error("stop")
+    res_par_old = parallel_max_all(abs.(AP),par_env)
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
     cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
@@ -314,8 +322,9 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
     # J = HYPRE.finish_assemble!(J_assembler)
     
     iter=0
+    dynamic_dP = false
     HYPRE_IJMatrixInitialize(jacob)
-    compute_hypre_jacobian!(nstep,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    compute_hypre_jacobian!(dynamic_dP,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
     HYPRE_IJMatrixAssemble(jacob)
 
     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
@@ -350,7 +359,7 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
     # Iterate     
     while true
         iter += 1
-
+        P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         #? save for recomputing jacobian
         # if iter == 2
         #     HYPRE_IJMatrixInitialize(jacob)
@@ -395,35 +404,44 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             int_x = zeros(1)
             HYPRE_IJVectorGetValues(x,1,pointer(Int32.([p_index[i,j,k]])),int_x)
-            P[i,j,k] -= int_x[1]
+            P_k[i,j,k] -= int_x[1]
         end
 
         # account for drift
-        P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+        P_k .-=parallel_mean_all(P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         # P .-=parallel_mean_all(P,par_env)
         
 
         #update new Ap
-        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        A!(AP_k,uf,vf,wf,P_k,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
         # pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
-        println("norms after $iter P iters")
-        println("Euclidean norm: $(norm(AP))")
-        println("L_Inf norm: $(norm(AP, Inf))")
+        # println("norms after $iter P iters")
+        # println("Euclidean norm: $(norm(AP))")
+        # println("Frobenius norm: $(sqrt(sum(abs2,AP)))")
+        # println("L_Inf norm: $(norm(AP, Inf))")
 
         
-        res_par = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
-        println("residual max: $res_par")
+        res_par = parallel_max_all(abs.(AP_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
+        if res_par_old < res_par
+            # println("recomputing jacobian with dynamic dP")
+            dynamic_dP = true
+            HYPRE_IJMatrixInitialize(jacob)
+            compute_hypre_jacobian!(dynamic_dP,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+            HYPRE_IJMatrixAssemble(jacob)
+            parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
+            dynamic_dP = false
+        else 
+            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .=P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+            res_par_old = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
+        end
+        # println("residual max: $res_par")
         sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         # if isroot ;@printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res); end
-        if res_par < tol
+        if res_par_old < tol
             return iter
         end
 
-        # if t == 3
-        #     # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
-            
-        #     # J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
-        # end
     end    
 end
 
