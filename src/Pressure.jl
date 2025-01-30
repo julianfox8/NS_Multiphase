@@ -242,11 +242,8 @@ end
 # Semi-Lagrangian pressure solvers
 function compute_hypre_jacobian!(iter,matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,LHS2,p,tets_arr,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_,kmin_,kmax_,kmino_,kmaxo_,Nx,Nz,Ny = mesh
-    if iter == 2
-        delta = 10
-    else
-        delta = 1
-    end
+    
+    delta = norm(AP,Inf)
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
         #define jacobian
@@ -392,39 +389,41 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
         solver_ref = Ref{HYPRE_Solver}(C_NULL)
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
 
-        # hyp_iter = hyp_solve(solver_ref,precond_ref, J, b, x, par_env, "LGMRES")
-     
+        # hyp_iter = hyp_solve(solver_ref,precond_ref, J, b, x, par_env, "LGMRES")     
         hyp_iter = hyp_solve(solver_ref,precond_ref, J, par_b_old, par_x_new, par_env, "LGMRES")
+
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             int_x = zeros(1)
             HYPRE_IJVectorGetValues(x,1,pointer(Int32.([p_index[i,j,k]])),int_x)
-            # P_step[i,j,k] = int_x[1]
-            if iter> 10
-                P[i,j,k] -= 0.5*int_x[1]
-            else
-                P[i,j,k] -= int_x[1]
-            end
+            P[i,j,k] -= int_x[1]
         end
+
         # account for drift
         P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-
+        # P .-=parallel_mean_all(P,par_env)
         
 
         #update new Ap
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        # pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
+        println("norms after $iter P iters")
+        println("Euclidean norm: $(norm(AP))")
+        println("L_Inf norm: $(norm(AP, Inf))")
 
-        res_par = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         
-        if res_par < tol || iter == 50
+        res_par = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
+        println("residual max: $res_par")
+        sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+        # if isroot ;@printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res); end
+        if res_par < tol
             return iter
         end
 
-        if iter % 10 == 0
-        # if t == 6
-            # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
-            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env))
-            # J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
-        end
+        # if t == 3
+        #     # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum(AP))
+            
+        #     # J = compute_sparse2D_Jacobian(P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,tmp2,tmp3,tmp4,mesh,par_env)
+        # end
     end    
 end
 
