@@ -13,7 +13,7 @@ param = parameters(
     mu_gas = 1.79e-5, # Dynamic viscosity of gas (N/m)
     rho_liq= 1346.5,           # Density of liquid (kg/m^3)
     rho_gas = 1.225,  # Density of gas (kg/m^3)
-    sigma = 0.0,#0.0769, # surface tension coefficient (N/m)
+    sigma = 0.0769, # surface tension coefficient (N/m)
     gravity = 9.8, # Gravity (m/s^2)
     Lx=0.25,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
     Ly=0.25,             
@@ -58,7 +58,7 @@ param = parameters(
 
     
     iter_type = "standard",
-    test_case = "viscous_bubble_test_new"
+    test_case = "viscous_bubble_surf_ten"
 
 )
 

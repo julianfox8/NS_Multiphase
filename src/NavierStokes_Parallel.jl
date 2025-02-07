@@ -157,11 +157,10 @@ function run_solver(param, IC!, BC!)
         if !solveNS
             defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         end
-        
+    
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
-
-        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
+        
         # Update bands with transported VF
         computeBand!(band,VF,param,mesh,par_env)
 
@@ -174,8 +173,8 @@ function run_solver(param, IC!, BC!)
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
             # # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,BC!,jacob,b_vec,x_vec)
-            # iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,gradx,grady,gradz,outflow,J,nstep)
+            # Call pressure Solver (handles processor boundaries for P)
+            iter = pressure_solver!(P,uf,vf,wf,sfx,sfy,sfz,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,BC!,jacob,b_vec,x_vec)
 
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)

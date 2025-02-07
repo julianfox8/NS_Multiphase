@@ -1,7 +1,7 @@
 using JSON
 
 # Solve Poisson equation: δP form
-function pressure_solver!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,BC!,jacob,b,x)
+function pressure_solver!(P,uf,vf,wf,sfx,sfy,sfz,t,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,gradx,grady,gradz,verts,tets,BC!,jacob,b,x)
     @unpack pressure_scheme = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
 
@@ -19,19 +19,19 @@ function pressure_solver!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,dt,band,VF,param,mesh,p
     else
         RHS = nothing
     end
-    iter = poisson_solve!(nstep,P,RHS,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,jacob,b,x)
+    iter = poisson_solve!(P,RHS,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,jacob,b,x)
 
     return iter
 end
 
-function poisson_solve!(nstep,P,RHS,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,jacob,b,x)
+function poisson_solve!(P,RHS,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,jacob,b,x)
     @unpack pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
     if pressureSolver == "FC_hypre"
         iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp4,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,param,mesh,par_env,jacob,b,x)
+        iter = Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,param,mesh,par_env,jacob,b,x)
     else
         error("Unknown pressure solver $pressureSolver")
     end
@@ -240,10 +240,10 @@ end
 
 
 # Semi-Lagrangian pressure solvers
-function compute_hypre_jacobian!(dynamic_dP,matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,LHS2,p,tets_arr,par_env,mesh)
+function compute_hypre_jacobian!(dynamic_dP,max_δP,matrix,coeff_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS1,LHS2,p,tets_arr,par_env,mesh)
     @unpack  imin, imax, jmin,jmax,kmin,kmax,imin_, imax_, jmin_, jmax_,jmino_,imino_,jmaxo_,imaxo_,kmin_,kmax_,kmino_,kmaxo_,Nx,Nz,Ny = mesh
     if dynamic_dP
-        delta = norm(AP,Inf)
+        delta = min(max_δP[1], 1e4*norm(AP,Inf))
     else 
         delta = 1
     end
@@ -292,7 +292,7 @@ function compute_hypre_jacobian!(dynamic_dP,matrix,coeff_index,cols_,values_,P,u
     end
 end
 
-function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,param,mesh,par_env,jacob,b,x)
+function Secant_jacobian_hypre!(P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -305,11 +305,7 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
 
     # pvd_pressure,dir = pVTK_init(param,par_env)
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
-    # println("norms before P iters")
-    # println("Euclidean norm: $(norm(AP))")
-    # println("L_Inf norm: $(norm(AP, Inf))")
-   
-    # error("stop")
+
     res_par_old = parallel_max_all(abs.(AP),par_env)
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
@@ -323,67 +319,43 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
     
     iter=0
     dynamic_dP = false
+    max_δP = zeros(1)
+    max_δP_k = [res_par_old]
     HYPRE_IJMatrixInitialize(jacob)
-    compute_hypre_jacobian!(dynamic_dP,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+    compute_hypre_jacobian!(dynamic_dP,max_δP,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
     HYPRE_IJMatrixAssemble(jacob)
 
     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
     J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
 
-    # #! used to grab jacobian rows at (12,13,11) & (14,13,11)
-    # #! output JSON dictionary is the input for the jacobian_check.jl function
-    # jacobians = Dict(
-    # "12,11,12" => Vector{Tuple{String, Float64}}(),
-    # "12,15,12" => Vector{Tuple{String, Float64}}()
-    # )
-    # count = 0
-    # for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
-    #     count+=1
-    #     int_x1 = zeros(1)
-    #     HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[12,11,12]])),pointer(Int32.([p_index[i,j,k]])),int_x1)
-    #     if int_x1[1] != 0.0
-    #         push!(jacobians["12,11,12"], ("$i,$j,$k",int_x1[1]))
-    #     end
-    #     int_x2 = zeros(1)
-    #     HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[12,15,12]])),pointer(Int32.([p_index[i,j,k]])),int_x2)
-    #     if int_x2[1] != 0.0
-    #         push!(jacobians["12,15,12"], ("$i,$j,$k",int_x2[1]))
-    #     end
-    # end
-
-    # open("jacob_comp_dict_24tets.json","w") do file
-    #     JSON.print(file,jacobians)
-    # end
-
-    # Iterate     
+    # Iterate
+    iter += 1     
     while true
-        iter += 1
+        max_δP[1] = 0.0
         P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        #? save for recomputing jacobian
-        # if iter == 2
-        #     HYPRE_IJMatrixInitialize(jacob)
-        #     compute_hypre_jacobian!(iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
-        #     HYPRE_IJMatrixAssemble(jacob)
-        #     parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
-        #     HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
-        #     J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
-        # end
+        
         #! reinit
         # b_assembler = HYPRE.start_assemble!(b)
         # x_assembler = HYPRE.start_assemble!(x)
         
+        # for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+        #     row_ = p_index[i,j,k]
+        #     HYPRE.assemble!(b_assembler,[row_],[AP[i,j,k]])
+        #     HYPRE.assemble!(x_assembler,[row_],[0.0])  
+        # end
+    
         # b = HYPRE.finish_assemble!(b_assembler)
         # x = HYPRE.finish_assemble!(x_assembler)
 
         HYPRE_IJVectorInitialize(b)
         HYPRE_IJVectorInitialize(x)
+        # if iter > 1
         for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
             row_ = p_index[i,j,k]
             HYPRE_IJVectorSetValues(x,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
             HYPRE_IJVectorSetValues(b, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
         end
-    
         MPI.Barrier(par_env.comm)
         HYPRE_IJVectorAssemble(b)
         par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
@@ -400,33 +372,29 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
 
         # hyp_iter = hyp_solve(solver_ref,precond_ref, J, b, x, par_env, "LGMRES")     
         hyp_iter = hyp_solve(solver_ref,precond_ref, J, par_b_old, par_x_new, par_env, "LGMRES")
-
+        
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             int_x = zeros(1)
             HYPRE_IJVectorGetValues(x,1,pointer(Int32.([p_index[i,j,k]])),int_x)
             P_k[i,j,k] -= int_x[1]
+            if abs(maximum(int_x[1])) > max_δP[1]
+                max_δP[1] = abs(maximum(int_x[1]))
+            end
         end
 
         # account for drift
         P_k .-=parallel_mean_all(P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-        # P .-=parallel_mean_all(P,par_env)
-        
 
         #update new Ap
         A!(AP_k,uf,vf,wf,P_k,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
         # pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
-        # println("norms after $iter P iters")
-        # println("Euclidean norm: $(norm(AP))")
-        # println("Frobenius norm: $(sqrt(sum(abs2,AP)))")
-        # println("L_Inf norm: $(norm(AP, Inf))")
-
         
         res_par = parallel_max_all(abs.(AP_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         if res_par_old < res_par
-            # println("recomputing jacobian with dynamic dP")
+            println("jacobian recomputed with with dP of $(min(max_δP[1], 1e4*norm(AP,Inf)))")
             dynamic_dP = true
             HYPRE_IJMatrixInitialize(jacob)
-            compute_hypre_jacobian!(dynamic_dP,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
+            compute_hypre_jacobian!(dynamic_dP,max_δP_k,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
             HYPRE_IJMatrixAssemble(jacob)
             parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
             dynamic_dP = false
@@ -434,13 +402,15 @@ function Secant_jacobian_hypre!(nstep,P,uf,vf,wf,sfx,sfy,sfz,t,gradx,grady,gradz
             P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .=P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
             res_par_old = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
+            iter += 1
         end
-        # println("residual max: $res_par")
+        
         sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-        # if isroot ;@printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res); end
-        if res_par_old < tol
-            return iter
-        end
+        max_δP_k[1] = max_δP[1]
+
+        if iter % 10 == 0 ;@printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res); end
+
+        if res_par_old < tol; return iter; end
 
     end    
 end
