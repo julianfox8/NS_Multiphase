@@ -43,12 +43,16 @@ param = parameters(
     zper = false,
 
     # Restart  
-    # restart = true,
-    # restart_itr = 183,
+    restart = true,
+    restart_itr =166,
 
     
     pressure_scheme = "semi-lagrangian",
-    pressureSolver = "hypreSecant",
+    # pressureSolver = "hypreSecant",
+    # pressureSolver = "hypreSecantLS", 
+    pressureSolver = "Ostrowski",
+    # pressureSolver = "SOR",
+    # pressureSolver = "SecantSOR",
 
     # pressureSolver = "FC_hypre",
     # pressure_scheme = "finite-difference",
