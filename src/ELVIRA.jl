@@ -14,9 +14,37 @@ function ELVIRA!(nx,ny,nz,VF,param,mesh,par_env)
 
     # Loop over cells
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-       if VF[i,j,k] >= VFlo && VF[i,j,k] <= VFhi
+        if VF[i,j,k] >= VFlo && VF[i,j,k] <= VFhi
             ELVIRA_calc!(nx,ny,nz,VF,i,j,k,param,mesh)
-       end 
+        elseif VF[i,j,k] < VFlo
+            if VF[i-1,j,k] > VFhi 
+                nx[i,j,k] = 1
+            elseif VF[i+1,j,k] > VFhi
+                nx[i,j,k] = -1
+            elseif VF[i,j-1,k] > VFhi
+                ny[i,j,k] = 1
+            elseif VF[i,j+1,k] > VFhi
+                ny[i,j,k] = -1
+            elseif VF[i,j,k-1] > VFhi
+                nz[i,j,k] = 1
+            elseif VF[i,j,k+1] > VFhi
+                nz[i,j,k] = -1
+            end
+        elseif VF[i,j,k] > VFhi
+            if VF[i-1,j,k] < VFlo
+                nx[i,j,k] = -1
+            elseif VF[i+1,j,k] < VFlo
+                nx[i,j,k] = 1
+            elseif VF[i,j-1,k] < VFlo
+                ny[i,j,k] = -1
+            elseif VF[i,j+1,k] < VFlo
+                ny[i,j,k] = 1
+            elseif VF[i,j,k-1] < VFlo
+                nz[i,j,k] = -1
+            elseif VF[i,j,k+1] < VFlo
+                nz[i,j,k] = 1
+            end
+        end 
     end  
     # Update processor boundaries
     update_borders!(nx,mesh,par_env)
@@ -168,7 +196,7 @@ end
 """
 Compute surface tension force (using Continuous surface force method)
 """
-function compute_sf!(sfx,sfy,sfz,VF,Curve,param,mesh)
+function compute_sf!(sfx,sfy,sfz,VF,Curve,mask,param,mesh)
     @unpack sigma = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     fill!(sfx,0.0)
@@ -176,15 +204,39 @@ function compute_sf!(sfx,sfy,sfz,VF,Curve,param,mesh)
     fill!(sfz,0.0)
 
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
-        sfx[i,j,k] = -sigma/(2*dx)*(VF[i,j,k]-VF[i-1,j,k])*(Curve[i,j,k]+Curve[i-1,j,k])
+        if mask[i,j,k][1] 
+            if Curve[i,j,k] > 0 && Curve[i-1,j,k] > 0
+                sfx[i,j,k] = -sigma/(2*dx)*(VF[i,j,k]-VF[i-1,j,k])*(Curve[i,j,k]+Curve[i-1,j,k])
+            elseif Curve[i,j,k] == 0
+                sfx[i,j,k] = -sigma/(dx)*(VF[i,j,k]-VF[i-1,j,k])*(Curve[i-1,j,k])
+            elseif Curve[i-1,j,k] == 0
+                sfx[i,j,k] = -sigma/(dx)*(VF[i,j,k]-VF[i-1,j,k])*(Curve[i,j,k])
+            end
+        end
     end
 
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
-        sfy[i,j,k] = -sigma/(2*dy)*(VF[i,j,k]-VF[i,j-1,k])*(Curve[i,j,k]+Curve[i,j-1,k])
+        if mask[i,j,k][2]
+            if Curve[i,j,k] > 0 && Curve[i,j-1,k] > 0
+                sfy[i,j,k] = -sigma/(2*dy)*(VF[i,j,k]-VF[i,j-1,k])*(Curve[i,j,k]+Curve[i,j-1,k])
+            elseif Curve[i,j,k] == 0
+                sfy[i,j,k] = -sigma/(dy)*(VF[i,j,k]-VF[i,j-1,k])*(Curve[i,j-1,k])
+            elseif Curve[i,j-1,k] == 0
+                sfy[i,j,k] = -sigma/(dy)*(VF[i,j,k]-VF[i,j-1,k])*(Curve[i,j,k])
+            end
+        end
     end
     
     @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
-        sfz[i,j,k] = -sigma/(2*dz)*(VF[i,j,k]-VF[i,j,k-1])*(Curve[i,j,k]+Curve[i,j,k-1])
+        if mask[i,j,k][3]
+            if Curve[i,j,k] > 0 && Curve[i,j,k-1] > 0
+                sfz[i,j,k] = -sigma/(2*dz)*(VF[i,j,k]-VF[i,j,k-1])*(Curve[i,j,k]+Curve[i,j,k-1])
+            elseif Curve[i,j,k] == 0 
+                sfz[i,j,k] = -sigma/(dz)*(VF[i,j,k]-VF[i,j,k-1])*(Curve[i,j,k-1])
+            elseif Curve[i,j,k-1] == 0 
+                sfz[i,j,k] = -sigma/(dz)*(VF[i,j,k]-VF[i,j,k-1])*(Curve[i,j,k])
+            end
+        end
     end
     return nothing
 end

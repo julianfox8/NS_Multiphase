@@ -17,6 +17,20 @@ function Neumann!(A,mesh,par_env)
     return nothing
 end
 
+"""
+Compute the magnitude of an array
+""" 
+function mag(A,par_env)
+    # Compute ∑(A_i^2)
+    mag = 0
+    for i in eachindex(A)
+        mag += A[i]^2
+    end
+    # Parallel sum 
+    parallel_sum_all(mag,par_env)
+    # Compute √(∑A_i^2)
+    return sqrt(mag)
+end
 
 """ 
 Macro to easily change looping behavior throughout code 
@@ -167,13 +181,14 @@ function initArrays(mesh)
     grady = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(grady,0.0)
     gradz = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(gradz,0.0)
     divg  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(divg,0.0)
+    mask = OffsetArray{Array{Bool,1}}([falses(3) for _ in imino_:imaxo_, _ in jmino_:jmaxo_, _ in kmino_:kmaxo_],imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_)
 
     tets  = Array{Float64}(undef, 3, 4, 24); fill!(tets,0.0)
     inds  = Array{Int32}(undef, 3, 4, 24); fill!(inds,0.0)
     verts = Array{Float64}(undef, 3, 8)
     vInds = Array{Int32}(undef, 3, 8)
 
-    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,tets,verts,inds,vInds
+    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds
 
 end
 
@@ -837,6 +852,44 @@ function VFdroplet2d(xmin,xmax,ymin,ymax,rad,xo,yo)
     return VF
 end
 
+"""
+VF values for 3D bubble
+"""
+function VFellipbub3d(xmin,xmax,ymin,ymax,zmin,zmax,xrad,yrad,zrad,xo,yo,zo)
+    nF = 20
+    VF=1.0
+    VFsubcell = 1.0/nF^3
+    # Loop over finer grid to evaluate VF 
+    for k=1:nF, j=1:nF, i=1:nF
+        xh = xmin + i/(nF+1)*(xmax-xmin)
+        yh = ymin + j/(nF+1)*(ymax-ymin)
+        zh = zmin + k/(nF+1)*(zmax-zmin)
+        G = 1 - ((xh-xo)^2/xrad^2 + (yh-yo)^2/yrad^2 + (zh-zo)^2/zrad^2)
+        if G > 0.0
+            VF -= VFsubcell
+        end
+    end
+    return VF
+end
+
+"""
+VF values for 3D bubble
+"""
+function VFellipbub2d(xmin,xmax,ymin,ymax,xrad,yrad,xo,yo)
+    nF = 20
+    VF=1.0
+    VFsubcell = 1.0/nF^2
+    # Loop over finer grid to evaluate VF 
+    for j=1:nF, i=1:nF
+        xh = xmin + i/(nF+1)*(xmax-xmin)
+        yh = ymin + j/(nF+1)*(ymax-ymin)
+        G = 1 - ((xh-xo)^2/xrad^2 + (yh-yo)^2/yrad^2)
+        if G > 0.0
+            VF -= VFsubcell
+        end
+    end
+    return VF
+end
 
 """
 VF values for 3D bubble
@@ -1088,3 +1141,60 @@ function term_vel(uf,vf,wf,VF,param,mesh,par_env)
     return term_vel_height
 end
 
+function mask_maker!(mask,curve,mesh,param,par_env)
+    @unpack imin_,imax_,imin,imax,kmin_,kmax_,kmin,kmax,jmax_,jmin_ = mesh
+
+    for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
+        if curve[i,j,k] > 0 || curve[i-1,j,k] > 0
+            mask[i,j,k][1] = true
+        end
+
+        if curve[i,j,k] > 0 || curve[i,j-1,k] > 0
+            mask[i,j,k][2] = true
+        end
+
+        if curve[i,j,k] > 0 || curve[i,j,k-1] > 0
+            mask[i,j,k][3] = true
+        end
+    end
+end
+
+function hypreMat2JSON(jacob,cell1,cell2)
+    #! used to grab jacobian rows at (12,13,11) & (14,13,11)
+    #! output JSON dictionary is the input for the jacobian_check.jl function
+    jacobians = Dict(
+        cell1 => Vector{Tuple{String, Float64}}(),
+        cell2 => Vector{Tuple{String, Float64}}()
+        )
+    cell1_ind = parse.(Int,split(cell1,","))
+    cell2_ind = parse.(Int,split(cell2,","))
+    count = 0
+    for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
+        count+=1
+        int_x1 = zeros(1)
+        HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[cell1_ind[]]])),pointer(Int32.([p_index[i,j,k]])),int_x1)
+        if int_x1[1] != 0.0
+            push!(jacobians[cell1], ("$i,$j,$k",int_x1[1]))
+        end
+        int_x2 = zeros(1)
+        HYPRE_IJMatrixGetValues(jacob,1,pointer(Int32.([1])),pointer(Int32.([p_index[cell2_ind[]]])),pointer(Int32.([p_index[i,j,k]])),int_x2)
+        if int_x2[1] != 0.0
+            push!(jacobians[cell2], ("$i,$j,$k",int_x2[1]))
+        end
+    end
+
+    open("jacob_comp_dict_24tets.json","w") do file
+        JSON.print(file,jacobians)
+    end
+end
+
+function compute_kinEnergy(u,v,w,denx,deny,denz,mesh,param,par_env)
+    @unpack dx,dy,dx,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    KE = 0.0
+
+    for j in jmin_:jmax, i in kmin_:kmax_
+        KE += 0.5*(denx[i,j,1]*u[i,j,1]^2+deny[i,j,1]*v[i,j,1]^2)*dx*dy
+    end
+    
+    return KE
+end

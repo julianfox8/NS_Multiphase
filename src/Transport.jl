@@ -1,5 +1,5 @@
 
-function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,Fvy,Fvz,Fwx,Fwy,Fwz,VFnew,Curve,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
+function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,Fvy,Fvz,Fwx,Fwy,Fwz,VFnew,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
     @unpack gravity,pressure_scheme,tesselation,VFlo,VFhi = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -180,6 +180,23 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     # Viscous & Surface Tension & Gravity #
     #######################################
 
+    # Compute interface curvature
+    fill!(Curve,0.0)
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+        compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
+        # compute_curvature_2nd_order!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
+    end
+
+    # Compute mask for surface tension calculation
+    mask_maker!(mask,Curve,mesh,param,par_env)
+
+    # Compute surface tension force 
+    compute_sf!(sfx,sfy,sfz,VF,Curve,mask,param,mesh)
+
+    # Finish updating VF (use VFⁿ⁺¹ for surface tension calculation)
+    VF .= VFnew
+    update_VF_borders!(VF,mesh,par_env)
+
     # Compute viscous fluxes : x faces
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
         dudx = (u[i,j,k] - u[i-1,j,k])/dx
@@ -231,16 +248,32 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     end
 
     # Finish updating VF 
-    VF .= VFnew
+    # VF .= VFnew
     # Apply boundary conditions
     Neumann!(VF,mesh,par_env)
     BC!(us,vs,ws,t,mesh,par_env)
 
     # Update Processor boundaries (overwrites BCs if periodic)
-    update_VF_borders!(VF,mesh,par_env)
+    # update_VF_borders!(VF,mesh,par_env)
     update_borders!(us,mesh,par_env)
     update_borders!(vs,mesh,par_env)
     update_borders!(ws,mesh,par_env)
 
     return nothing
+end
+
+function sf_apply!(uf,vf,wf,sfx,sfy,sfz,denx,deny,denz,dt,param,mesh,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
+        uf[i,j,k] = uf[i,j,k] + dt*(sfx[i,j,k])/denx[i,j,k]
+    end
+
+    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
+        vf[i,j,k] = vf[i,j,k] + dt*(sfy[i,j,k])/deny[i,j,k]
+    end
+
+    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
+        wf[i,j,k] = wf[i,j,k] + dt*(sfz[i,j,k])/denz[i,j,k]
+    end
 end
