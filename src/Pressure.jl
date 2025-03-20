@@ -306,6 +306,55 @@ function compute_hypre_jacobian!(dynamic_dP,jacobi_iter,matrix,coeff_index,cols_
     end
 end
 
+function line_search(P_k,AP_k,uf,vf,wf,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,JdP,jacob,x,mesh,param,par_env)
+    @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+
+    # Compute J⋅dP for line search
+    fill!(JdP,0.0)
+    ncols_arr = zeros(Int32,1)
+    for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
+        # Get non-zero columns on this row 
+        row = p_index[i,j,k]
+        HYPRE_IJMatrixGetRowCounts(jacob, 1, pointer(Int32.([row])), ncols_arr)
+        ncols = ncols_arr[1]
+        cols = zeros(Int32,  ncols)
+        Jvals = zeros(Float64,ncols)
+        dPvals = zeros(Float64,ncols)
+        # Note returns cols (with 0 index) and vals
+        HYPRE_IJMatrixGetValues(jacob, -1, ncols_arr,pointer(Int32.([row])),cols,Jvals)
+        cols .+= 1 # shift column index to be 1 based
+        HYPRE_IJVectorGetValues(x,ncols,cols,dPvals)
+        JdP[i,j,k] = dot(Jvals,dPvals)
+    end
+
+
+    # Line search to find largest damping parameter
+    c=0.01
+    λ = 1
+    mydP = zeros(1)
+    line_iter = 0
+    AP_mag    = mag(  AP[imin:imax,jmin:jmax,kmin:kmax],par_env)
+    JdP_mag   = mag( JdP[imin:imax,jmin:jmax,kmin:kmax],par_env)
+    while true
+        line_iter += 1
+        P_k .+= λ*dP
+        A!(AP_k,uf,vf,wf,P_k,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        APnew_mag = mag(AP_k[imin:imax,jmin:jmax,kmin:kmax],par_env)
+        # Check if λ is small enough
+        if APnew_mag <= AP_mag - c*λ*JdP_mag
+            # println("lambda = ",λ)
+            break
+        end
+        # Reduce λ
+        λ /= 2
+        # Max number of iter
+        if line_iter == 4
+            println("Iter=$iter: Reached $line_iter subiterations on line search λ=$λ")
+            break
+        end
+    end
+end
+
 function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,dP,JdP,verts,tets,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -340,7 +389,6 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
     iter += 1
         
     while true
-        max_δP[1] = 0.0
         P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         
         HYPRE_IJVectorInitialize(b)
@@ -543,12 +591,12 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
         # println("checking residual for potential recompute")
         # if res_par_old < res_par
         if abs(res_par_old - res_par) > 1e3    
-            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res)
+            # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res)
             
             println("number of jacobian recomputes = $jacobi_iter")
             dynamic_dP = true
             HYPRE_IJMatrixInitialize(jacob)
-            compute_hypre_jacobian!(dynamic_dP,max_δP_k,jacobi_iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP_k,LHS,tmp4,verts,tets,par_env,mesh)
+            compute_hypre_jacobian!(dynamic_dP,jacobi_iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP_k,LHS,tmp4,verts,tets,par_env,mesh)
             HYPRE_IJMatrixAssemble(jacob)
             jacobi_iter +=1
             parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
@@ -561,7 +609,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
             # if jacobi_iter > 0; println("Jacobian recomputed $jacobi_iter times"); end
             # jacobi_iter = 1
             iter += 1
-            @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g max_δP = %12.3g \n",iter,res_par_old,sum_res,max_δP[1])
+            # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g max_δP = %12.3g \n",iter,res_par_old,sum_res,max_δP[1])
         end
         
         sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
