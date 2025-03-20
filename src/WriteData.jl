@@ -9,7 +9,7 @@ function csv_init!(param,par_env)
         open(VTK_dir*".csv","w") do io
             println(io, join(first.(param_fields), ","))
             println(io, join(last.(param_fields), ","))
-            println(io,"Iteration ,Time, max(u), max(v), max(w), max(divg), sum(mass_err), vel_t_height, vel_t, Piters")
+            println(io,"Iteration ,Time, max(u), max(v), max(w), max(divg), sum(mass_err), vel_t_height, Piters")
         end
     end
     return nothing

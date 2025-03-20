@@ -27,14 +27,6 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     d = Array{Float64}(undef, 4,nThread)
     newtet = Array{Float64}(undef, 3, 4,nThread)
 
-    # Compute interface curvature
-    fill!(Curve,0.0)
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
-    end
-
-    # Compute surface tension force
-    compute_sf!(sfx,sfy,sfz,VF,Curve,param,mesh)
 
     ########################
     #    Convective term   #

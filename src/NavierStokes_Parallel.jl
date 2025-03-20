@@ -128,8 +128,7 @@ function run_solver(param, IC!, BC!)
     end
 
     pvd,pvd_restart,pvd_PLIC = VTK_init(param,par_env)
-
-
+    
     # Grab initial volume fraction sum
     VF_init = parallel_sum(VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]*dx*dy*dz,par_env)
 
@@ -197,6 +196,7 @@ function run_solver(param, IC!, BC!)
         # Output
         std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter,param,mesh,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
+        MPI.Barrier(comm)
 
     end
 
