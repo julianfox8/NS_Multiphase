@@ -9,24 +9,28 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu=10.0,       # Dynamic viscosity
-    rho_liq=1.0,           # Density
-    rho_gas =0.1, 
-    sigma = 0.1, #surface tension coefficient
-    Lx=1.0,            # Domain size
-    Ly=1.0,
+    mu_liq=0.0,#1.265,       # Dynamic viscosity of liquid (N/m)
+    mu_gas = 0.0,#1.79e-5, # Dynamic viscosity of gas (N/m)
+    rho_liq= 1000,           # Density of liquid (kg/m^3)
+    rho_gas = 1.3,  # Density of gas (kg/m^3)
+    sigma = 0.0728, # surface tension coefficient (N/m)
+    gravity = 0.0, #9.8, # Gravity (m/s^2)
+    Lx=-0.5,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
+    Ly=0.5,             
     Lz=1/50,
-    tFinal=1.0,      # Simulation time
+    tFinal=20.0,      # Simulation time
+ 
     
     # Discretization inputs
-    Nx=10,           # Number of grid cells
-    Ny=10,
-    Nz=10,
-    stepMax=2,   # Maximum number of timesteps
-    CFL=0.1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    Nx=64,           # Number of grid cells
+    Ny=64,
+    Nz=1,
+    stepMax=20000,   # Maximum number of timesteps
+    max_dt = 1e-3,
+    CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-8,
 
     # Processors 
     nprocx = 1,
@@ -38,10 +42,26 @@ param = parameters(
     yper = false,
     zper = false,
 
-    pressureSolver = "NLsolve",
-    iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble1"
+    # Restart  
+    # restart = true,
+    # restart_itr = 3050,
 
+    
+    # pressure_scheme = "semi-lagrangian",
+    # pressureSolver = "hypreSecant",
+    # pressureSolver = "Ostrowski",
+    # pressureSolver = "SOR",
+    # pressureSolver = "SecantSOR",
+
+    pressureSolver = "FC_hypre",
+    pressure_scheme = "finite-difference",
+
+    projection_method = "RK4",
+    tesselation = "5_tets",
+
+    
+    iter_type = "standard",
+    test_case = "elliptical_bubble_test"
 )
 
 """
@@ -63,11 +83,16 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    rad=0.15
-    xo=0.5
-    yo=0.5
+    xrad=0.1
+    yrad = 0.12
+    # zrad = 0.013
+    xo=0.0
+    yo=0.0
+    # zo = 0.125
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+        # VF[i,j,k]=VFellipbub3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],xrad,yrad,zrad,xo,yo,zo)
+        VF[i,j,k]=VFellipbub2d(x[i],x[i+1],y[j],y[j+1],xrad,yrad,xo,yo)
+        # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],xrad,xo,yo)
     end
 
     return nothing    
