@@ -218,8 +218,8 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         # Set some parameters (See Reference Manual for more parameters)
         HYPRE_GMRESSetKDim(solver,20) # restart
         HYPRE_GMRESSetMaxIter(solver, 1000) # max iterations
-        HYPRE_GMRESSetTol(solver, 1e-10) # conv. tolerance
-        HYPRE_FlexGMRESSetPrintLevel(solver, 2) # print solve info
+        HYPRE_GMRESSetTol(solver, 1e-9) # conv. tolerance
+        # HYPRE_FlexGMRESSetPrintLevel(solver, 2) # print solve info
         HYPRE_GMRESSetLogging(solver, 1) # needed to get run info later
 
         # Now set up the AMG preconditioner and specify any parameters
@@ -497,6 +497,7 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
             iter += 1
             # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g max_δP = %12.3g \n",iter,res_par_old,sum_res,max_δP[1])
         end
+        if iter == 100; println("P-solve did not converge to tol");return iter; end
         
         sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         if res_par_old < tol; return iter; end
@@ -1211,6 +1212,7 @@ function FC_hypre_solver(P,RHS,denx,deny,denz,p_index,param,mesh,par_env,jacob,b
 
     #! HYPRE.LibHYPRE c function call solver
     iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "GMRES-AMG")
+    # iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "LGMRES")
     maxdP = zeros(1)
     
     for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
