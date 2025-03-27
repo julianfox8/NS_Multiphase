@@ -645,9 +645,10 @@ end
 """ 
 Cut tet by mesh then PLIC and return VF
 """
-function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
+function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl,vert,vert_ind,d,newtet)
     @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
     @unpack x, y, z = mesh
+    @unpack rho_liq,rho_gas = param
 
     id = Threads.threadid()
 
@@ -661,7 +662,7 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,
             end
         else
             xdone = true
-            return tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
+            return tetVol, tetvLiq, tetvU, tetvV, tetvW, tetvrho, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl,vert,vert_ind,d,newtet)
         end
         # Cut by y-planes
     elseif !ydone
@@ -673,7 +674,7 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,
             end
         else
             ydone = true
-            return tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
+            return tetVol, tetvLiq, tetvU, tetvV, tetvW, tetvrho, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl,vert,vert_ind,d,newtet)
         end
         # Cut by z-planes
     elseif !zdone
@@ -685,15 +686,16 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,
             end
         else
             zdone = true
-            return tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,vert,vert_ind,d,newtet)
+            return tetVol, tetvLiq, tetvU, tetvV, tetvW, tetvrho, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl,vert,vert_ind,d,newtet)
         end
-        # Cut by PLIC and compute output
+    # Cut by PLIC and compute output
     else
         vol = 0.0
         vLiq = 0.0
-        vU = 0.0
-        vV = 0.0
-        vW = 0.0
+        vrhoU = 0.0
+        vrhoV = 0.0
+        vrhoW = 0.0
+        vrho = 0.0 
         # Copy vertices
         for n = 1:4
             for p = 1:3
@@ -734,9 +736,10 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,
             # Update volumes in this cell
             vol += tetVol
             vLiq += tetVol
-            vU += tetVol*u[i,j,k]
-            vV += tetVol*v[i,j,k]
-            vW += tetVol*w[i,j,k]
+            vrhoU += tetVol*u[i,j,k]*rho_liq
+            vrhoV += tetVol*v[i,j,k]*rho_liq
+            vrhoW += tetVol*w[i,j,k]*rho_liq
+            vrho += tetVol*rho_liq
             
         end
         # Create new tets on gas side
@@ -752,12 +755,13 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,
             tetVol = tet_vol(newtet[:,:,id])
             # Update volumes in this cell
             vol += tetVol
-            vU += tetVol*u[i,j,k]
-            vV += tetVol*v[i,j,k]
-            vW += tetVol*w[i,j,k]
+            vrhoU += tetVol*u[i,j,k]*rho_gas
+            vrhoV += tetVol*v[i,j,k]*rho_gas
+            vrhoW += tetVol*w[i,j,k]*rho_gas
+            vrho += tetVol*rho_gas
         end
 
-        return vol, vLiq, vU, vV, vW, lvl
+        return vol, vLiq, vrhoU, vrhoV, vrhoW, vrho, lvl
     end
 
     # Cut by plane
@@ -801,9 +805,11 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,
     # Create new tets
     vol = 0.0
     vLiq = 0.0
-    vU = 0.0
-    vV = 0.0
-    vW = 0.0
+    vrhoU = 0.0
+    vrhoV = 0.0
+    vrhoW = 0.0
+    vrho = 0.0
+
     for n = 1:cut_ntets[case]
         # Form new tet
         for nn = 1:4
@@ -812,16 +818,18 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl,
                 ind[p, nn] = vert_ind[p, cut_vtet[nn, n, case], cut_side[n, case],lvl,id]
             end
         end
-        # Cut new tet by next plnae
-        tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,lvl+1,vert,vert_ind,d,newtet)
+        # Cut new tet by next plane
+        tetVol, tetvLiq, tetvrhoU, tetvrhoV, tetvrhoW, tetvrho, maxlvl = cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl+1,vert,vert_ind,d,newtet)
 
         # Accumulate quantities
         vol += tetVol
         vLiq += tetvLiq
-        vU += tetvU
-        vV += tetvV
-        vW += tetvW
+        vrhoU += tetvrhoU
+        vrhoV += tetvrhoV
+        vrhoW += tetvrhoW
+        vrho += tetvrho
+
     end
 
-    return vol, vLiq, vU, vV, vW, maxlvl
+    return vol, vLiq, vrhoU, vrhoV, vrhoW, vrho, maxlvl
 end

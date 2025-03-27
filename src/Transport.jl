@@ -125,24 +125,26 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             # Compute VF in semi-Lagrangian cell 
             vol  = 0.0
             vLiq = 0.0
-            vU   = 0.0
-            vV   = 0.0
-            vW   = 0.0
+            vrhoU   = 0.0
+            vrhoV   = 0.0
+            vrhoW   = 0.0
+            vrho = 0.0
             for tet in eachindex(view(tets,1,1,1:ntets))
-                tetVol, tetvLiq, tetvU, tetvV, tetvW, maxlvl = cutTet(tets[:,:,tet],inds[:,:,tet],
+                tetVol, tetvLiq, tetvrhoU, tetvrhoV, tetvrhoW, tetvrho, maxlvl = cutTet(tets[:,:,tet],inds[:,:,tet],
                                     u,v,w,
-                                    false,false,false,nx,ny,nz,D,mesh,
+                                    false,false,false,nx,ny,nz,D,mesh,param,
                                     1,vert,vert_ind,d,newtet)
                 vol  += tetsign * tetVol
                 vLiq += tetsign * tetvLiq
-                vU   += tetsign * tetvU
-                vV   += tetsign * tetvV
-                vW   += tetsign * tetvW
+                vrhoU   += tetsign * tetvrhoU
+                vrhoV   += tetsign * tetvrhoV
+                vrhoW   += tetsign * tetvrhoW
+                vrho += tetsign * tetvrho
             end
             VFnew[i,j,k] = vLiq/vol
-            us[i,j,k] = vU/vol
-            vs[i,j,k] = vV/vol
-            ws[i,j,k] = vW/vol
+            us[i,j,k] = vrhoU/(vrho)
+            vs[i,j,k] = vrhoV/(vrho)
+            ws[i,j,k] = vrhoW/(vrho)
         else
             # Apply fluxes away from interface
             # --------------------------------
