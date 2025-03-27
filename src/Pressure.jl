@@ -474,9 +474,11 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
         
         res_par = parallel_max_all(abs.(AP_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-
+        # println("initial residual = $res_par_old")
+        # println("new residual residual = $res_par")
         # if res_par_old < res_par
-        if abs(res_par_old - res_par) > 1e3   
+        if res_par_old - res_par < -1e2
+            # println(abs(res_par_old - res_par))   
             # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res)
             
             println("number of jacobian computes = $jacobi_iter")
@@ -1031,7 +1033,8 @@ function Ostrowski(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_
         sum_res = parallel_sum_all(AP_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         res_par = parallel_max_all(abs.(AP_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         # if res_par_old < res_par
-        if abs(res_par_old - res_par) > 1e3  #|| iter % 20 == 0
+        if res_par_old - res_par < -1e2
+            # println("res diff= ",abs(res_par_old - res_par))
             # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res)
             # iter += 1
             jacobi_iter += 1
