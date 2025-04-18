@@ -232,8 +232,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
         us[i,j,k] = us[i,j,k] + dt/(dx*dy*dz) * (
                 Fux[i+1,j,k] - Fux[i,j,k] +
                 Fuy[i,j+1,k] - Fuy[i,j,k] + 
-                dt*(0.5*(sfx[i,j,k]+sfx[i+1,j,k]))/̂(0.5*(denx[i+1,j,k]+denx[i,j,k]))
                 Fuz[i,j,k+1] - Fuz[i,j,k]) +
+                dt*(0.5*(sfx[i,j,k]+sfx[i+1,j,k]))/̂(0.5*(denx[i+1,j,k]+denx[i,j,k]))
         # v: y-velocity           
         vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
                 Fvx[i+1,j,k] - Fvx[i,j,k] +
@@ -243,9 +243,9 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
         # w: z-velocity
         ws[i,j,k] = ws[i,j,k] + dt/(dx*dy*dz) * (
                 Fwx[i+1,j,k] - Fwx[i,j,k] +
-                Fwy[i,j+1,k] - Fwy[i,j,k] + 
+                Fwy[i,j+1,k] - Fwy[i,j,k] +
+                Fwz[i,j,k+1] - Fwz[i,j,k]) + 
                 dt*(0.5*(sfz[i,j,k]+sfz[i,j,k+1]))/̂(0.5*(denz[i,j,k+1]+denz[i,j,k]))
-                Fwz[i,j,k+1] - Fwz[i,j,k]) +
     end
 
     # Finish updating VF 
