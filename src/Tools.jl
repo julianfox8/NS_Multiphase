@@ -1321,7 +1321,8 @@ function grav_centerline(xo,yo,zo,VF,mesh,param,par_env)
             end
         end
     end
-    println(grav_cl)
+    # println(grav_cl)
+    # error("stop")
     sort!(grav_cl, by = x -> (x[2],x[1]), rev = true)
     return grav_cl
 end
