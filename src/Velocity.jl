@@ -59,6 +59,7 @@ end
 function divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     fill!(divg,0.0)
+
     @loop param for  k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
         divg[i,j,k] = divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh)
     end
@@ -110,6 +111,7 @@ function divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh)
         else
             Fzp = dx*dy*wf[i,j,k+1]
         end
+
         divg = (
             Fxp - Fxm +
             Fyp - Fym +

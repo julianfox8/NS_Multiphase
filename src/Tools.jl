@@ -131,9 +131,7 @@ macro loop(args...)
     end
 end
 
-# struct vec_floats
-#     value::Vector{Float64}
-# end
+
 
 function initArrays(mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -526,6 +524,14 @@ function defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         u_fun = (x,y,z,t) -> 2(sin(π*x))^2*sin(2π*y)*sin(2π*z)*cos(π*t/3.0)
         v_fun = (x,y,z,t) -> -(sin(π*y))^2*sin(2π*x)*sin(2π*z)*cos(π*t/3.0)
         w_fun = (x,y,z,t) -> -(sin(π*z))^2*sin(2π*x)*sin(2π*y)*cos(π*t/3.0)
+    elseif VFVelocity == "divFlow"
+        u_fun = (x,y,z,t) -> 2*x
+        v_fun = (x,y,z,t) -> -1*(2.5-y)
+        w_fun = (x,y,z,t) -> 0.0
+    elseif VFVelocity == "divFlow3D"
+        u_fun = (x,y,z,t) -> 200*x
+        v_fun = (x,y,z,t) -> -100(5-y)
+        w_fun = (x,y,z,t) -> -50*(5-z)
     else
         error("Unknown VFVelocity = $VFVelocity")
     end
@@ -911,12 +917,12 @@ function VFdroplet3d(xmin,xmax,ymin,ymax,zmin,zmax,rad,xo,yo,zo)
     return VF
 end
 
-# """
-# Density/Viscosity calculation
-# """
+"""
+Density/Viscosity calculation
+"""
 function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    @unpack rho_liq,mu_liq,rho_gas,mu_gas,gravity = param
+    @unpack rho_liq,mu_liq,rho_gas,mu_gas = param
 
     @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
         vfx = min(1.0,max(0.0,(VF[i,j,k]+VF[i-1,j,k])/2))
@@ -1121,23 +1127,77 @@ end
 code to grab the terminal velocity along centerline
 """
 
-function term_vel(uf,vf,wf,VF,param,mesh,par_env)
-    @unpack y,dy,xm,ym,zm,imin_,imax_,imin,imax,kmin_,kmax_,kmin,kmax,jmax_,jmin_ = mesh
-    @unpack VFhi,Nx,Ny,Nz,solveNS = param
+function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
+    @unpack x,y,dx,dy,xm,ym,zm,imin_,imax_,imin,imax,kmin_,kmax_,kmin,kmax,jmax_,jmin_ = mesh
+    @unpack VFhi,grav_x,grav_y,grav_z = param
     @unpack nproc,irank = par_env
     term_vel_height = zeros(nproc)
-    #! odd number of cells in x and z-direction assumed
-    mid_x = div(length(xm[imin:imax]),2)+1
-    mid_z = div(length(zm[kmin:kmax]),2)+1
 
-    if mid_x >= imin_ && mid_x <= imax_ && mid_z >= kmin_ && mid_z <= kmax_
-        for j = jmax_:-1:jmin_
-            if VF[mid_x,j,mid_z] < VFhi
-                term_vel_height[irank+1] = dy*(1-VF[mid_x,j,mid_z])+y[j]
-                return term_vel_height
+
+    # calculate grav angle in radians
+    if grav_x > 0 && grav_y > 0
+        rads = atan(grav_y/grav_x)
+    else
+        #! odd number of cells in x and z-direction assumed
+        mid_x = div(length(xm[imin:imax]),2)+1
+        mid_z = div(length(zm[kmin:kmax]),2)+1
+
+        if mid_x >= imin_ && mid_x <= imax_ && mid_z >= kmin_ && mid_z <= kmax_
+            for j = jmax_:-1:jmin_
+                if VF[mid_x,j,mid_z] < VFhi
+                    term_vel_height[irank+1] = dy*(1-VF[mid_x,j,mid_z])+y[j]
+                    return term_vel_height
+                end
             end
         end
     end
+
+    m = tan(rads)
+    b = yo-(m*xo)
+    k_ind = div(kmax,2)+1
+    # println(k_ind)
+    for i in grav_cl 
+        if VF[i[1],i[2],k_ind] < VFhi
+            # determine if slope intercepts with x or y axis
+            if (y_star=x[i[1]]*m+b) > y[i[2]]
+                # then x-intercept
+                d_star = y_star - y[i[2]]
+                dy_p = dx*(1-VF[i[1],i[2],k_ind]) 
+                dx_p = (dy-d_star)*(1-VF[i[1],i[2],k_ind])
+                d = sqrt((x[i[1]]-xo)^2+(y_star-yo)^2)
+                dh_y = dy_p/cos(rads) + d
+                dh_x =dx_p/sin(rads) + d
+
+            elseif (x_star=x[i[1]]*m+b) < y[i[2]]
+                # then y-intercept
+                d_star = x_star -x[i[1]]
+                dy_p = (dx-d_star)*(1-VF[i[1],i[2],k_ind]) 
+                dx_p = dy*(1-VF[i[1],i[2],k_ind])
+                d = sqrt((x_star-xo)^2+(y[i[2]]-yo)^2)
+                dh_y = dy_p/cos(rads) + d
+                dh_x =dx_p/sin(rads) + d
+            # elseif x[i[1]]*m+b == y[i[2]]
+            else
+                # then cell vertex is intercept
+                # println("single gravity term")
+                d_star = 0
+                dy_p = dx*(1-VF[i[1],i[2],k_ind]) 
+                dx_p = dy*(1-VF[i[1],i[2],k_ind])
+                d = sqrt((x[i[1]]-xo)^2+(y[i[2]]-yo)^2)
+                dh_y = dy_p/cos(rads) + d
+                dh_x =dx_p/sin(rads) + d
+            end
+
+            # println("y direction hypotenuse = $dh_y")
+            # println("x direction hypotenuse = $dh_x")
+            term_vel_height[irank+1] = (dh_x+dh_y)/2
+        
+            return term_vel_height
+        end
+        
+    end
+
+
     return term_vel_height
 end
 
@@ -1192,9 +1252,77 @@ function compute_kinEnergy(u,v,w,denx,deny,denz,mesh,param,par_env)
     @unpack dx,dy,dx,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     KE = 0.0
 
-    for j in jmin_:jmax, i in kmin_:kmax_
+    for j in jmin_:jmax, i in imin_:imax_
         KE += 0.5*(denx[i,j,1]*u[i,j,1]^2+deny[i,j,1]*v[i,j,1]^2)*dx*dy
     end
     
     return KE
 end
+
+function curve_error(curve,ro,xo,yo,zo,param,mesh,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,x,y,z,xm,ym,zm = mesh
+
+    curve_exact = 1/ro
+
+
+end
+
+# Identify cells that contain the centerline of gravity
+function grav_centerline(xo,yo,zo,VF,mesh,param,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,x,y,z,xm,ym,zm = mesh
+    @unpack grav_x,grav_y,grav_z = param
+
+    grav_cl = Tuple{Int64,Int64}[]
+
+    δ = 1e-4
+    #calculate angle of gravity, slope, and slope intercept
+    if grav_x > 0 && grav_y > 0
+        rads = atan(grav_y/grav_x)
+    else
+        rads = π/2
+    end
+    # println("angle of $(rads*180/π)")
+    m = tan(rads)
+    # println("slope of $m")
+    b = yo-(m*xo)
+    # println("y-intercept of $b")
+
+    for i = imin_:imax_  
+        y_pos = m*(x[i]+δ) + b
+        y_neg = m*(x[i+1]-δ) + b
+
+        for j = jmin_:jmax_
+            #identify cells at 
+            if y_pos > y[j] && y_pos < y[j+1] 
+                if (i,j) ∉ grav_cl
+                    push!(grav_cl,(i,j))
+                end
+            elseif y_neg > y[j] && y_neg < y[j+1] 
+                if (i,j) ∉ grav_cl
+                    push!(grav_cl,(i,j))
+                end
+            end
+        end
+    end
+
+    for j = jmin_:jmax_
+        x_pos = ((y[j]+δ)-b)/m
+        x_neg = ((y[j+1]-δ)-b)/m
+
+        for i=imin_:imax_
+            if x_pos >x[i] && x_pos < x[i+1]
+                if (i,j) ∉ grav_cl
+                    push!(grav_cl,(i,j))
+                end
+            elseif x_neg > x[i] && x_neg < x[i+1]
+                if (i,j) ∉ grav_cl
+                    push!(grav_cl,(i,j))
+                end
+            end
+        end
+    end
+    println(grav_cl)
+    sort!(grav_cl, by = x -> (x[2],x[1]), rev = true)
+    return grav_cl
+end
+

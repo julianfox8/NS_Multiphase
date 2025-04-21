@@ -8,10 +8,10 @@ using NavierStokes_Parallel
 param = parameters(
     # Constants
     mu_liq=0.01,       # Dynamic viscosity
-    mu_gas = 0.0001,
+    mu_gas = 0.001,
     rho_liq= 1000,           # Density
-    rho_gas =1, 
-    sigma = 0.0072, #surface tension coefficient
+    rho_gas =500, 
+    sigma = 0, #surface tension coefficient
     gravity = 0,
     Lx=3.0,            # Domain size
     Ly=3.0,
@@ -39,13 +39,12 @@ param = parameters(
     yper = false,
     zper = true,
 
-    # pressure_scheme = "semi-lagrangian",
-    # pressureSolver = "hypreSecant",
-    pressure_scheme = "finite-difference",
-    pressureSolver = "FC_hypre",
+    pressure_scheme = "semi-lagrangian",
+    pressureSolver = "hypreSecant",
+    # pressure_scheme = "finite-difference",
+    # pressureSolver = "FC_hypre",
     iter_type = "standard",
-    # VTK_dir= "VTK_example_3"
-    test_case= "lid_driven_test"
+    test_case= "channel_flow"
 
 )
 
@@ -67,7 +66,7 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    fill!(VF,1.0)
+    fill!(VF,0.0)
 
     return nothing    
 end

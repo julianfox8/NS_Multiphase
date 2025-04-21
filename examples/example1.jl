@@ -11,9 +11,9 @@ using NavierStokes_Parallel
 param = parameters(
     # Constants
     mu_liq=1.265,       # Dynamic viscosity of liquid (N/m)
-    mu_gas = 1.79e-5, # Dynamic viscosity of gas (N/m)
+    mu_gas = 1.079, # Dynamic viscosity of gas (N/m)
     rho_liq= 1346.5,           # Density of liquid (kg/m^3)
-    rho_gas =1.225,  # Density of gas (kg/m^3)
+    rho_gas =1225,  # Density of gas (kg/m^3)
     sigma = 0.0,#0.0769, # surface tension coefficient (N/m^2)
     gravity = 0.0, #9.8, # Gravity (m/s^2)
     Lx=1.0,            # Domain size
@@ -22,8 +22,8 @@ param = parameters(
     tFinal=100.0,      # Simulation time
 
     # Discretization inputs
-    Nx=250,           # Number of grid cells
-    Ny=250,
+    Nx=5,           # Number of grid cells
+    Ny=5,
     Nz=1,
     stepMax=200,   # Maximum number of timesteps
     CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -52,6 +52,7 @@ param = parameters(
     test_case = "lid_driven_cavity_Re_1000"
 ) 
 
+
 """
 Initial conditions for pressure and velocity
 """
@@ -70,7 +71,7 @@ function IC!(P,u,v,w,VF,mesh)
     end
 
     # Volume Fraction
-    fill!(VF,1.0)
+    fill!(VF,0.0)
 
     return nothing    
 end

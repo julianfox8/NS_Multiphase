@@ -81,8 +81,10 @@ function run_solver(param, IC!, BC!)
     end
 
     !restart && csv_init!(param,par_env)
-    terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
+    grav_cl = grav_centerline(0.125,0.125,0.125,VF,mesh,param,par_env)
+    terminal_vel = term_vel(grav_cl,0.125,0.125,VF,param,mesh,par_env)
     
+
     # Initialize hypre matrices
     # jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
     # b_vec = HYPREVector(comm, Int32(p_min), Int32(p_max))
@@ -138,7 +140,7 @@ function run_solver(param, IC!, BC!)
 
     std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,0,param,mesh,par_env)
     !restart && VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-
+    # error("stop")
     # Loop over time
     # nstep = 0
     iter = 0
@@ -188,7 +190,7 @@ function run_solver(param, IC!, BC!)
         end
 
         # Compute case specific outputs
-        terminal_vel = term_vel(uf,vf,wf,VF,param,mesh,par_env)
+        terminal_vel = term_vel(grav_cl,0.125,0.125,VF,param,mesh,par_env)
         
         # Check divergence
         divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)

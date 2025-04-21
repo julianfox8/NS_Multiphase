@@ -192,6 +192,63 @@ function compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
 end
 
 
+"""
+Compute the curvature using the unit normal vectors
+higher order scheme presented in JCP: X Evrard 2019
+"""
+function compute_curvature_2nd_order!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+
+
+
+    if abs(nx[i,j,k]) > abs(ny[i,j,k]) && abs(nx[i,j,k]) > abs(nz[i,j,k])
+        hf = OffsetArray{Float64}(undef, j-1:j+1,k-1:k+1)
+        fill!(hf,0.0)
+        for kk = k-1:k+1, jj = j-1:j+1,ii = i-3:i+3
+            hf[jj,kk] += VF[ii,jj,kk]
+        end
+        hf*=dx
+        hfy = (hf[j-1,k-1]-hf[j+1,k-1]-26*hf[j-1,k]+26*hf[j+1,k]+hf[j-1,k+1]-hf[j+1,k+1])/(48*dy)
+        hfz = (hf[j-1,k-1]-hf[j-1,k+1]-26*hf[j,k-1]+26*hf[j,k+1]+hf[j+1,k-1]-hf[j+1,k+1])/(48*dz)
+        hfyy = (-hf[j-1,k-1]+2*hf[j,k-1]-hf[j+1,k-1]+26*hf[j-1,k]-52*hf[j,k]+26*hf[j+1,k]-hf[j-1,k+1]+2*hf[j,k+1]-hf[j+1,k+1])/(24*dy^2)
+        hfzz = (-hf[j-1,k-1]+2*hf[j-1,k]-hf[j-1,k+1]+26*hf[j,k-1]-52*hf[j,k]+26*hf[j,k+1]-hf[j+1,k-1]+2*hf[j+1,k]-hf[j+1,k+1])/(24*dz^2)
+        hfyz = (hf[j+1,k+1]-hf[j-1,k+1]-hf[j+1,k-1]+hf[j-1,k-1])/(4*dy*dz)
+        Curve[i,j,k] = (hfyy+hfzz+(hfyy*hfz^2)+(hfzz*hfy^2)-(2*hfyz*hfy*hfz))/((1+(hfy^2)+(hfz^2))^(3/2))
+        
+    elseif abs(ny[i,j,k]) > abs(nx[i,j,k]) && abs(ny[i,j,k]) > abs(nz[i,j,k])
+        hf = OffsetArray{Float64}(undef, k-1:k+1,i-1:i+1)
+        fill!(hf,0.0)
+        for ii = i-1:i+1, kk = k-1:k+1, jj = j-3:j+3
+            hf[kk,ii] += VF[ii,jj,kk]
+        end
+        hf*=dy
+        hfz = (hf[k-1,i-1]-hf[k+1,i-1]-26*hf[k-1,i]+26*hf[k+1,i]+hf[k-1,i+1]-hf[k+1,i+1])/(48*dz)
+        hfx = (hf[k-1,i-1]-hf[k-1,i+1]-26*hf[k,i-1]+26*hf[k,i+1]+hf[k+1,i-1]-hf[k+1,i+1])/(48*dx)
+        hfzz = (-hf[k-1,i-1]+2*hf[k,i-1]-hf[k+1,i-1]+26*hf[k-1,i]-52*hf[k,i]+26*hf[k+1,i]-hf[k-1,i+1]+2*hf[k,i+1]-hf[k+1,i+1])/(24*dz^2)
+        hfxx = (-hf[k-1,i-1]+2*hf[k-1,i]-hf[k-1,i+1]+26*hf[k,i-1]-52*hf[k,i]+26*hf[k,i+1]-hf[k+1,i-1]+2*hf[k+1,i]-hf[k+1,i+1])/(24*dx^2)
+        hfxz = (hf[k+1,i+1]-hf[k+1,i-1]-hf[k-1,i+1]+hf[k-1,i-1])/(4*dz*dx)
+        Curve[i,j,k] = (hfzz+hfxx+(hfzz*hfx^2)+(hfxx*hfz^2)-(2*hfxz*hfz*hfx))/((1+(hfz^2)+(hfx^2))^(3/2))
+
+    elseif abs(nz[i,j,k]) > abs(ny[i,j,k]) && abs(nz[i,j,k]) > abs(nx[i,j,k])
+        hf = OffsetArray{Float64}(undef, i-1:i+1,j-1:j+1)
+        fill!(hf,0.0)
+        for jj = j-1:j+1, ii = i-1:i+1, kk = k-3:k+3
+            hf[ii,jj] += VF[ii,jj,kk]
+        end
+        hf*=dz
+        hfx = (hf[i-1,j-1]-hf[i+1,j-1]-26*hf[i-1,j]+26*hf[i+1,j]+hf[i-1,j+1]-hf[i+1,j+1])/(48*dx)
+        hfy = (hf[i-1,j-1]-hf[i-1,j+1]-26*hf[i,j-1]+26*hf[i,j+1]+hf[i+1,j-1]-hf[i+1,j+1])/(48*dy)
+        hfxx = (-hf[i-1,j-1]+2*hf[i,j-1]-hf[i+1,j-1]+26*hf[i-1,j]-52*hf[i,j]+26*hf[i+1,j]-hf[i-1,j+1]+2*hf[i,j+1]-hf[i+1,j+1])/(24*dx^2)
+        hfyy = (-hf[i-1,j-1]+2*hf[i-1,j]-hf[i-1,j+1]+26*hf[i,j-1]-52*hf[i,j]+26*hf[i,j+1]-hf[i+1,j-1]+2*hf[i+1,j]-hf[i+1,j+1])/(24*dy^2)
+        hfxy = (hf[i+1,j+1]-hf[i+1,j-1]-hf[i-1,j+1]+hf[i-1,j-1])/(4*dy*dx)
+        Curve[i,j,k] = (hfxx+hfyy+(hfxx*hfy^2)+(hfyy*hfx^2)-(2*hfxy*hfx*hfy))/((1+(hfx^2)+(hfy^2))^(3/2))
+
+    end
+    return nothing
+end
+
+
+
 
 """
 Compute surface tension force (using Continuous surface force method)

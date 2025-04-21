@@ -130,6 +130,7 @@ function VTK(iter,time,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp,param,
             pvtk["rho_x"] = @views 0.5*(denx[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ denx[imin_+1:imax_+1,jmin_:jmax_,kmin_:kmax_])
             pvtk["rho_y"] = @views 0.5*(deny[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ deny[imin_:imax_,jmin_+1:jmax_+1,kmin_:kmax_])
             pvtk["rho_z"] = @views 0.5*(denz[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ denz[imin_:imax_,jmin_:jmax_,kmin_+1:kmax_+1])
+            
             # Indices for debugging
             for i=imin_:imax_; tmp[i,:,:] .= i; end
             pvtk["i_index"] = @views tmp[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
@@ -330,3 +331,38 @@ function pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
 
     return nothing
 end
+
+function metrics2CSV(file_path,param,iter;kwargs...)
+    @unpack restart,restart_itr = param
+
+    if !isfile(file_path)
+        open(file_path,"w") do file 
+            println(file, "iter," *join(keys(kwargs),","))
+        end
+    end
+
+    if iter == 1 || iter == restart_iter+1
+        if isfile(file_path) && restart
+            lines = readlines(file_path)
+            filtered_lines = [lines[1]]
+            
+            for line in lines[2:end]
+                row_iter = parse(Int,split(line,",")[1])
+                if row_iter <= restart_itr
+                    push!(filtered_lines,line)
+                end
+            end
+
+            open(file_path,"w") do file
+                foreach(l->println(file,l),filtered_lines)
+                println(file,"$iter,"*join(values(kwargs),","))
+            end
+        end
+    end
+
+    open(file_path,"a") do file 
+        println(file,"$iter ,"*join(values(kwargs),","))
+    end
+end
+
+

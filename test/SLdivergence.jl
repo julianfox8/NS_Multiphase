@@ -40,6 +40,7 @@ function test_SLdivergence()
         xper = false,
         yper = false,
         zper = false,
+        test_case = "DIv_test"
     )
 
     # Setup par_env

@@ -14,7 +14,9 @@ param = parameters(
     rho_liq= 1346.5,           # Density of liquid (kg/m^3)
     rho_gas = 1.225,  # Density of gas (kg/m^3)
     sigma = 0.0769, # surface tension coefficient (N/m)
-    gravity = 9.8, # Gravity (m/s^2)
+    grav_x = 0.0,#6.929, # Gravity (m/s^2)
+    grav_y = 9.8,#6.929, # Gravity (m/s^2)
+    grav_z = 0.0, # Gravity (m/s^2)
     Lx=0.25,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
     Ly=0.25,             
     Lz=0.25,
@@ -22,9 +24,9 @@ param = parameters(
  
     
     # Discretization inputs
-    Nx=51,           # Number of grid cells
-    Ny=51,
-    Nz=51,
+    Nx=41,           # Number of grid cells
+    Ny=41,
+    Nz=41,
     stepMax=300,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -43,14 +45,14 @@ param = parameters(
     zper = false,
 
     # Restart  
-    restart = true,
-    restart_itr =166,
+    # restart = true,
+    # restart_itr = 166,
 
     
     pressure_scheme = "semi-lagrangian",
     # pressureSolver = "hypreSecant",
-    # pressureSolver = "hypreSecantLS", 
-    pressureSolver = "Ostrowski",
+    pressureSolver = "hypreSecantLS", 
+    # pressureSolver = "Ostrowski",
     # pressureSolver = "SOR",
     # pressureSolver = "SecantSOR",
 
@@ -62,7 +64,7 @@ param = parameters(
 
     
     iter_type = "standard",
-    test_case = "viscous_bubble_surf_ten"
+    test_case = "viscous_bubble_45"
 
 )
 

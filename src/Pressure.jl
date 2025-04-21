@@ -31,15 +31,15 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_
     if pressureSolver == "FC_hypre"
         iter = FC_hypre_solver(P,RHS,denx,deny,denz,tmp4,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,param,mesh,par_env,jacob,b,x)
+        iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "hypreSecantLS"
         iter = Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "Ostrowski"
         iter = Ostrowski(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "SOR"
-        iter = SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,param,mesh,par_env,jacob,b,x)
+        iter = SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "SecantSOR"
-        iter = Secant_SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,param,mesh,par_env,jacob,b,x)
+        iter = Secant_SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     else
         error("Unknown pressure solver $pressureSolver")
     end
@@ -355,6 +355,34 @@ function line_search(P_k,AP_k,uf,vf,wf,dt,gradx,grady,gradz,band,denx,deny,denz,
     end
 end
 
+function recompute_jacobian(res_par,res_par_old,jacobi_iter,dynamic_dP,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP_k,LHS,tmp4,verts,tets,par_env,mesh)
+    @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+
+    if abs(res_par_old - res_par) > 1e2  #|| iter % 20 == 0
+        println("res diff= ",abs(res_par_old - res_par))
+        @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res)
+        # iter += 1
+        jacobi_iter += 1
+        println("number of jacobian computes = $jacobi_iter")
+        dynamic_dP = true
+        HYPRE_IJMatrixInitialize(jacob)
+        compute_hypre_jacobian!(dynamic_dP,jacobi_iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP_k,LHS,tmp4,verts,tets,par_env,mesh)
+        HYPRE_IJMatrixAssemble(jacob)
+        parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
+        dynamic_dP = false
+    else
+        P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .=P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        res_par_old = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
+        sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+        jacobi_iter = 1
+        iter+=1
+        @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par_old,sum_res)
+    end
+
+    return jacobi_iter
+end
+
 function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,dP,JdP,verts,tets,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -420,8 +448,9 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
             # P_k[i,j,k] -= int_x[1]
             dP[i,j,k] = -int_x[1]
         end
-
+        # println("computing J dP")
         # Compute J⋅dP for line search
+        update_borders!(dP,mesh,par_env)
         fill!(JdP,0.0)
         ncols_arr = zeros(Int32,1)
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
@@ -436,22 +465,24 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
             HYPRE_IJMatrixGetValues(jacob, -1, ncols_arr,pointer(Int32.([row])),cols,Jvals)
             cols .+= 1 # shift column index to be 1 based
             HYPRE_IJVectorGetValues(x,ncols,cols,dPvals)
+            # dPvals[row,cols] = dP[row,cols]
+            # error("stop")
             JdP[i,j,k] = dot(Jvals,dPvals)
         end
 
-
+        # println("starting line search")
         # Line search to find largest damping parameter
         c=0.01
         λ = 1
         mydP = zeros(1)
         line_iter = 0
-        AP_mag    = mag(  AP[imin:imax,jmin:jmax,kmin:kmax],par_env)
-        JdP_mag   = mag( JdP[imin:imax,jmin:jmax,kmin:kmax],par_env)
+        AP_mag    = mag(  AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+        JdP_mag   = mag( JdP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         while true
             line_iter += 1
             P_k .+= λ*dP
             A!(AP_k,uf,vf,wf,P_k,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
-            APnew_mag = mag(AP_k[imin:imax,jmin:jmax,kmin:kmax],par_env)
+            APnew_mag = mag(AP_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
             # Check if λ is small enough
             if APnew_mag <= AP_mag - c*λ*JdP_mag
                 # println("lambda = ",λ)
@@ -497,16 +528,17 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
             # if jacobi_iter > 0; println("Jacobian recomputed $jacobi_iter times"); end
             # jacobi_iter = 1
             iter += 1
-            # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g max_δP = %12.3g \n",iter,res_par_old,sum_res,max_δP[1])
+            # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par_old,sum_res)
         end
-        if iter == 100; println("P-solve did not converge to tol");return iter; end
-        
+        if iter == 1000; println("P-solve did not converge to tol");return iter; end
+
         sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         if res_par_old < tol; return iter; end
 
     end    
 end
-function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,param,mesh,par_env,jacob,b,x)
+
+function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -521,7 +553,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
 
     res_par_old = parallel_max_all(abs.(AP),par_env)
-    println("Initial res = $res_par_old")
+    # println("Initial res = $res_par_old")
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
     cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
@@ -545,7 +577,6 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
     iter += 1
         
     while true
-        max_δP[1] = 0.0
         P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         
         HYPRE_IJVectorInitialize(b)
@@ -593,7 +624,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
         sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         # println("checking residual for potential recompute")
         # if res_par_old < res_par
-        if abs(res_par_old - res_par) > 1e3    
+        if abs(res_par_old - res_par) > 1e2    
             # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res)
             
             println("number of jacobian recomputes = $jacobi_iter")
@@ -748,7 +779,7 @@ function nonZero_getter!(p_index,i,j,k,cols,cols_ijk,mesh)
     end
 end
 
-function SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,tmp5,tmp6,verts,tets,param,mesh,par_env,jacob,b,x)
+function SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -805,7 +836,7 @@ function SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,
     end
 end
 
-function Secant_SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,δP,δP_old,verts,tets,param,mesh,par_env,jacob,b,x)
+function Secant_SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,δP,δP_old,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
