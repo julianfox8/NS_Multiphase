@@ -1131,12 +1131,14 @@ function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
     @unpack x,y,dx,dy,xm,ym,zm,imin_,imax_,imin,imax,kmin_,kmax_,kmin,kmax,jmax_,jmin_ = mesh
     @unpack VFhi,grav_x,grav_y,grav_z = param
     @unpack nproc,irank = par_env
+
     term_vel_height = zeros(nproc)
 
 
     # calculate grav angle in radians
     if grav_x > 0 && grav_y > 0
-        rads = atan(grav_y/grav_x)
+        m = grav_y/grav_x
+        rads = atan(m)
     else
         #! odd number of cells in x and z-direction assumed
         mid_x = div(length(xm[imin:imax]),2)+1
@@ -1152,7 +1154,7 @@ function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
         end
     end
 
-    m = tan(rads)
+    # m = tan(rads)
     b = yo-(m*xo)
     k_ind = div(kmax,2)+1
     # println(k_ind)
@@ -1268,7 +1270,7 @@ function curve_error(curve,ro,xo,yo,zo,param,mesh,par_env)
 end
 
 # Identify cells that contain the centerline of gravity
-function grav_centerline(xo,yo,zo,VF,mesh,param,par_env)
+function grav_centerline(xo,yo,mesh,param,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,x,y,z,xm,ym,zm = mesh
     @unpack grav_x,grav_y,grav_z = param
 
@@ -1277,16 +1279,16 @@ function grav_centerline(xo,yo,zo,VF,mesh,param,par_env)
     δ = 1e-4
     #calculate angle of gravity, slope, and slope intercept
     if grav_x > 0 && grav_y > 0
-        rads = atan(grav_y/grav_x)
+        m = grav_y/grav_x
     else
-        rads = π/2
+        m = tan(π/2)
     end
     # println("angle of $(rads*180/π)")
-    m = tan(rads)
+    # m = tan(rads)
     # println("slope of $m")
     b = yo-(m*xo)
     # println("y-intercept of $b")
-
+    # error("stop")
     for i = imin_:imax_  
         y_pos = m*(x[i]+δ) + b
         y_neg = m*(x[i+1]-δ) + b
@@ -1321,8 +1323,7 @@ function grav_centerline(xo,yo,zo,VF,mesh,param,par_env)
             end
         end
     end
-    # println(grav_cl)
-    # error("stop")
+
     sort!(grav_cl, by = x -> (x[2],x[1]), rev = true)
     return grav_cl
 end

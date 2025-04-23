@@ -68,7 +68,7 @@ function run_solver(param, IC!, BC!)
         # Create initial condition
         t = 0.0 :: Float64
         nstep = 0
-        IC!(P,u,v,w,VF,mesh)
+        xo,yo,zo = IC!(P,u,v,w,VF,mesh)
         # Apply boundary conditions
         BC!(u,v,w,t,mesh,par_env)
         # Update processor boundaries (overwrites BCs if periodic)
@@ -79,10 +79,12 @@ function run_solver(param, IC!, BC!)
         # Create face velocities
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
     end
+    # xo =0.5
+    # yo = 0.5
 
     !restart && csv_init!(param,par_env)
-    grav_cl = grav_centerline(0.125,0.125,0.125,VF,mesh,param,par_env)
-    terminal_vel = term_vel(grav_cl,0.125,0.125,VF,param,mesh,par_env)
+    grav_cl = grav_centerline(xo,yo,mesh,param,par_env)
+    terminal_vel = term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
     
 
     # Initialize hypre matrices
@@ -190,7 +192,7 @@ function run_solver(param, IC!, BC!)
         end
 
         # Compute case specific outputs
-        terminal_vel = term_vel(grav_cl,0.125,0.125,VF,param,mesh,par_env)
+        terminal_vel = term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
         
         # Check divergence
         divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)

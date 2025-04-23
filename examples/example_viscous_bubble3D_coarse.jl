@@ -91,13 +91,13 @@ function IC!(P,u,v,w,VF,mesh)
     rad=0.013
     xo=0.125
     yo=0.125
-    zo = 0.125
+    zo=0.125
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
         # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
     end
 
-    return nothing    
+    return xo,yo,zo  
 end
 
 """
