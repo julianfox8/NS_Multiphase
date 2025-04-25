@@ -79,13 +79,12 @@ function run_solver(param, IC!, BC!)
         # Create face velocities
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
     end
-    # xo =0.5
-    # yo = 0.5
+    xo = 0.125
+    yo = 0.125
 
     !restart && csv_init!(param,par_env)
     grav_cl = grav_centerline(xo,yo,mesh,param,par_env)
     terminal_vel = term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
-    
 
     # Initialize hypre matrices
     # jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))

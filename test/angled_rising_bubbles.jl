@@ -11,7 +11,7 @@ function write_input_file(param_file,rad)
         elseif occursin("grav_y = ",line)
             push!(new_file,"    grav_y = $(round(9.8*sin(rad),digits = 4)),")
         elseif occursin("test_case = ",line)
-            angle = replace(string(rad2deg(rad)),"." => "_")
+            angle = replace(string(round(rad2deg(rad),digits=2)),"." => "_")
             push!(new_file,"    test_case = \"viscous_bubble_rise_$(angle)\", ")
         else
             push!(new_file,line)

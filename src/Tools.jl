@@ -1189,12 +1189,16 @@ function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
                 dh_y = dy_p/cos(rads) + d
                 dh_x =dx_p/sin(rads) + d
             end
-
+            # println("indicess at $(i[1]) and $(i[2])")
             # println("y direction hypotenuse = $dh_y")
             # println("x direction hypotenuse = $dh_x")
-            term_vel_height[irank+1] = (dh_x+dh_y)/2
-        
-            return term_vel_height
+            if (new_height = (dh_x+dh_y)/2) >= term_vel_height[irank+1]
+                # println("old height = $(term_vel_height[irank+1])")
+                # println("new height = $new_height")
+                term_vel_height[irank+1] = new_height
+            end
+            # error("stop")
+            # return term_vel_height
         end
         
     end
@@ -1283,42 +1287,44 @@ function grav_centerline(xo,yo,mesh,param,par_env)
     else
         m = tan(π/2)
     end
-    # println("angle of $(rads*180/π)")
-    # m = tan(rads)
-    # println("slope of $m")
+    
     b = yo-(m*xo)
-    # println("y-intercept of $b")
-    # error("stop")
-    for i = imin_:imax_  
-        y_pos = m*(x[i]+δ) + b
-        y_neg = m*(x[i+1]-δ) + b
 
-        for j = jmin_:jmax_
-            #identify cells at 
-            if y_pos > y[j] && y_pos < y[j+1] 
-                if (i,j) ∉ grav_cl
-                    push!(grav_cl,(i,j))
-                end
-            elseif y_neg > y[j] && y_neg < y[j+1] 
-                if (i,j) ∉ grav_cl
-                    push!(grav_cl,(i,j))
+    for i = imin_:imax_
+        # println("gets into mesh loop")
+        if x[i] > xo  
+            y_pos = m*(x[i]+δ) + b
+            y_neg = m*(x[i+1]-δ) + b
+
+            for j = jmin_:jmax_
+                #identify cells at 
+                if y_pos > y[j] && y_pos < y[j+1] 
+                    if (i,j) ∉ grav_cl
+                        push!(grav_cl,(i,j))
+                    end
+                elseif y_neg > y[j] && y_neg < y[j+1] 
+                    if (i,j) ∉ grav_cl
+                        push!(grav_cl,(i,j))
+                    end
                 end
             end
         end
     end
 
     for j = jmin_:jmax_
-        x_pos = ((y[j]+δ)-b)/m
-        x_neg = ((y[j+1]-δ)-b)/m
+        if y[j] > yo
+            x_pos = ((y[j]+δ)-b)/m
+            x_neg = ((y[j+1]-δ)-b)/m
 
-        for i=imin_:imax_
-            if x_pos >x[i] && x_pos < x[i+1]
-                if (i,j) ∉ grav_cl
-                    push!(grav_cl,(i,j))
-                end
-            elseif x_neg > x[i] && x_neg < x[i+1]
-                if (i,j) ∉ grav_cl
-                    push!(grav_cl,(i,j))
+            for i=imin_:imax_
+                if x_pos >x[i] && x_pos < x[i+1]
+                    if (i,j) ∉ grav_cl
+                        push!(grav_cl,(i,j))
+                    end
+                elseif x_neg > x[i] && x_neg < x[i+1]
+                    if (i,j) ∉ grav_cl
+                        push!(grav_cl,(i,j))
+                    end
                 end
             end
         end
