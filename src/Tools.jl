@@ -1157,29 +1157,29 @@ function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
     # m = tan(rads)
     b = yo-(m*xo)
     k_ind = div(kmax,2)+1
-    # println(k_ind)
+
     for i in grav_cl 
         if VF[i[1],i[2],k_ind] < VFhi
+            dh_y = 0.0
+            dh_x = 0.0
             # determine if slope intercepts with x or y axis
-            if (y_star=x[i[1]]*m+b) > y[i[2]]
+            if y[i[2]] < (y_star=x[i[1]]*m+b) < y[i[2]+1]
                 # then x-intercept
                 d_star = y_star - y[i[2]]
-                dy_p = dx*(1-VF[i[1],i[2],k_ind]) 
-                dx_p = (dy-d_star)*(1-VF[i[1],i[2],k_ind])
+                dx_p = dx*(1-VF[i[1],i[2],k_ind]) 
+                dy_p = (dy-d_star)*(1-VF[i[1],i[2],k_ind])
                 d = sqrt((x[i[1]]-xo)^2+(y_star-yo)^2)
                 dh_y = dy_p/cos(rads) + d
                 dh_x =dx_p/sin(rads) + d
-
-            elseif (x_star=x[i[1]]*m+b) < y[i[2]]
+            elseif x[i[1]] < (x_star=(y[i[2]]+b)/m) < x[i[1]+1]
                 # then y-intercept
-                d_star = x_star -x[i[1]]
-                dy_p = (dx-d_star)*(1-VF[i[1],i[2],k_ind]) 
-                dx_p = dy*(1-VF[i[1],i[2],k_ind])
+                d_star = x_star - x[i[1]]
+                dx_p = (dx-d_star)*(1-VF[i[1],i[2],k_ind]) 
+                dy_p = dy*(1-VF[i[1],i[2],k_ind])
                 d = sqrt((x_star-xo)^2+(y[i[2]]-yo)^2)
-                dh_y = dy_p/cos(rads) + d
-                dh_x =dx_p/sin(rads) + d
-            # elseif x[i[1]]*m+b == y[i[2]]
-            else
+                dh_y = dy_p/sin(rads) + d
+                dh_x =dx_p/cos(rads) + d
+            elseif x[i[1]]*m+b == y[i[2]]
                 # then cell vertex is intercept
                 # println("single gravity term")
                 d_star = 0
@@ -1189,21 +1189,12 @@ function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
                 dh_y = dy_p/cos(rads) + d
                 dh_x =dx_p/sin(rads) + d
             end
-            # println("indicess at $(i[1]) and $(i[2])")
-            # println("y direction hypotenuse = $dh_y")
-            # println("x direction hypotenuse = $dh_x")
-            if (new_height = (dh_x+dh_y)/2) >= term_vel_height[irank+1]
-                # println("old height = $(term_vel_height[irank+1])")
-                # println("new height = $new_height")
+
+            if (new_height = (dh_x+dh_y)/2) > term_vel_height[irank+1]
                 term_vel_height[irank+1] = new_height
             end
-            # error("stop")
-            # return term_vel_height
-        end
-        
+        end     
     end
-
-
     return term_vel_height
 end
 
