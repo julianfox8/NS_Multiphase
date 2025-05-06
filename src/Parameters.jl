@@ -77,6 +77,6 @@ using Parameters
 
     # Dynamic VTK directory creation
     test_case :: String
-    VTK_dir :: String = "VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
+    VTK_dir :: String = "results/bubble_rise_$(Nx)_$(Ny)_$(Nz)/VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
 
 end

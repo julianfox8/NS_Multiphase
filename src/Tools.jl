@@ -1127,8 +1127,8 @@ end
 code to grab the terminal velocity along centerline
 """
 
-function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
-    @unpack x,y,dx,dy,xm,ym,zm,imin_,imax_,imin,imax,kmin_,kmax_,kmin,kmax,jmax_,jmin_ = mesh
+function term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
+    @unpack x,y,dx,dy,xm,ym,zm,imin_,imax_,imin,imax,kmin_,kmax_,kmin,kmax,jmax_,jmin_,Lx,Ly,Lz = mesh
     @unpack VFhi,grav_x,grav_y,grav_z = param
     @unpack nproc,irank = par_env
 
@@ -1159,26 +1159,33 @@ function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
     k_ind = div(kmax,2)+1
 
     for i in grav_cl 
-        if VF[i[1],i[2],k_ind] < VFhi
+        if VF[i[1],i[2],k_ind] < VFhi && D[i[1],i[2],k_ind] < Lx*Ly*Lz
+            # println("cell has vertices in x direction of $(x[i[1]]) and $(x[i[1]+1])")
+            # println("cell has vertices in y direction of $(y[i[2]]) and $(y[i[2]+1])")
+            # println("VF of $(VF[i[1],i[2],k_ind]) occurs at indices $(i[1]),$(i[2])")
+            
             dh_y = 0.0
             dh_x = 0.0
             # determine if slope intercepts with x or y axis
             if y[i[2]] < (y_star=x[i[1]]*m+b) < y[i[2]+1]
-                # then x-intercept
+                # then y-intercept
+                
                 d_star = y_star - y[i[2]]
                 dx_p = dx*(1-VF[i[1],i[2],k_ind]) 
                 dy_p = (dy-d_star)*(1-VF[i[1],i[2],k_ind])
                 d = sqrt((x[i[1]]-xo)^2+(y_star-yo)^2)
                 dh_y = dy_p/cos(rads) + d
                 dh_x =dx_p/sin(rads) + d
+                # println("y intercept value of $y_star with term vel height of  $((dh_y+dh_x)/2)")
             elseif x[i[1]] < (x_star=(y[i[2]]+b)/m) < x[i[1]+1]
-                # then y-intercept
+                # then x-intercept
                 d_star = x_star - x[i[1]]
                 dx_p = (dx-d_star)*(1-VF[i[1],i[2],k_ind]) 
                 dy_p = dy*(1-VF[i[1],i[2],k_ind])
                 d = sqrt((x_star-xo)^2+(y[i[2]]-yo)^2)
                 dh_y = dy_p/sin(rads) + d
                 dh_x =dx_p/cos(rads) + d
+                # println("x intercept value of $x_star with term vel height of  $((dh_y+dh_x)/2)")
             elseif x[i[1]]*m+b == y[i[2]]
                 # then cell vertex is intercept
                 # println("single gravity term")
@@ -1196,6 +1203,66 @@ function term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
         end     
     end
     return term_vel_height
+end
+
+function bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
+    @unpack x,y,dx,dy,xm,ym,zm,imin_,imax_,imin,imax,kmin_,kmax_,kmin,kmax,jmax_,jmin_,Lx,Ly,Lz = mesh
+    @unpack VFhi,grav_x,grav_y,grav_z = param
+    @unpack nproc,irank = par_env
+
+    bubble_height = zeros(nproc)
+
+    m = grav_y/grav_x
+    a = atan(m)
+
+    lo = [xo,yo]
+    l = [1,a]
+    k_ind = div(kmax,2)+1
+    # po = zeros(3)
+    for (i,j) in grav_cl
+        # determine points on plane given D and 2 coordinates of that point
+        if abs(D[i,j,k_ind]) < Lx+Ly+Lz
+            if nx[i,j,k_ind] > ny[i,j,k_ind] && nx[i,j,k_ind] > nz[i,j,k_ind]
+                y_mid = ym[j]
+                z_mid = zm[k_ind]
+                x_p = (D[i,j,k_ind] - ny[i,j,k_ind]*y_mid - nz[i,j,k_ind]*z_mid)/nx[i,j,k_ind]
+                po = (x_p,y_mid,z_mid)
+            elseif ny[i,j,k_ind] > nx[i,j,k_ind] && ny[i,j,k_ind] > nz[i,j,k_ind]
+                x_mid = xm[i]
+                z_mid = zm[k_ind]
+                y_p = (D[i,j,k_ind] - nx[i,j,k_ind]*x_mid - nz[i,j,k_ind]*z_mid)/ny[i,j,k_ind]
+                po = (x_mid,y_p,z_mid)
+            elseif nz[i,j,k_ind] > ny[i,j,k_ind] && nz[i,j,k_ind] > ny[i,j,k_ind]
+                y_mid = ym[j]
+                x_mid = xm[i]
+                z_p = (D[i,j,k_ind] - ny[i,j,k_ind]*y_mid - nx[i,j,k_ind]*x_mid)/nz[i,j,k_ind]
+                po = (x_mid,y_mid,z_p)
+            end
+            # ensure line and plane are not parallel
+            if (ldotn = l[1]*nx[i,j,k_ind] + a*ny[i,j,k_ind]) ≠ 0
+                # solve for d 
+                d = ((po[1]-xo)*nx[i,j,k_ind] + (po[2]-yo)*ny[i,j,k_ind] + (po[3]-zo)*nz[i,j,k_ind])/ldotn
+                # calculate new height
+                new_height = sqrt((l[1]*d)^2+(l[2]*d)^2)
+                # new_height = sqrt((x_int-xo)^2+(y_int-yo)^2)
+                
+                # println("old height = $(bubble_height[irank+1])")
+                # println("new height = $new_height occurs at $i,$j")
+                # determine intersection point
+                p = [xo+l[1]*d,yo+l[2]*d,zo]
+                δ = 0.05*dx
+                if x[i]-δ < p[1] < x[i+1]+δ && y[j]-δ < p[2] < y[j+1]+δ && bubble_height[irank+1] < new_height
+                    bubble_height[irank+1] = new_height
+                # else
+                #     println("new bubb intersection not within cell at $i, $j")
+                #     println("intersection happens at $(p[1]) and $(p[2])")
+                #     println("with x cell locs at $(x[i]) and $(x[i+1])")
+                #     println("with y cell locs at $(y[j]) and $(y[j+1])")
+                end
+            end
+        end
+    end
+    return bubble_height
 end
 
 function mask_maker!(mask,curve,mesh,param,par_env)
@@ -1308,7 +1375,7 @@ function grav_centerline(xo,yo,mesh,param,par_env)
             x_neg = ((y[j+1]-δ)-b)/m
 
             for i=imin_:imax_
-                if x_pos >x[i] && x_pos < x[i+1]
+                if x_pos > x[i] && x_pos < x[i+1]
                     if (i,j) ∉ grav_cl
                         push!(grav_cl,(i,j))
                     end

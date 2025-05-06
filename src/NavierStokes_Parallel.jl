@@ -81,11 +81,10 @@ function run_solver(param, IC!, BC!)
     end
     xo = 0.125
     yo = 0.125
+    zo = 0.125
 
-    !restart && csv_init!(param,par_env)
-    grav_cl = grav_centerline(xo,yo,mesh,param,par_env)
-    terminal_vel = term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
 
+    # error("stop")
     # Initialize hypre matrices
     # jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
     # b_vec = HYPREVector(comm, Int32(p_min), Int32(p_max))
@@ -116,11 +115,20 @@ function run_solver(param, IC!, BC!)
     computeBand!(band,VF,param,mesh,par_env)
     
     # Compute interface normal 
-    !restart && computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
-
+    # !restart && computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
+    computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
     # Compute PLIC reconstruction 
-    !restart && computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+    # !restart && computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+    computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+    !restart && csv_init!(param,par_env)
+    grav_cl = grav_centerline(xo,yo,mesh,param,par_env)
+    # bubble_height = term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
+    # println(grav_cl)
+    bubble_height = bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
 
+    # println(terminal_vel)
+    # println(bubble_height)
+    # error("stop")
     dt = compute_dt(u,v,w,param,mesh,par_env)
 
     divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
@@ -139,7 +147,7 @@ function run_solver(param, IC!, BC!)
     t_last =[-100.0,]
     h_last =[100]
 
-    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,0,param,mesh,par_env)
+    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,bubble_height,0,param,mesh,par_env)
     !restart && VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
     # error("stop")
     # Loop over time
@@ -191,13 +199,13 @@ function run_solver(param, IC!, BC!)
         end
 
         # Compute case specific outputs
-        terminal_vel = term_vel(grav_cl,xo,yo,VF,param,mesh,par_env)
-        
+        # bubble_height = term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
+        bubble_height = bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
         # Check divergence
         divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
 
         # Output
-        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,terminal_vel,iter,param,mesh,par_env)
+        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,bubble_height,iter,param,mesh,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
         MPI.Barrier(comm)
 

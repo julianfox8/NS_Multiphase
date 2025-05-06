@@ -16,8 +16,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     # Compute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
     
-    # Compute PLIC reconstruction 
-    computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+    # # Compute PLIC reconstruction 
+    # computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
     # Preallocate for cutTet
     nLevel=100
@@ -251,6 +251,9 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     # Apply boundary conditions
     Neumann!(VF,mesh,par_env)
     BC!(us,vs,ws,t,mesh,par_env)
+
+    # Update PLIC reconstruction 
+    computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
     # Update Processor boundaries (overwrites BCs if periodic)
     # update_VF_borders!(VF,mesh,par_env)
