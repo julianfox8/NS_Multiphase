@@ -1212,16 +1212,34 @@ function bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
 
     bubble_height = zeros(nproc)
 
-    m = grav_y/grav_x
-    a = atan(m)
+    # calculate grav angle in radians
+    if grav_x > 0 && grav_y > 0
+        m = grav_y/grav_x
+        a = atan(m)
+    else
+        #! odd number of cells in x and z-direction assumed
+        mid_x = div(length(xm[imin:imax]),2)+1
+        mid_z = div(length(zm[kmin:kmax]),2)+1
+
+        if mid_x >= imin_ && mid_x <= imax_ && mid_z >= kmin_ && mid_z <= kmax_
+            for j = jmax_:-1:jmin_
+                if VF[mid_x,j,mid_z] < VFhi
+                    bubble_height[irank+1] = dy*(1-VF[mid_x,j,mid_z])+y[j]
+                    return bubble_height
+                end
+            end
+        end
+    end
 
     lo = [xo,yo]
     l = [1,a]
     k_ind = div(kmax,2)+1
-    # po = zeros(3)
+    # println(grav_cl)
+    po = zeros(3)
     for (i,j) in grav_cl
         # determine points on plane given D and 2 coordinates of that point
         if abs(D[i,j,k_ind]) < Lx+Ly+Lz
+            # println("potential at $i,$j")
             if nx[i,j,k_ind] > ny[i,j,k_ind] && nx[i,j,k_ind] > nz[i,j,k_ind]
                 y_mid = ym[j]
                 z_mid = zm[k_ind]
@@ -1250,7 +1268,7 @@ function bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
                 # println("new height = $new_height occurs at $i,$j")
                 # determine intersection point
                 p = [xo+l[1]*d,yo+l[2]*d,zo]
-                δ = 0.05*dx
+                δ = 1.25*dx
                 if x[i]-δ < p[1] < x[i+1]+δ && y[j]-δ < p[2] < y[j+1]+δ && bubble_height[irank+1] < new_height
                     bubble_height[irank+1] = new_height
                 # else
@@ -1262,6 +1280,7 @@ function bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
             end
         end
     end
+    # error("stop")
     return bubble_height
 end
 
@@ -1333,12 +1352,12 @@ end
 
 # Identify cells that contain the centerline of gravity
 function grav_centerline(xo,yo,mesh,param,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,x,y,z,xm,ym,zm = mesh
+    @unpack dx,imin_,imax_,jmin_,jmax_,kmin_,kmax_,x,y,z,xm,ym,zm = mesh
     @unpack grav_x,grav_y,grav_z = param
 
     grav_cl = Tuple{Int64,Int64}[]
 
-    δ = 1e-4
+    δ = 0.5*dx
     #calculate angle of gravity, slope, and slope intercept
     if grav_x > 0 && grav_y > 0
         m = grav_y/grav_x
@@ -1351,8 +1370,8 @@ function grav_centerline(xo,yo,mesh,param,par_env)
     for i = imin_:imax_
         # println("gets into mesh loop")
         if x[i] > xo  
-            y_pos = m*(x[i]+δ) + b
-            y_neg = m*(x[i+1]-δ) + b
+            y_pos = m*(x[i]-δ) + b
+            y_neg = m*(x[i+1]+δ) + b
 
             for j = jmin_:jmax_
                 #identify cells at 
@@ -1371,8 +1390,8 @@ function grav_centerline(xo,yo,mesh,param,par_env)
 
     for j = jmin_:jmax_
         if y[j] > yo
-            x_pos = ((y[j]+δ)-b)/m
-            x_neg = ((y[j+1]-δ)-b)/m
+            x_pos = ((y[j]-δ)-b)/m
+            x_neg = ((y[j+1]+δ)-b)/m
 
             for i=imin_:imax_
                 if x_pos > x[i] && x_pos < x[i+1]
