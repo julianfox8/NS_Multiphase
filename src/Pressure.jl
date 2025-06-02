@@ -40,6 +40,8 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mesh,par_
         iter = SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "SecantSOR"
         iter = Secant_SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
+    elseif pressureSolver == "res_iteration"
+        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mesh,par_env) 
     else
         error("Unknown pressure solver $pressureSolver")
     end
@@ -1091,6 +1093,113 @@ function Ostrowski(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_
 end 
 
 
+function jacob_single(jacob,LHS1,LHS2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+
+    delta = 5
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        add_perturb!(P,delta,i,j,k,mesh,par_env)
+        A!(i,j,k,LHS1,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env)
+        remove_perturb!(P,delta,i,j,k,mesh,par_env)
+        add_perturb!(P,-delta,i,j,k,mesh,par_env)
+        A!(i,j,k,LHS2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env)
+        remove_perturb!(P,-delta,i,j,k,mesh,par_env)
+        jacob[i,j,k] = ((LHS1[i,j,k]
+        - LHS2[i,j,k])
+        /̂2delta)
+    end
+    return nothing 
+end
+
+
+# residual iteration method with accompanying functions
+function weighted_sum(arrs::Vector{Array{Float64,3}}, weights::Vector{Float64})
+    result = zeros(size(arrs[1]))
+    for i in 1:length(arrs)
+        result .+= weights[i] .* arrs[i]
+    end
+    return result
+end
+
+function anderson_accel(Fhist)
+    m = length(Fhist)
+    
+    # flatten residual into a column vector
+    Fmat = hcat([vec(F) for F in Fhist]...)
+    # construct constraint matrix
+    A = Fmat
+    b = zeros(size(A,1))
+    C = ones(1,m)
+    d = [1.0]
+
+    KKT = [A' * A C'; C zeros(1,1)]
+    rhs = [A' * b; d]
+
+    α_aug = KKT \ rhs
+    α = α_aug[1:end-1]
+    return α
+
+end
+
+function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,Gn,AP2,jacob,verts,tets,param,mesh,par_env) 
+    @unpack Nx,Ny,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
+    @unpack tol = param
+
+    Fhist = Vector{Array{Float64,3}}()
+    Phist = Vector{Array{Float64,3}}()
+
+    # Gn = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmaxo_,kmino_:kmaxo_);fill!(Gn,0.0)
+
+    max_iter = 100000
+    ω = 0.8
+    m = 50
+    iter = 0
+
+    jacob_single(jacob,AP,AP2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+    while iter < max_iter
+        iter += 1
+        # m = iter
+        # evaluate objective function
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        # calculate values for jacobi step
+        # if iter % 100 == 0  
+        #     jacob_single(jacob,AP,AP2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        # end
+        # define variables for anderson acceleration
+        Fn = - ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ Fn
+
+        if length(Fhist) >= m
+            popfirst!(Fhist)
+            popfirst!(Phist)
+        end
+        
+        push!(Fhist,Fn[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        push!(Phist,Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        
+        if length(Fhist) > 1
+            α = anderson_accel(Fhist)
+            # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = weighted_sum(Phist,α)
+            Pnew = weighted_sum(Phist,α)
+            β = 1.0
+            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = β * Pnew + (1-β) * P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+
+        else
+            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        end
+        
+        res_norm = maximum(abs.(AP))
+        if iter % 100 == 0
+            println("residual at iter $iter = $(maximum(abs.(AP)))")
+        end
+        if res_norm < tol
+            break
+        end
+    end
+
+    return iter
+
+end
 # Flux-Corrected solvers 
 #! laplace operator containing face centered densities
 function compute_lap_op!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
