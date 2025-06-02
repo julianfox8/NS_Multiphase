@@ -231,19 +231,19 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
                 Fux[i+1,j,k] - Fux[i,j,k] +
                 Fuy[i,j+1,k] - Fuy[i,j,k] + 
                 Fuz[i,j,k+1] - Fuz[i,j,k]) +
-                dt*((0.5*(sfx[i,j,k]+sfx[i+1,j,k]))/̂(0.5*(denx[i+1,j,k]+denx[i,j,k])) - grav_x)
+                dt*(( 0.5*(sfx[i,j,k] + sfx[i+1,j,k]) )/( 0.5*(denx[i+1,j,k] + denx[i,j,k]) ) - grav_x)
         # v: y-velocity           
         vs[i,j,k] = vs[i,j,k] + dt/(dx*dy*dz) * (
                 Fvx[i+1,j,k] - Fvx[i,j,k] +
                 Fvy[i,j+1,k] - Fvy[i,j,k] + 
                 Fvz[i,j,k+1] - Fvz[i,j,k]) +
-                dt*((0.5*(sfy[i,j,k]+sfy[i,j+1,k]))/̂(0.5*(deny[i,j+1,k]+deny[i,j,k])) - grav_y)
+                dt*(( 0.5*(sfy[i,j,k] + sfy[i,j+1,k]) )/( 0.5*(deny[i,j+1,k] + deny[i,j,k]) ) - grav_y)
         # w: z-velocity
         ws[i,j,k] = ws[i,j,k] + dt/(dx*dy*dz) * (
                 Fwx[i+1,j,k] - Fwx[i,j,k] +
                 Fwy[i,j+1,k] - Fwy[i,j,k] + 
                 Fwz[i,j,k+1] - Fwz[i,j,k]) +
-                dt*((0.5*(sfz[i,j,k]+sfz[i,j,k+1]))/̂(0.5*(denz[i,j,k+1]+denz[i,j,k])) - grav_z)
+                dt*(( 0.5*(sfz[i,j,k] + sfz[i,j,k+1]) )/( 0.5*(denz[i,j,k+1]+denz[i,j,k]) ) - grav_z)
     end
 
     # Finish updating VF 
@@ -264,18 +264,3 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     return nothing
 end
 
-function sf_apply!(uf,vf,wf,sfx,sfy,sfz,denx,deny,denz,dt,param,mesh,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_+1
-        uf[i,j,k] = uf[i,j,k] + dt*(sfx[i,j,k])/denx[i,j,k]
-    end
-
-    @loop param for k=kmin_:kmax_, j=jmin_:jmax_+1, i=imin_:imax_
-        vf[i,j,k] = vf[i,j,k] + dt*(sfy[i,j,k])/deny[i,j,k]
-    end
-
-    @loop param for k=kmin_:kmax_+1, j=jmin_:jmax_, i=imin_:imax_
-        wf[i,j,k] = wf[i,j,k] + dt*(sfz[i,j,k])/denz[i,j,k]
-    end
-end

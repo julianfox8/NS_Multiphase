@@ -1160,10 +1160,6 @@ function term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
 
     for i in grav_cl 
         if VF[i[1],i[2],k_ind] < VFhi && D[i[1],i[2],k_ind] < Lx*Ly*Lz
-            # println("cell has vertices in x direction of $(x[i[1]]) and $(x[i[1]+1])")
-            # println("cell has vertices in y direction of $(y[i[2]]) and $(y[i[2]+1])")
-            # println("VF of $(VF[i[1],i[2],k_ind]) occurs at indices $(i[1]),$(i[2])")
-            
             dh_y = 0.0
             dh_x = 0.0
             # determine if slope intercepts with x or y axis
@@ -1205,7 +1201,7 @@ function term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
     return term_vel_height
 end
 
-function bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
+function bub_height(grav_cl,VF,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
     @unpack x,y,dx,dy,xm,ym,zm,imin_,imax_,imin,imax,kmin_,kmax_,kmin,kmax,jmax_,jmin_,Lx,Ly,Lz = mesh
     @unpack VFhi,grav_x,grav_y,grav_z = param
     @unpack nproc,irank = par_env
@@ -1239,7 +1235,7 @@ function bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
     for (i,j) in grav_cl
         # determine points on plane given D and 2 coordinates of that point
         if abs(D[i,j,k_ind]) < Lx+Ly+Lz
-            # println("potential at $i,$j")
+            # println("potential at $i,$j with VF of $(VF[i,j,k_ind])")
             if nx[i,j,k_ind] > ny[i,j,k_ind] && nx[i,j,k_ind] > nz[i,j,k_ind]
                 y_mid = ym[j]
                 z_mid = zm[k_ind]
@@ -1268,9 +1264,10 @@ function bub_height(grav_cl,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
                 # println("new height = $new_height occurs at $i,$j")
                 # determine intersection point
                 p = [xo+l[1]*d,yo+l[2]*d,zo]
-                δ = 1.25*dx
+                δ = 1.5*dx
                 if x[i]-δ < p[1] < x[i+1]+δ && y[j]-δ < p[2] < y[j+1]+δ && bubble_height[irank+1] < new_height
                     bubble_height[irank+1] = new_height
+                    return bubble_height
                 # else
                 #     println("new bubb intersection not within cell at $i, $j")
                 #     println("intersection happens at $(p[1]) and $(p[2])")
@@ -1358,6 +1355,7 @@ function grav_centerline(xo,yo,mesh,param,par_env)
     grav_cl = Tuple{Int64,Int64}[]
 
     δ = 0.5*dx
+    # println(dx)
     #calculate angle of gravity, slope, and slope intercept
     if grav_x > 0 && grav_y > 0
         m = grav_y/grav_x
@@ -1366,7 +1364,8 @@ function grav_centerline(xo,yo,mesh,param,par_env)
     end
     
     b = yo-(m*xo)
-
+    # println(b)
+    # println(m)
     for i = imin_:imax_
         # println("gets into mesh loop")
         if x[i] > xo  
@@ -1374,12 +1373,14 @@ function grav_centerline(xo,yo,mesh,param,par_env)
             y_neg = m*(x[i+1]+δ) + b
 
             for j = jmin_:jmax_
+                # if i == 44 && j == 44
+                #     prinlnt()
                 #identify cells at 
-                if y_pos > y[j] && y_pos < y[j+1] 
+                if y_pos > (y[j]-δ) && y_pos < (y[j+1]+δ) 
                     if (i,j) ∉ grav_cl
                         push!(grav_cl,(i,j))
                     end
-                elseif y_neg > y[j] && y_neg < y[j+1] 
+                elseif y_neg > (y[j]-δ) && y_neg < (y[j+1]+δ) 
                     if (i,j) ∉ grav_cl
                         push!(grav_cl,(i,j))
                     end
@@ -1394,11 +1395,11 @@ function grav_centerline(xo,yo,mesh,param,par_env)
             x_neg = ((y[j+1]+δ)-b)/m
 
             for i=imin_:imax_
-                if x_pos > x[i] && x_pos < x[i+1]
+                if x_pos > (x[i]-δ) && x_pos < (x[i+1]+δ)
                     if (i,j) ∉ grav_cl
                         push!(grav_cl,(i,j))
                     end
-                elseif x_neg > x[i] && x_neg < x[i+1]
+                elseif x_neg > (x[i]-δ) && x_neg < (x[i+1]+δ)
                     if (i,j) ∉ grav_cl
                         push!(grav_cl,(i,j))
                     end
@@ -1408,6 +1409,9 @@ function grav_centerline(xo,yo,mesh,param,par_env)
     end
 
     sort!(grav_cl, by = x -> (x[2],x[1]), rev = true)
+    # println(grav_cl)
+    # error("stop")
     return grav_cl
+
 end
 
