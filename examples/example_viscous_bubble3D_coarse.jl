@@ -14,25 +14,25 @@ param = parameters(
     rho_liq= 1346.5,           # Density of liquid (kg/m^3)
     rho_gas = 1.225,  # Density of gas (kg/m^3)
     sigma = 0.0769, # surface tension coefficient (N/m)
-    grav_x = 4.555,
-    grav_y = 8.677,
+    grav_x = 6.93,
+    grav_y = 6.93,
     grav_z = 0.0, # Gravity (m/s^2)
     Lx=0.25,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
     Ly=0.25,             
     Lz=0.25,
     tFinal=100.0,      # Simulation time
- 
+
     
     # Discretization inputs
-    Nx=41,           # Number of grid cells
-    Ny=41,
-    Nz=41,
-    stepMax=300,   # Maximum number of timesteps
+    Nx=32,           # Number of grid cells
+    Ny=32,
+    Nz=32,
+    stepMax=20,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-8,
+    tol = 1e-7,
 
     # Processors 
     nprocx = 1,
@@ -46,25 +46,29 @@ param = parameters(
 
     # Restart  
     # restart = true,
-    # restart_itr = 15,
+    # restart_itr = 190,
 
     
     pressure_scheme = "semi-lagrangian",
     # pressureSolver = "hypreSecant",
-    pressureSolver = "hypreSecantLS", 
+    # pressureSolver = "hypreSecantLS",
+    pressureSolver = "res_iteration",
+
     # pressureSolver = "Ostrowski",
     # pressureSolver = "SOR",
     # pressureSolver = "SecantSOR",
 
     # pressureSolver = "FC_hypre",
     # pressure_scheme = "finite-difference",
+    # pressureSolver = "gauss-seidel",
+    mg_lvl = 1,
 
     projection_method = "RK4",
     tesselation = "5_tets",
 
     
     iter_type = "standard",
-    test_case = "viscous_bubble_rise_62_3", 
+    test_case = "viscous_bubble_rise_62_3_np", 
 
 )
 
@@ -103,7 +107,7 @@ end
 """
 Boundary conditions for velocity
 """
-function BC!(u,v,w,t,mesh,par_env)
+function BC!(u,v,w,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
     @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
     @unpack jmin_,jmax_ = mesh

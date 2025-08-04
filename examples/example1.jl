@@ -10,26 +10,28 @@ using NavierStokes_Parallel
 # Define parameters
 param = parameters(
     # Constants
-    mu_liq=1.265,       # Dynamic viscosity of liquid (N/m)
+    mu_liq=1,       # Dynamic viscosity of liquid (N/m)
     mu_gas = 1.079, # Dynamic viscosity of gas (N/m)
-    rho_liq= 1346.5,           # Density of liquid (kg/m^3)
-    rho_gas =1225,  # Density of gas (kg/m^3)
+    rho_liq= 1,           # Density of liquid (kg/m^3)
+    rho_gas =1000,  # Density of gas (kg/m^3)
     sigma = 0.0,#0.0769, # surface tension coefficient (N/m^2)
-    gravity = 0.0, #9.8, # Gravity (m/s^2)
+    grav_x = 0.0, #9.8, # Gravity (m/s^2)
+    grav_y = 0.0, #9.8, # Gravity (m/s^2)
+    grav_z = 0.0, #9.8, # Gravity (m/s^2)
     Lx=1.0,            # Domain size
     Ly=1.0,
-    Lz=1.0/50,
+    Lz=1.0,
     tFinal=100.0,      # Simulation time
 
     # Discretization inputs
-    Nx=5,           # Number of grid cells
-    Ny=5,
-    Nz=1,
+    Nx=64,          # Number of grid cells
+    Ny=64,
+    Nz=64,
     stepMax=200,   # Maximum number of timesteps
     CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-3,
+    tol = 1e-7,
 
     # Processors 
     nprocx = 1,
@@ -42,10 +44,15 @@ param = parameters(
     zper = false,
 
 
-    pressure_scheme = "semi-lagrangian",
-    pressureSolver = "hypreSecant",
-    # pressure_scheme = "finite-difference",
+    # pressure_scheme = "semi-lagrangian",
+    # pressureSolver = "hypreSecant",
+    pressure_scheme = "finite-difference",
+    # pressureSolver = "congugateGradient",
     # pressureSolver = "FC_hypre",
+    pressureSolver = "gauss-seidel",
+    mg_lvl = 4,
+
+
     # Iteration method used in @loop macro
     iter_type = "standard",
     # iter_type = "floop",
@@ -79,7 +86,7 @@ end
 """
 Boundary conditions for velocity
 """
-function BC!(u,v,w,t,mesh,par_env)
+function BC!(u,v,w,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
     @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
     

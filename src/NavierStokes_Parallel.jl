@@ -68,9 +68,10 @@ function run_solver(param, IC!, BC!)
         # Create initial condition
         t = 0.0 :: Float64
         nstep = 0
-        xo,yo,zo = IC!(P,u,v,w,VF,mesh)
+        # xo,yo,zo = IC!(P,u,v,w,VF,mesh)
+        IC!(P,u,v,w,VF,mesh)
         # Apply boundary conditions
-        BC!(u,v,w,t,mesh,par_env)
+        BC!(u,v,w,mesh,par_env)
         # Update processor boundaries (overwrites BCs if periodic)
         update_borders!(u,mesh,par_env)
         update_borders!(v,mesh,par_env)
