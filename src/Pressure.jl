@@ -386,7 +386,7 @@ function recompute_jacobian(res_par,res_par_old,jacobi_iter,dynamic_dP,jacob,p_i
     return jacobi_iter
 end
 
-function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,dP,JdP,verts,tets,param,mesh,par_env,jacob,b,x)
+function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,dP,JdP,verts,tets,param,mesh,par_env,jacob,b,x_vec)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -423,11 +423,11 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
         P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         
         HYPRE_IJVectorInitialize(b)
-        HYPRE_IJVectorInitialize(x)
+        HYPRE_IJVectorInitialize(x_vec)
         # if iter > 1
         for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
             row_ = p_index[i,j,k]
-            HYPRE_IJVectorSetValues(x,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
+            HYPRE_IJVectorSetValues(x_vec,1,pointer(Int32.([row_])),pointer(Float64.([0.0])))
             HYPRE_IJVectorSetValues(b, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
         end
         MPI.Barrier(par_env.comm)
@@ -435,9 +435,9 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
         par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
         HYPRE_IJVectorGetObject(b, par_AP_ref)
         par_b_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
-        HYPRE_IJVectorAssemble(x)
+        HYPRE_IJVectorAssemble(x_vec)
         par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
-        HYPRE_IJVectorGetObject(x, par_Pn_ref)
+        HYPRE_IJVectorGetObject(x_vec, par_Pn_ref)
         par_x_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
 
 
@@ -447,7 +447,7 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
         hyp_iter = hyp_solve(solver_ref,precond_ref, J, par_b_old, par_x_new, par_env, "LGMRES")
         int_x = zeros(1)
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
-            HYPRE_IJVectorGetValues(x,1,pointer(Int32.([p_index[i,j,k]])),int_x)
+            HYPRE_IJVectorGetValues(x_vec,1,pointer(Int32.([p_index[i,j,k]])),int_x)
             # P_k[i,j,k] -= int_x[1]
             dP[i,j,k] = -int_x[1]
         end
@@ -456,24 +456,35 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
         update_borders!(dP,mesh,par_env)
         fill!(JdP,0.0)
         ncols_arr = zeros(Int32,1)
+
+        # HYPRE_IJMatrixPrint(jacob,"J")
+        # HYPRE_IJVectorPrint(x_vec,"X")
+        # MPI.Barrier(comm)
+        # error("stop")
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             # Get non-zero columns on this row 
             row = p_index[i,j,k]
             HYPRE_IJMatrixGetRowCounts(jacob, 1, pointer(Int32.([row])), ncols_arr)
             ncols = ncols_arr[1]
+            
+            # error("stop")
             cols = zeros(Int32,  ncols)
             Jvals = zeros(Float64,ncols)
             dPvals = zeros(Float64,ncols)
             # Note returns cols (with 0 index) and vals
             HYPRE_IJMatrixGetValues(jacob, -1, ncols_arr,pointer(Int32.([row])),cols,Jvals)
+            
+            #! need to communicate the cols and pass them to the other partitions 
+
             cols .+= 1 # shift column index to be 1 based
-            HYPRE_IJVectorGetValues(x,ncols,cols,dPvals)
-            # dPvals[row,cols] = dP[row,cols]
+            HYPRE_IJVectorGetValues(x_vec,ncols,cols,dPvals)
+            # dPvals .= dP[row,cols]
             # error("stop")
             JdP[i,j,k] = dot(Jvals,dPvals)
         end
-
+        # MPI.Barrier(comm)
         # println("starting line search")
+        # error("stop")
         # Line search to find largest damping parameter
         c=0.01
         λ = 1

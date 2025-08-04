@@ -15,18 +15,18 @@ param = parameters(
     rho_gas = 1.3,  # Density of gas (kg/m^3)
     sigma = 0.0728, # surface tension coefficient (N/m)
     grav_x = 0.0, #9.8, # Gravity (m/s^2)
-    grav_y = 9.8, #9.8, # Gravity (m/s^2)
+    grav_y = 0.0,#9.8, #9.8, # Gravity (m/s^2)
     grav_z = 0.0, #9.8, # Gravity (m/s^2)
     Lx=1.0,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
     Ly=1.0,             
-    Lz=1/50,
+    Lz=1.0,#1/50,
     tFinal=20.0,      # Simulation time
  
     
     # Discretization inputs
-    Nx=5,           # Number of grid cells
-    Ny=5,
-    Nz=1,
+    Nx=125,           # Number of grid cells
+    Ny=125,
+    Nz=125,
     stepMax=20000,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -42,7 +42,7 @@ param = parameters(
     # Periodicity
     xper = false,
     yper = false,
-    zper = true,
+    zper = false,#true,
 
     # Restart  
     # restart = true,
@@ -90,11 +90,12 @@ function IC!(P,u,v,w,VF,mesh)
     # zrad = 0.013
     xo=0.5
     yo=0.5
-    # zo = 0.125
+    zo = 0.125
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         # VF[i,j,k]=VFellipbub3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],xrad,yrad,zrad,xo,yo,zo)
         # VF[i,j,k]=VFellipbub2d(x[i],x[i+1],y[j],y[j+1],xrad,yrad,xo,yo)
-        VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],xrad,xo,yo)
+        # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],xrad,xo,yo)
+        VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],xrad,xo,yo,zo)
     end
 
     return nothing    

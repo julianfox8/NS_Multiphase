@@ -1339,10 +1339,29 @@ function compute_kinEnergy(u,v,w,denx,deny,denz,mesh,param,par_env)
     return KE
 end
 
-function curve_error(curve,ro,xo,yo,zo,param,mesh,par_env)
+function curve_error(Curve,ro,param,mesh,par_env)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,x,y,z,xm,ym,zm = mesh
 
     curve_exact = 1/ro
+    L2_num = 0.0
+    L2_den = 0.0 
+    Linf_err = 0.0
+    # need to identify cells that contain the cells of interest 
+    for k ∈ kmin_:kmax_, j ∈ jmin_:jmax_, i ∈ imin_:imax_
+        if Curve[i,j,k] != 0
+            if Curve[i,j,k] == Inf
+                println("Nan curve found at $i,$j,$k")
+            end
+            err = Curve[i,j,k] - curve_exact
+            rel_err = abs(err / curve_exact)
+
+            L2_num += err^2
+            L2_den += curve_exact^2  # since κₑ is constant
+            Linf_err = max(Linf_err, rel_err)
+        end
+    end
+    println("L_2 error of curvature is $(sqrt(L2_num)/sqrt(L2_den))")
+    println("L_Inf error of curvature is $(max(Linf_err))")
 
 
 end

@@ -187,7 +187,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
         compute_curvature!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
         # compute_curvature_2nd_order!(i,j,k,Curve,VF,nx,ny,nz,param,mesh)
     end
-
+    # curve_error(Curve,0.013,param,mesh,par_env)
+    # error("stop")
     # Compute mask for surface tension calculation
     mask_maker!(mask,Curve,mesh,param,par_env)
 

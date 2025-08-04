@@ -14,8 +14,8 @@ param = parameters(
     rho_liq= 1346.5,           # Density of liquid (kg/m^3)
     rho_gas = 1.225,  # Density of gas (kg/m^3)
     sigma = 0.0769, # surface tension coefficient (N/m)
-    grav_x = 6.929, # Gravity (m/s^2)
-    grav_y = 6.929, # Gravity (m/s^2)
+    grav_x = 4.555,
+    grav_y = 8.677,
     grav_z = 0.0, # Gravity (m/s^2)
     Lx=0.25,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
     Ly=0.25,             
@@ -46,7 +46,7 @@ param = parameters(
 
     # Restart  
     # restart = true,
-    # restart_itr = 166,
+    # restart_itr = 15,
 
     
     pressure_scheme = "semi-lagrangian",
@@ -64,7 +64,7 @@ param = parameters(
 
     
     iter_type = "standard",
-    test_case = "viscous_bubble_45"
+    test_case = "viscous_bubble_rise_62_3", 
 
 )
 
