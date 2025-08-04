@@ -58,6 +58,9 @@ using Parameters
     pressureSolver :: String = "Secant" 
     tol :: Float64
     pressure_scheme :: String = "semi-lagrangian"
+    
+    # Multigrid solver levels
+    mg_lvl :: Int64 = 1
 
     # Interface solver
     VFlo :: Float64 = 1e-10 
@@ -73,10 +76,12 @@ using Parameters
     # - threads : parallelizes loop with .Threads library - not working 
     # - floop : parallelizes loop with FLoop
     iter_type :: String = "floop"
+    
 
 
     # Dynamic VTK directory creation
     test_case :: String
-    VTK_dir :: String = "results/bubble_rise_$(Nx)_$(Ny)_$(Nz)/VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
+    # VTK_dir :: String = "results/bubble_rise_$(Nx)_$(Ny)_$(Nz)/VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
+    VTK_dir :: String = "results/VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
 
 end

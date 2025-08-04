@@ -164,7 +164,7 @@ function initArrays(mesh)
     tmp7 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp7,0.0)
     tmp8 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp8,0.0)
     tmp9 = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(tmp9,0.0)
-    tmplrg = OffsetArray{Float64}(undef, imino_-3:imaxo_+3,jmino_-3:jmaxo_+3,kmino_-3:kmaxo_+3); fill!(tmp4,0.0)
+    tmplrg = OffsetArray{Float64}(undef, imino_-3:imaxo_+3,jmino_-3:jmaxo_+3,kmino_-3:kmaxo_+3); fill!(tmplrg,0.0)
     Curve = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(Curve,0.0)
     sfx = OffsetArray{Float64}(undef, imino_:imaxo_+1,jmino_:jmaxo_,kmino_:kmaxo_); fill!(sfx,0.0)
     sfy = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_+1,kmino_:kmaxo_); fill!(sfy,0.0)
@@ -189,6 +189,80 @@ function initArrays(mesh)
     return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds
 
 end
+
+
+function mg_initArrays(mg_mesh, param)
+    @unpack mg_lvl = param
+    # Dictionaries or arrays to store per-level fields
+    P_h_arr   = Vector{OffsetArray{Float64,3}}(undef, mg_lvl)
+    gradx_arr = Vector{OffsetArray{Float64,3}}(undef, mg_lvl)
+    grady_arr = similar(gradx_arr)
+    gradz_arr = similar(gradx_arr)
+    uf_arr = similar(gradx_arr)
+    vf_arr = similar(gradx_arr)
+    wf_arr = similar(gradx_arr)
+    denx_arr = similar(gradx_arr)
+    deny_arr = similar(gradx_arr)
+    denz_arr = similar(gradx_arr)
+    AP_f_arr = similar(gradx_arr)
+    AP_c_arr = similar(gradx_arr)
+    RHS_arr = similar(gradx_arr)
+    res_arr = similar(gradx_arr)
+    P_bar_H_arr = similar(gradx_arr)
+    P_H_arr = similar(gradx_arr)
+    tmp1_arr = similar(gradx_arr)
+    tmplrg_arr = similar(gradx_arr)
+    band_arr = Vector{OffsetArray{Int16,3}}(undef, mg_lvl)
+
+    for l in 1:mg_lvl
+        mesh = mg_mesh.mesh_lvls[l]
+        @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+        size3D = (imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_)
+
+        P_h_arr[l]     = OffsetArray(zeros(size3D), size3D)
+        gradx_arr[l] = OffsetArray(zeros(size3D), size3D)
+        grady_arr[l] = OffsetArray(zeros(size3D), size3D)
+        gradz_arr[l] = OffsetArray(zeros(size3D), size3D)
+        uf_arr[l]    = OffsetArray(zeros(size3D), size3D)
+        vf_arr[l]    = OffsetArray(zeros(size3D), size3D)
+        wf_arr[l]    = OffsetArray(zeros(size3D), size3D)
+        denx_arr[l]  = OffsetArray(zeros(imino_:imaxo_+1, jmino_:jmaxo_, kmino_:kmaxo_), (imino_:imaxo_+1, jmino_:jmaxo_, kmino_:kmaxo_))
+        deny_arr[l]  = OffsetArray(zeros(imino_:imaxo_, jmino_:jmaxo_+1, kmino_:kmaxo_), (imino_:imaxo_, jmino_:jmaxo_+1, kmino_:kmaxo_))
+        denz_arr[l]  = OffsetArray(zeros(imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_+1), (imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_+1))
+        AP_f_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        AP_c_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        RHS_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        res_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        P_bar_H_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        P_H_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        tmp1_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        tmplrg_arr[l]  = OffsetArray(zeros(imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3), (imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3))
+        band_arr[l]  = OffsetArray(zeros(size3D),size3D)
+    end
+
+    return (
+        P_h = P_h_arr,
+        gradx = gradx_arr,
+        grady = grady_arr,
+        gradz = gradz_arr,
+        uf = uf_arr,
+        vf = vf_arr,
+        wf = wf_arr,
+        denx = denx_arr,
+        deny = deny_arr,
+        denz = denz_arr,
+        AP_f = AP_f_arr,
+        AP_c = AP_c_arr,
+        RHS = RHS_arr,
+        res = res_arr,
+        P_bar_H = P_bar_H_arr,
+        P_H = P_H_arr,
+        tmp1 = tmp1_arr,
+        tmplrg = tmplrg_arr,
+        band = band_arr
+    )
+end
+
 
 """
 Compute timestep 
@@ -923,22 +997,47 @@ Density/Viscosity calculation
 function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack rho_liq,mu_liq,rho_gas,mu_gas = param
-
-    @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    # @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
+    for k in kmino_:kmaxo_, j in jmino_:jmaxo_, i in imino_:imaxo_
         vfx = min(1.0,max(0.0,(VF[i,j,k]+VF[i-1,j,k])/2))
         denx[i,j,k] = rho_liq*(vfx) + rho_gas*(1-vfx)
         viscx[i,j,k] = vfx*mu_liq+(1-vfx)*mu_gas
     end
-    @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
+    # @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
+    for k in kmino_:kmaxo_, j in jmino_:jmaxo_, i in imino_:imaxo_
         vfy = min(1.0,max(0.0,(VF[i,j,k]+VF[i,j-1,k])/2))
         deny[i,j,k] = rho_liq*(vfy) +rho_gas*(1-vfy)
         viscy[i,j,k] = vfy*mu_liq+(1-vfy)*mu_gas
     end
-    @loop param for  k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
+    # @loop param for  k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
+    for k in kmino_:kmaxo_, j in jmino_:jmaxo_, i in imino_:imaxo_
         vfz = min(1.0,max(0.0,(VF[i,j,k]+VF[i,j,k-1])/2))
         denz[i,j,k] = rho_liq*(vfz) +rho_gas*(1-vfz)
         viscz[i,j,k] = vfz*mu_liq+(1-vfz)*mu_gas
 
+    end
+    return nothing
+end
+
+function compute_dens!(denx,deny,denz,VF,param,mesh)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack rho_liq,mu_liq,rho_gas,mu_gas = param
+    @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    # @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
+    for k in kmino_:kmaxo_, j in jmino_:jmaxo_, i in imino_:imaxo_
+        vfx = min(1.0,max(0.0,(VF[i,j,k]+VF[i-1,j,k])/2))
+        denx[i,j,k] = rho_liq*(vfx) + rho_gas*(1-vfx)
+    end
+    # @loop param for  k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+2, i = imin_-1:imax_+1
+    for k in kmino_:kmaxo_, j in jmino_:jmaxo_, i in imino_:imaxo_
+        vfy = min(1.0,max(0.0,(VF[i,j,k]+VF[i,j-1,k])/2))
+        deny[i,j,k] = rho_liq*(vfy) +rho_gas*(1-vfy)
+    end
+    # @loop param for  k = kmin_-1:kmax_+2, j = jmin_-1:jmax_+1, i = imin_-1:imax_+1
+    for k in kmino_:kmaxo_, j in jmino_:jmaxo_, i in imino_:imaxo_
+        vfz = min(1.0,max(0.0,(VF[i,j,k]+VF[i,j,k-1])/2))
+        denz[i,j,k] = rho_liq*(vfz) +rho_gas*(1-vfz)
     end
     return nothing
 end
@@ -1121,6 +1220,44 @@ function remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
         P[ii,jj,kk+1] = P[ii,jj,kk]
     end
     return nothing
+end
+
+function copy_to_mg!(mg_arrays, fields, lvl)
+
+       mg_arrays.P_h[lvl]   .= fields.P     
+       mg_arrays.uf[lvl]  .= fields.uf     
+       mg_arrays.vf[lvl]  .= fields.vf     
+       mg_arrays.wf[lvl]  .= fields.wf     
+     mg_arrays.denx[lvl]  .= fields.denx 
+     mg_arrays.deny[lvl]  .= fields.deny 
+     mg_arrays.denz[lvl]  .= fields.denz 
+     mg_arrays.gradx[lvl] .= fields.gradx 
+     mg_arrays.grady[lvl] .= fields.grady 
+     mg_arrays.gradz[lvl] .= fields.gradz 
+     mg_arrays.band[lvl]  .= fields.band  
+    # mg_arrays.tmp1_mg[lvl]  .= fields.tmp1
+    # mg_arrays.tmp2_mg[lvl]  .= fields.tmp2
+    # mg_arrays.tmp3_mg[lvl]  .= fields.tmp3
+    # mg_arrays.tmp4_mg[lvl]  .= fields.tmp4
+end
+
+function copy_to_main!(mg_arrays, fields, lvl)
+
+    fields.P  .=   mg_arrays.P_h[lvl]    
+    # fields.uf .=   mg_arrays.uf_mg[lvl]    
+    # fields.vf .=   mg_arrays.vf_mg[lvl]    
+    # fields.wf .=   mg_arrays.wf_mg[lvl]    
+    # fields.denx  .= mg_arrays.denx_mg[lvl]  
+    # fields.deny  .= mg_arrays.deny_mg[lvl]  
+    # fields.denz  .= mg_arrays.denz_mg[lvl]  
+    # fields.gradx .= mg_arrays.gradx_mg[lvl]  
+    # fields.grady .= mg_arrays.grady_mg[lvl]  
+    # fields.gradz .= mg_arrays.gradz_mg[lvl]  
+    # fields.band  .= mg_arrays.band_mg[lvl]   
+    # mg_arrays.tmp1_mg[lvl]  .= fields.tmp1
+    # mg_arrays.tmp2_mg[lvl]  .= fields.tmp2
+    # mg_arrays.tmp3_mg[lvl]  .= fields.tmp3
+    # mg_arrays.tmp4_mg[lvl]  .= fields.tmp4
 end
 
 """

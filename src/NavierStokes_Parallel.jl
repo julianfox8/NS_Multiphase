@@ -16,7 +16,6 @@ using Statistics
 using LinearAlgebra
 using SparseArrays
 using HYPRE.LibHYPRE
-using HYPRE
 using EzXML
 using JSON
 
@@ -32,9 +31,10 @@ include("VFgeom.jl")
 include("ELVIRA.jl")
 include("WriteData.jl")
 include("ReadData.jl")
+include("Multigrid.jl")
 
 function run_solver(param, IC!, BC!)
-    @unpack Nx,stepMax,tFinal,solveNS,pressure_scheme,restart,tol = param
+    @unpack Nx,stepMax,tFinal,solveNS,pressure_scheme,restart,tol,mg_lvl = param
 
     # Create parallel environment
     par_env = parallel_init(param)
@@ -44,15 +44,20 @@ function run_solver(param, IC!, BC!)
     print("on $(nthreads()) threads\n")
 
     # Create mesh
-    mesh = create_mesh(param,par_env)
-    @unpack dx,dy,dz,x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    # mesh = create_mesh(param,par_env)
 
-    # Create work arrays
+    # Create multigrid mesh for each level
+    mg_mesh = init_mg_mesh(param,par_env)
+
+    # Initialize work arrays for finest level along with subset of arrays for coarser levels
+    mesh = mg_mesh.mesh_lvls[1]
+    @unpack dx,dy,dz,x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds = initArrays(mesh)
+    mg_arrays = mg_initArrays(mg_mesh,param)
 
     solveNS && HYPRE_Init()
-
-    p_min,p_max = prepare_indices(tmp3,par_env,mesh)
+    #! will need to get indices when parallelizing for secant method with multigrid
+    p_min,p_max = prepare_indices(tmp5,par_env,mesh)
 
     # Check simulation param for restart
     if restart == true
@@ -84,30 +89,30 @@ function run_solver(param, IC!, BC!)
     yo = 0.125
     zo = 0.125
 
-
-    # error("stop")
     # Initialize hypre matrices
     # jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
     # b_vec = HYPREVector(comm, Int32(p_min), Int32(p_max))
     # x_vec = HYPREVector(comm, Int32(p_min), Int32(p_max))
 
-    jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
-    HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
-    jacob = jacob_ref[]
-    HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
-    HYPRE_IJMatrixInitialize(jacob)
+    #! determine the best place to initialize these objects
+    #! currently done inside pressure which is not computationally efficient
+    # jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
+    # HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
+    # jacob = jacob_ref[]
+    # HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
+    # HYPRE_IJMatrixInitialize(jacob)
 
-    b_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
-    b_vec = b_ref[]
-    HYPRE_IJVectorSetObjectType(b_vec,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(b_vec)
+    # b_ref = Ref{HYPRE_IJVector}(C_NULL)
+    # HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
+    # b_vec = b_ref[]
+    # HYPRE_IJVectorSetObjectType(b_vec,HYPRE_PARCSR)
+    # HYPRE_IJVectorInitialize(b_vec)
 
-    x_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
-    x_vec = x_ref[]
-    HYPRE_IJVectorSetObjectType(x_vec,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(x_vec)
+    # x_ref = Ref{HYPRE_IJVector}(C_NULL)
+    # HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
+    # x_vec = x_ref[]
+    # HYPRE_IJVectorSetObjectType(x_vec,HYPRE_PARCSR)
+    # HYPRE_IJVectorInitialize(x_vec)
     
     # Compute density and viscosity at intial conditions
     compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
