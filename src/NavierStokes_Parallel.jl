@@ -187,10 +187,14 @@ function run_solver(param, IC!, BC!)
   
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
-            
-            # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,BC!,jacob,b_vec,x_vec)
 
+            # divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
+            # println("divergence pre pressure solver $(parallel_max(abs.(divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env))")
+            # std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,bubble_height,iter,param,mesh,par_env)
+
+            # Call pressure Solver (handles processor boundaries for P)
+            @time iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
+                
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
 

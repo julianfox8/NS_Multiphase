@@ -421,22 +421,24 @@ function mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2
         iter += 1
         pvtk_iter += 1
         if pressure_scheme == "finite-difference"
-            converged = mg_vc_lin!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env;iter,tmp5)
-            # mg_fas_lin!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter,BC!;iter)
+            # converged = mg_vc_lin!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env;iter,tmp5)
+            mg_fas_lin!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter,BC!;iter)
+            # println("iter $i complete")
             # if iter == 5
             #     error("stop")
             # end
         elseif pressure_scheme == "semi-lagrangian"
             mg_fas!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter)
-            # if iter == 100
+            println("iter $i complete")
+            # if iter == 10
             #     error("stop")
             # end
         end
         #! need to check convergence
         # all_conv = MPI.Gather(converged,0,comm)
         # if irank == 0 && all(all_conv[])
-        if converged[]
-        # if i == 500
+        # if converged[]
+        if i == 20
             for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
                 fields.P[i,j,k] = mg_arrays.P_h[1][i,j,k]
             end    
@@ -453,7 +455,7 @@ end
 # #! define recursive function for V cycle FAS method
 function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter = nothing,τ::Union{Nothing, Any} = nothing)
     @unpack mg_lvl = param
-    
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl]
 
     #! need to restructure to better handle VF
     if lvl ==  1
@@ -462,25 +464,34 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
         VF_lvl = mg_arrays.tmplrg[lvl]
     end
 
-    v1 = 2
-    v2 = 2
+    v1 = 5
+    v2 = 5
 
-    # println("on multrigrid level $lvl")
+    println("on multrigrid level $lvl")
+
+    # println(imax_)
     if lvl == mg_lvl
+        arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.tmp1[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],wf = mg_arrays.wf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        m_iter = 0
+        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.uf,arr.vf,arr.wf,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        
         # relax on coarsest level ( residual now is stored tmp1)
         # Secant_jacobian_hypre!(mg_arrays.P_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;τ)
         # nonlin_gs(mg_arrays.P_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 10000,τ)
-        res_iteration(mg_arrays.P_h[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp1[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter = 10000,τ)
+        res_iteration(mg_arrays.P_h[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 10000,τ=mg_arrays.tmp1[lvl])
         # mg_mesh_lvl = (p =mg_arrays.P_mg[lvl],tmp1 = mg_arrays.tmp1_mg[lvl],tmplrg = mg_arrays.tmplrg_mg[lvl],vf = mg_arrays.vf_mg[lvl],denx = mg_arrays.denx_mg[lvl])
         # mg_VTK!(pvtk_iter,pvd_data,mg_mesh_lvl.p,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;mg_mesh_lvl.tmp1,mg_mesh_lvl.tmplrg,mg_mesh_lvl.vf,mg_mesh_lvl.denx,tau)
         # error("stop")
-
+        arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.tmp1[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],wf = mg_arrays.wf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        m_iter = 1
+        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.uf,arr.vf,arr.wf,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        
         return
     end
 
     if lvl == 1
         # Pre-smoothing on current level ( residual now is stored tmp1)
-        res_iteration(mg_arrays.P_h[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp1[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = v1)
+        res_iteration(mg_arrays.P_h[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = v1)
         # nonlin_gs(mg_arrays.P_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 8,iter)
         # Secant_jacobian_hypre!(mg_arrays.P_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 2,τ)
         
@@ -488,7 +499,7 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
         # mg_VTK!(pvtk_iter,pvd_data,mg_mesh_lvl.p,1,param,mg_mesh.mesh_lvls[1],par_env;mg_mesh_lvl.tmp1,VF,mg_mesh_lvl.vf,mg_mesh_lvl.denx)
     
     else
-        res_iteration(mg_arrays.P_h[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp1[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = v1,τ)
+        res_iteration(mg_arrays.P_h[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = v1,τ=mg_arrays.tmp1[lvl])
         # nonlin_gs(mg_arrays.P_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 8,τ)
         # Secant_jacobian_hypre!(mg_arrays.P_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 3,τ)
     end
@@ -509,7 +520,7 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     update_borders!(mg_arrays.P_h[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
 
     # Restrict residual for nonlinear defecit correction
-    restrict!(mg_arrays.tmp1[lvl+1],mg_arrays.AP_f[lvl],mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
+    restrict!(mg_arrays.AP_f[lvl+1],mg_arrays.AP_f[lvl],mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
 
 
     # Compute densities on coarse grid from restricted VF
@@ -525,14 +536,20 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     update_borders_x!(mg_arrays.uf[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_y!(mg_arrays.vf[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_z!(mg_arrays.wf[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+
+    # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.tmp1[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],wf = mg_arrays.wf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+    # m_iter = 0
+    # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.uf,arr.vf,arr.wf,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
     
     # mg_VTK!(iter,pvd_data,c_fields.cc.band,lvl+1,param,mg_mesh.mesh_lvls[lvl+1],par_env;c_fields.cc.band,c_fields.fc.uf,c_fields.fc.vf,c_fields.cc.tmplrg)
 
     # grab restricted residual (R(A^h(P^h))), compute A^2h(R(P^h) and compute tau
-    # A!(mg_arrays.tmp2_mg[lvl+1],mg_arrays.uf_mg[lvl+1],mg_arrays.vf_mg[lvl+1],mg_arrays.wf_mg[lvl+1],mg_arrays.P_mg[lvl+1],dt,mg_arrays.gradx_mg[lvl+1],mg_arrays.grady_mg[lvl+1],mg_arrays.gradz_mg[lvl+1],mg_arrays.band_mg[lvl+1],mg_arrays.denx_mg[lvl+1],mg_arrays.deny_mg[lvl+1],mg_arrays.denz_mg[lvl+1],verts,tets,param,mg_mesh.mesh_lvls[lvl+1],par_env)
-    # τ = mg_arrays.tmp2_mg[lvl+1] .- mg_arrays.tmp1_mg[lvl+1]
-    τ = copy(mg_arrays.tmp1[lvl+1])
-    # fill!(mg_arrays.tmp1_mg[lvl+1],0.0)
+    fill!(mg_arrays.AP_c[lvl+1],0.0)
+    A!(mg_arrays.AP_c[lvl+1],mg_arrays.uf[lvl+1],mg_arrays.vf[lvl+1],mg_arrays.wf[lvl+1],mg_arrays.P_h[lvl+1],dt,mg_arrays.gradx[lvl+1],mg_arrays.grady[lvl+1],mg_arrays.gradz[lvl+1],mg_arrays.band[lvl+1],mg_arrays.denx[lvl+1],mg_arrays.deny[lvl+1],mg_arrays.denz[lvl+1],verts,tets,param,mg_mesh.mesh_lvls[lvl+1],par_env)
+    mg_arrays.tmp1[lvl+1] = mg_arrays.AP_f[lvl+1] .- mg_arrays.AP_c[lvl+1]
+    # println(maximum(abs.(mg_arrays.tmp1[lvl+1])))
+    # mg_arrays.tmp1[lvl+1] = mg_arrays.AP_c[lvl+1] .- mg_arrays.AP_f[lvl+1]
+
     # store restricted solution for error calc 
     mg_arrays.P_bar_H[lvl+1] .= mg_arrays.P_h[lvl+1]
 
@@ -550,68 +567,85 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
         # recursively call mg_fas!
         mg_fas!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter,τ)
     end
-
+    # error("stop")
     # begin prolongation routine starting at the coarsest level (occurs after relaxation at coarsest level)
     # println("prolongation on level $lvl")
     # mg_VTK!(m_iter,pvd_data,mg_arrays.P,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;mg_arrays.tmp5,mg_arrays.vf)
     # m_iter +=1
 
     # calculate error ( P^2h-R(P^h) )
-    # mg_arrays.P_h[lvl+1] .-= mg_arrays.P_bar_H[lvl+1]
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl+1]
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        if abs(mg_arrays.band[lvl][i,j,k]) <= 1
-            nothing
-        else
-            mg_arrays.P_h[lvl][i,j,k] -= mg_arrays.P_bar_H[lvl][i,j,k]
-        end
-    end
-
+    mg_arrays.P_h[lvl+1] .-= mg_arrays.P_bar_H[lvl+1]
+    # @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl+1]
+    # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+    #     if abs(mg_arrays.band[lvl][i,j,k]) <= 1
+    #     # if (mg_arrays.P_h[lvl][i,j,k] - mg_arrays.P_bar_H[lvl][i,j,k]) / mg_arrays.P_bar_H[lvl][i,j,k] < 1e-1
+    #         # mg_arrays.P_h[lvl][i,j,k] = mg_arrays.P_bar_H[lvl][i,j,k]
+    #         nothing
+    #     else
+    #         mg_arrays.P_h[lvl][i,j,k] -= mg_arrays.P_bar_H[lvl][i,j,k]
+    #     end
+    # end
 
     # mg_VTK!(m_iter,pvd_data,mg_arrays.P,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;mg_arrays.tmp5,mg_arrays.vf)
     # temp5 = mg_arrays.tmp5_mg[lvl]
     # mg_VTK!(m_iter,pvd_data,mg_arrays.P,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;mg_arrays.tmp5,temp5,mg_arrays.vf)
    
     # prolongate error (corrected approximate solution)
-    fill!(mg_arrays.tmp1[lvl],0.0)
-    prolong_transpose!(mg_arrays.tmp1[lvl],mg_arrays.P_h[lvl+1],mg_mesh.mesh_lvls[lvl],mg_mesh.mesh_lvls[lvl+1])   
-    
-
+    fill!(mg_arrays.AP_f[lvl],0.0)
+    prolong!(mg_arrays.AP_f[lvl],mg_arrays.P_h[lvl+1],mg_mesh.mesh_lvls[lvl],mg_mesh.mesh_lvls[lvl+1])   
+    update_borders!(mg_arrays.AP_f[lvl],mg_mesh.mesh_lvls[lvl],par_env)
     # arr = (p = mg_arrays.P_mg[lvl],tmp2 = mg_arrays.tmp2_mg[lvl])
     # mg_VTK!(m_iter,pvd_data,arr.p,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;arr.tmp2)
     # mg_mesh_lvl = (p =mg_arrays.P_mg[lvl],tmp1 = mg_arrays.tmp2_mg[lvl],tmplrg = mg_arrays.tmplrg_mg[lvl],vf = mg_arrays.vf_mg[lvl],denx = mg_arrays.denx_mg[lvl])
     # mg_VTK!(pvtk_iter,pvd_data,mg_mesh_lvl.p,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;mg_mesh_lvl.tmp1,mg_mesh_lvl.tmplrg,mg_mesh_lvl.vf,mg_mesh_lvl.denx)
     
     #apply correction to approximate solution from pre-smoothening
-    # mg_arrays.P_H[lvl] .+= mg_arrays.tmp1[lvl]
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl+1]
-    for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        if abs(mg_arrays.band[lvl][i,j,k]) <= 1
-            mg_arrays.P_H[lvl][i,j,k] = mg_arrays.P_h[lvl][i,j,k]
-        else
-            mg_arrays.P_H[lvl][i,j,k] += mg_arrays.tmp1[lvl][i,j,k]
-        end
-    end
+    # @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl]
+    mg_arrays.P_H[lvl][imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+= mg_arrays.AP_f[lvl][imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+    # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+    #     if abs(mg_arrays.band[lvl][i,j,k]) <= 1
+    #         nothing
+    #         # mg_arrays.P_H[lvl][i,j,k] = mg_arrays.P_h[lvl][i,j,k]
+    #     else
+    #         mg_arrays.P_H[lvl][i,j,k] += mg_arrays.AP_f[lvl][i,j,k]
+    #     end
+    # end
+    A!(mg_arrays.AP_c[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.P_h[lvl],dt,mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env)
+    arr = (p = mg_arrays.P_H[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.AP_c[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],wf = mg_arrays.wf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+    m_iter = 1
+    mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.uf,arr.vf,arr.wf,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+    
+   
+
 
     # m_iter += 1
     # mg_VTK!(m_iter,pvd_data,arr.p,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;arr.tmp2)
     # error("stop")
+    
     if lvl != 1
         # post smoothing of finest field wth corrected approximate solution
-        res_iteration(mg_arrays.P_H[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp1[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = v2)
+        res_iteration(mg_arrays.P_H[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env; max_iter = v2)
         # nonlin_gs(mg_arrays.tmp5_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 8)
         # Secant_jacobian_hypre!(mg_arrays.P_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env,max_iter = 3)
         mg_arrays.P_h[lvl] .= mg_arrays.P_H[lvl] 
+        arr = (p = mg_arrays.P_H[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.AP_f[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],wf = mg_arrays.wf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        m_iter = 2
+        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.uf,arr.vf,arr.wf,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        
     else
         
         # post smoothing of finest field wth corrected approximate solution
-        res_iteration(mg_arrays.P_H[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp1[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter = v2)
+        res_iteration(mg_arrays.P_H[lvl],mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter = v2)
         # Secant_jacobian_hypre!(mg_arrays.P_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 3)
         # nonlin_gs(mg_arrays.tmp5_mg[lvl],mg_arrays.uf_mg[lvl],mg_arrays.vf_mg[lvl],mg_arrays.wf_mg[lvl],mg_arrays.gradx_mg[lvl],mg_arrays.grady_mg[lvl],mg_arrays.gradz_mg[lvl],mg_arrays.band_mg[lvl],dt,mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],mg_arrays.tmp1_mg[lvl],mg_arrays.tmp2_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter = 8,iter)
         mg_arrays.P_h[lvl] .= mg_arrays.P_H[lvl] 
         # mg_mesh_lmvl = (p =mg_arrays.P_mg[lvl],tmp1 = mg_arrays.tmp1_mg[lvl],tmplrg = mg_arrays.tmplrg_mg[lvl],vf = mg_arrays.vf_mg[lvl],denx = mg_arrays.denx_mg[lvl])
         # mg_VTK!(pvtk_iter,pvd_data,mg_mesh_lvl.p,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;mg_mesh_lvl.tmp1,mg_mesh_lvl.tmplrg,mg_mesh_lvl.vf,mg_mesh_lvl.denx)
-        # error("stop")
+        arr = (p = mg_arrays.P_H[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.AP_f[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],wf = mg_arrays.wf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        m_iter = 2
+        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.uf,arr.vf,arr.wf,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        
+        error("stop")
         return
     end
 end
@@ -637,12 +671,16 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_en
         # println(mg_arrays.RHS[lvl][1,6,1])
         # println(mg_arrays.RHS[lvl][1,6,2])
         # error("stop")
+        # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # m_iter = 0
+        # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        
         # jacobi(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=1000)
-        gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=1000)
+        gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter=1000,tol_lvl = 1e-10)
         # cg_pressure_solver(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl], mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.res[lvl],dt, param, mg_mesh.mesh_lvls[lvl], par_env;)
-        arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
-        m_iter = 0
-        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # m_iter = 1
+        # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
         
         # FC_hypre_solver(mg_arrays.P_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],tmp5,dt,param,mg_mesh.mesh_lvls[lvl],par_env,1000)
  
@@ -671,18 +709,18 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_en
     # FC_hypre_solver(mg_arrays.P,mg_arrays.tmp3,mg_arrays.tmp4,mg_arrays.denx,mg_arrays.deny,mg_arrays.denz,tmp5,param,mg_mesh.mesh_lvls[lvl],par_env,1)
     # else
     if lvl == 1
-        gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=v1)
+        gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter=v1)
         # jacobi(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=5)
-        arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
-        m_iter = 0
-        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # m_iter = 0
+        # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
         
     else
-        gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=v1)
+        gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter=v1)
         # jacobi(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=5)
-        arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
-        m_iter = 0
-        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # m_iter = 0
+        # # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
         
     end
     # m_iter = 0
@@ -713,6 +751,7 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_en
     if lvl < mg_lvl
         mg_vc_lin!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env;iter,tmp5,converged)
     end
+    # println(mg_arrays.P_h[lvl+1])
     # error("stop")
     # prolongate error and move up a level
     fill!(mg_arrays.tmp1[lvl],0.0)
@@ -732,14 +771,15 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_en
     # fill!(mg_arrays.res[lvl],0.0)
     # error("stop")
     if lvl !== 1
+        # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # m_iter = 1
+        # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
         # post-smoothening on corrected solution
         # println("post smoothening on lvl $lvl")
-        gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=v2)
+        gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter=v2)
         # jacobi(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=5)
         # FC_hypre_solver(mg_arrays.P_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],tmp5,param,mg_mesh.mesh_lvls[lvl],par_env,2,true)
-        arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
-        m_iter = 1
-        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        
         
     else
         # final solve on corrected finest grid
@@ -749,9 +789,9 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_en
         # jacobi(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter=5)
         gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter=v2,converged=converged_flag)
         # FC_hypre_solver(mg_arrays.P_mg[lvl],mg_arrays.tmp3_mg[lvl],mg_arrays.tmp4_mg[lvl],mg_arrays.denx_mg[lvl],mg_arrays.deny_mg[lvl],mg_arrays.denz_mg[lvl],tmp5,param,mg_mesh.mesh_lvls[lvl],par_env,10)
-        arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
-        m_iter = 1
-        mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # m_iter = 1
+        # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
         
         # error("stop")
         
@@ -769,8 +809,8 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
         VF_lvl = mg_arrays.tmplrg[lvl]
     end
     # println("on multrigrid level $lvl")
-    v1 = 5
-    v2 = 5
+    v1 = 10
+    v2 = 10
     # compute RHS at finest level
     #! test difference between recomputing RHS and restricting RHS 
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl]
@@ -788,11 +828,15 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
 
     if lvl == mg_lvl       
         # relax on coarsest level ( residual now is stored tmp1)
+        # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # m_iter = 0
+        # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        
         # gs(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=100)
-        gs(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=1000)
+        gs(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=1000,tol_lvl=1e-10)
         # cg_pressure_solver(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl], mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.res[lvl],dt, param, mg_mesh.mesh_lvls[lvl], par_env;τ)
         # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.tmp1[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
-        # m_iter = 0
+        # m_iter = 1
         # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
         return
     end
@@ -838,19 +882,6 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
     update_borders_y!(mg_arrays.deny[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_z!(mg_arrays.denz[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     
-    # recompute physical properties with volume fraction
-    
-
-    # try to recalculate RHS ensuring boundary conditions are applied correctly
-    # instead of restricting RHS recompute with restriced velocities
-    # restrict_x_face!(mg_arrays.uf[lvl+1],mg_arrays.uf[lvl],mg_mesh.mesh_lvls[lvl+1])
-    # restrict_y_face!(mg_arrays.vf[lvl+1],mg_arrays.vf[lvl],mg_mesh.mesh_lvls[lvl+1])
-    # restrict_z_face!(mg_arrays.wf[lvl+1],mg_arrays.wf[lvl],mg_mesh.mesh_lvls[lvl+1])
-    # update_borders_x!(mg_arrays.uf[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
-    # update_borders_y!(mg_arrays.vf[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
-    # update_borders_z!(mg_arrays.wf[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
-    # BC!(mg_arrays.uf[lvl+1],mg_arrays.vf[lvl+1],mg_arrays.wf[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
-
     # copmpute A(P^2h) (A operator applied to restricted approximate solution on finer level)
     fill!(mg_arrays.AP_c[lvl+1],0.0)
     lap!(mg_arrays.AP_c[lvl+1],mg_arrays.P_h[lvl+1],mg_arrays.denx[lvl+1],mg_arrays.deny[lvl+1],mg_arrays.denz[lvl+1],dt,param,mg_mesh.mesh_lvls[lvl+1],par_env) 
@@ -863,8 +894,8 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
     # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
     #     mg_arrays.tmp1[lvl+1][i,j,k] = mg_arrays.RHS[lvl+1][i,j,k] + mg_arrays.AP_c[lvl+1][i,j,k]
     # end
-    # mg_arrays.tmp1[lvl+1] .= mg_arrays.res[lvl+1] .+ mg_arrays.AP_c[lvl+1]
-    mg_arrays.tmp1[lvl+1] .= mg_arrays.RHS[lvl+1]
+    mg_arrays.tmp1[lvl+1] .= mg_arrays.res[lvl+1] .+ mg_arrays.AP_c[lvl+1]
+    # mg_arrays.tmp1[lvl+1] .= mg_arrays.RHS[lvl+1]
 
     # compute tau correction τ = A(P^2h) - A(P^h) (nonlinear defect)
     # τ = mg_arrays.AP_c[lvl+1] .- mg_arrays.AP_f[lvl+1]
@@ -887,49 +918,53 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
         # recursively call mg_fas!
         mg_fas_lin!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter,BC!;iter)
     end
-
+    # error("stop")
     # begin prolongation routine starting at the coarsest level (occurs after relaxation at coarsest level)
     # println("prolongation on level $lvl")
 
     # calculate error ( P^2h-R(P^h) )
     # interface_update(mg_arrays.band[lvl+1],mg_arrays.P_h[lvl+1],mg_arrays.P_bar_H[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+    
     mg_arrays.P_h[lvl+1] .-= mg_arrays.P_bar_H[lvl+1]
+    # println(mg_arrays.P_h[lvl+1])
+    # error("stop")
     # for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-    #     # if abs(mg_arrays.band[lvl][i,j,k]) <= 1
-    #     #     nothing
-    #     # else
+    #     if abs(mg_arrays.band[lvl][i,j,k]) <= 1
+    #         nothing
+    #     else
     #         mg_arrays.P_h[lvl][i,j,k] -= mg_arrays.P_bar_H[lvl][i,j,k]
-    #     # end
+    #     end
     # end
     MPI.Barrier(comm)
     # prolongate error (corrected approximate solution)
-    fill!(mg_arrays.tmp1[lvl],0.0)
-    prolong_transpose!(mg_arrays.tmp1[lvl],mg_arrays.P_h[lvl+1],mg_mesh.mesh_lvls[lvl],mg_mesh.mesh_lvls[lvl+1])   
-    update_borders!(mg_arrays.tmp1[lvl],mg_mesh.mesh_lvls[lvl],par_env)
+    fill!(mg_arrays.res[lvl],0.0)
+    prolong!(mg_arrays.res[lvl],mg_arrays.P_h[lvl+1],mg_mesh.mesh_lvls[lvl],mg_mesh.mesh_lvls[lvl+1])   
+    update_borders!(mg_arrays.res[lvl],mg_mesh.mesh_lvls[lvl],par_env)
 
     # arr = (p = mg_arrays.P_mg[lvl],tmp2 = mg_arrays.tmp2_mg[lvl])
     # mg_VTK!(m_iter,pvd_data,arr.p,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;arr.tmp2)
     # mg_mesh_lvl = (p =mg_arrays.P_mg[lvl],tmp1 = mg_arrays.tmp2_mg[lvl],tmplrg = mg_arrays.tmplrg_mg[lvl],vf = mg_arrays.vf_mg[lvl],denx = mg_arrays.denx_mg[lvl])
     # mg_VTK!(pvtk_iter,pvd_data,mg_mesh_lvl.p,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;mg_mesh_lvl.tmp1,mg_mesh_lvl.tmplrg,mg_mesh_lvl.vf,mg_mesh_lvl.denx)
     
-    mg_arrays.P_H[lvl][imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+= mg_arrays.tmp1[lvl][imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+    mg_arrays.P_H[lvl][imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+= mg_arrays.res[lvl][imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+    # mg_arrays.P_H[lvl][imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= mg_arrays.tmp1[lvl][imin_:imax_,jmin_:jmax_,kmin_:kmax_]
     # Neumann!(mg_arrays.P_H[lvl],mg_mesh.mesh_lvls[lvl],par_env)
-    fill!(mg_arrays.tmp1[lvl],0.0)
+    # fill!(mg_arrays.tmp1[lvl],0.0)
     fill!(mg_arrays.res[lvl],0.0)
     if lvl != 1
-        # post smoothing of finest field wth corrected approximate solution
-        gs(mg_arrays.P_H[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=v2)
-        mg_arrays.P_h[lvl] .= mg_arrays.P_H[lvl]
-        # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # arr = (p = mg_arrays.P_H[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
         # m_iter = 1
         # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
+        # post smoothing of finest field wth corrected approximate solution
+        gs(mg_arrays.P_H[lvl],mg_arrays.tmp1[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter=v2)
+        mg_arrays.P_h[lvl] .= mg_arrays.P_H[lvl]
+        
     else
         # post smoothing of finest field wth corrected approximate solution
         gs(mg_arrays.P_H[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter=v2)
-        # arr = (p = mg_arrays.P_H[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl])
-        # m_iter = 0
-        # mg_VTK!(m_iter,pvd_data,arr.p,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;arr.RHS,arr.uf,arr.vf,arr.denx,arr.deny,arr.denz)
-        
+        # arr = (p = mg_arrays.P_H[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])
+        # m_iter = 1
+        # mg_VTK!(m_iter,pvd_data,arr.p,arr.denx,arr.deny,arr.denz,arr.VF,arr.band,arr.RHS,arr.res,lvl,param,mg_mesh.mesh_lvls[lvl],par_env;)
         mg_arrays.P_h[lvl] .= mg_arrays.P_H[lvl]
 
         # arr = (p = mg_arrays.P_h[lvl],VF = VF_lvl,band = mg_arrays.band[lvl],RHS = mg_arrays.RHS[lvl],uf = mg_arrays.uf[lvl],vf = mg_arrays.vf[lvl],denx = mg_arrays.denx[lvl],deny = mg_arrays.deny[lvl],denz = mg_arrays.denz[lvl],res = mg_arrays.res[lvl])

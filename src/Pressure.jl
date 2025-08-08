@@ -1514,7 +1514,7 @@ function FC_hypre_solver(P,RHS,res,denx,deny,denz,p_index,dt,param,mesh,par_env,
     # iter = HYPRE.GetNumIterations(solver)
 
     #! HYPRE.LibHYPRE c function call solver
-    iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "GMRES-AMG",max_iter)
+    iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "GMRES-AMG")
     # iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "PCG-AMG",max_iter)
     # iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "LGMRES",max_iter)
     
@@ -1615,12 +1615,17 @@ function gs_pressure_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=noth
 end
 
 
-function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Nothing, Any} = nothing ,max_iter = 10000,lvl=1,converged::Union{Nothing, Ref{Bool}}=nothing,τ=nothing)
+function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Nothing, Any} = nothing ,max_iter = 10000,lvl=1,converged::Union{Nothing, Ref{Bool}}=nothing,τ=nothing,tol_lvl = nothing)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
     @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
     
+    if tol_lvl !== nothing
+        tol = tol_lvl
+    else
+        nothing
+    end
     Neumann!(P,mesh,par_env)
     update_borders!(P,mesh,par_env)
     res_comp!(residual,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
@@ -1644,18 +1649,18 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
         err = parallel_max_all(residual,par_env)
 
         # if iter % 50 == 0
-        #     println("Iter $iter: max error = $err")
+            # println("Iter $iter: max error = $err")
         # end
         if iter !== nothing && irank == 0 && i > (max_iter-1)
         # if irank == 0 && i > (max_iter-1)
             # if iter % 50 == 0
-                println("Iter $iter: max error = $err")
+                # println("Iter $iter: max error = $err")
             # end
         end
         if err < tol
             if converged !== nothing
                 converged[] = true
-                println("solution converged after $iter iterations")
+                # println("solution converged after $iter iterations")
             end
             # println("solution converged after $p_iter iterations with res = $err")
             return p_iter
