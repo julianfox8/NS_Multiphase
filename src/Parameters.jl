@@ -8,9 +8,9 @@ using Parameters
     rho_liq :: Float64
     rho_gas :: Float64
     sigma :: Float64
-    grav_x :: Float64
-    grav_y :: Float64
-    grav_z :: Float64
+    grav_x :: Float64 = 0.0
+    grav_y :: Float64 = 0.0
+    grav_z :: Float64 = 0.0
 
     # Domain size
     Lx  :: Float64
