@@ -1,5 +1,8 @@
 /Manifest.toml
 
+# ingore local test directory
+/local_tests
+
 # Outputs
 *.png
 
