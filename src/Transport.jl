@@ -42,7 +42,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             Fux[i,j,k] = 0
             Fvx[i,j,k] = 0
             Fwx[i,j,k] = 0
-        elseif abs(band[i-1,j,k]) <=1 || abs(band[i,j,k]) <= 1
+        elseif (abs(band[i-1,j,k]) <=1 || abs(band[i,j,k]) <= 1) && pressure_scheme == "semi-lagrangian"
             # Compute flux with SL : One of cells transported with SL
             vol = SLfluxVol(1,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fux[i,j,k] = -uface * vol
@@ -66,7 +66,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             Fuy[i,j,k] = 0
             Fvy[i,j,k] = 0
             Fwy[i,j,k] = 0
-        elseif abs(band[i,j-1,k]) <=1 || abs(band[i,j,k]) <= 1
+        elseif (abs(band[i,j-1,k]) <=1 || abs(band[i,j,k]) <= 1) && pressure_scheme == "semi-lagrangian"
             # Compute flux with SL : One of cells transported with SL
             vol = SLfluxVol(2,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fuy[i,j,k] = -uface * vol
@@ -90,7 +90,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             Fuz[i,j,k] = 0
             Fvz[i,j,k] = 0
             Fwz[i,j,k] = 0
-        elseif abs(band[i,j,k-1]) <=1 || abs(band[i,j,k]) <= 1
+        elseif (abs(band[i,j,k-1]) <=1 || abs(band[i,j,k]) <= 1) && pressure_scheme == "semi-lagrangian"
             # Compute flux with SL : One of cells transported with SL
             vol = SLfluxVol(3,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fuz[i,j,k] = -uface * vol
