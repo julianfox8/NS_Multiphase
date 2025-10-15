@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, VFcircle, VFsphere, VFbubble2d, VFellipbub3d, VFellipbub2d, VFdroplet2d, VFbubble3d, VFdroplet3d, @unpack
+export run_solver, parameters, VFkhi, VFcircle, VFsphere, VFbubble2d, VFellipbub3d, VFellipbub2d, VFdroplet2d, VFbubble3d, VFdroplet3d, @unpack
 
 using MPI
 using HYPRE
@@ -118,11 +118,10 @@ function run_solver(param, IC!, BC!)
 
     std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,0,param,mesh,par_env)
     !restart && VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-    # error("stop")
+    
     # Loop over time
-    # nstep = 0
     iter = 0
-    J=nothing
+    
     while nstep<stepMax && t<tFinal
 
         # Update step counter
@@ -168,12 +167,9 @@ function run_solver(param, IC!, BC!)
     
         end
 
-        # Compute case specific outputs
-        # bubble_height = term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
-        
         # Check divergence
         divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
-
+        # error("stop"̉)
         # Output
         std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)

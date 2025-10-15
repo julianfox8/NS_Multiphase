@@ -670,6 +670,98 @@ function defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
 end
 
 """
+Exact VF values for 2D sine wave
+"""
+function VFkhi(alpha, mesh, A, k, ϕ)
+    @unpack xm, ym, dx, dy, Ly,imin_,imax_,jmin_,jmax_ = mesh  # Unpack necessary variables from mesh
+    yshift = Ly / 2                    # Vertical shift
+    f(x) = yshift + A * sin(k * x + ϕ) # Interface function
+    anti(x) = yshift * x - (A / k) * cos(k * x + ϕ)  # Antiderivative of f(x)
+
+    # Find crossings of f(x) = y_level in [xL, xR]
+    function crossings_in_cell(y_level, xL, xR)
+        xs = Float64[]
+        s = (y_level - yshift) / A
+        if -1.0 <= s <= 1.0
+            θ = asin(s)
+            tmin, tmax = k * xL + ϕ, k * xR + ϕ
+            # Family 1
+            nmin = ceil((tmin - θ) / (2π))
+            nmax = floor((tmax - θ) / (2π))
+            for n in Int(nmin):Int(nmax)
+                t = θ + 2π * n
+                x = (t - ϕ) / k
+                if xL <= x <= xR
+                    push!(xs, x)
+                end
+            end
+            # Family 2
+            base = π - θ
+            nmin = ceil((tmin - base) / (2π))
+            nmax = floor((tmax - base) / (2π))
+            for n in Int(nmin):Int(nmax)
+                t = base + 2π * n
+                x = (t - ϕ) / k
+                if xL <= x <= xR
+                    push!(xs, x)
+                end
+            end
+        end
+        sort!(xs)
+        return unique(xs)
+    end
+
+    @inbounds for j in jmin_:jmax_
+        # Cell vertical bounds
+        yB, yT = ym[j] - dy / 2, ym[j] + dy / 2
+        h = yT - yB
+
+        # Check if the cell is outside the sine wave range
+        ymin_wave = yshift - A - eps()
+        ymax_wave = yshift + A + eps()
+        if yT < ymin_wave 
+            alpha[:,j,:] .= 1.0
+            continue
+        elseif yB > ymax_wave
+            # Skip this row of cells if it is completely outside the sine wave range
+            continue
+        end
+        for i in imin_:imax_
+            # Cell horizontal bounds
+            xL, xR = xm[i] - dx / 2, xm[i] + dx / 2
+
+            # Partition along x with crossings
+            pts = Float64[xL, xR]
+            append!(pts, crossings_in_cell(yB, xL, xR))
+            append!(pts, crossings_in_cell(yT, xL, xR))
+            sort!(pts)
+            pts = unique(pts)
+
+            area = 0.0
+            for p in 1:length(pts) - 1
+                xa, xb = pts[p], pts[p + 1]
+                if xb <= xa
+                    continue
+                end
+                xm_cell = 0.5 * (xa + xb)
+                fxm = f(xm_cell)
+
+                if fxm <= yB
+                    # Empty slice
+                elseif fxm >= yT
+                    area += h * (xb - xa)
+                else
+                    area += (anti(xb) - anti(xa)) - yB * (xb - xa)
+                end
+            end
+            alpha[i, j, :] .= clamp(area / (dx * h), 0.0, 1.0)
+        end
+    end
+
+    return nothing
+end
+
+"""
 Exact VF values for 2D circle
 """
 function VFcircle(xmin,xmax,ymin,ymax,rad,xo,yo)
