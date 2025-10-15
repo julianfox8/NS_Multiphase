@@ -79,7 +79,8 @@ using Parameters
     # - floop : parallelizes loop with FLoop
     iter_type :: String = "floop"
     
-
+    # Simulation specific parameters
+    instability :: String = "none" 
 
     # Dynamic VTK directory creation
     test_case :: String = "test"
