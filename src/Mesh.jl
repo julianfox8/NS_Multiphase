@@ -206,9 +206,9 @@ function mg_create_mesh(param,par_env,mg_lvl::Int=1)
     
     #! determine factor that can be used for mg_lvl = 1 and mg_lvl >1
     mg_factor = 2^(mg_lvl-1)
-    Nx = div(Nx,mg_factor)
-    Ny = div(Ny,mg_factor)
-    Nz = div(Nz,mg_factor)
+    Nx = max(div(Nx,mg_factor),1)
+    Ny = max(div(Ny,mg_factor),1)
+    Nz = max(div(Nz,mg_factor),1)
     # Index extents 
     imin=1
     imax= Nx
