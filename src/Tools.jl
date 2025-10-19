@@ -1604,6 +1604,8 @@ function hypreMat2JSON(jacob,cell1,cell2)
     end
 end
 
+
+
 function compute_kinEnergy(u,v,w,denx,deny,denz,mesh,param,par_env)
     @unpack dx,dy,dx,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     KE = 0.0
@@ -1710,3 +1712,34 @@ function grav_centerline(xo,yo,mesh,param,par_env)
 
 end
 
+function get_KH_amp(VF,mesh,param,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imax,dx,y,z,xm,ym,zm = mesh
+    @unpack VFlo = param
+    @unpack nproc,irank = par_env
+
+    # init array to hold PLIC heights
+    PLIC_height = zeros(imax)
+    # grab PLIC heights along x-direction
+    for i in imin_:imax_
+        for j in jmin_:jmax_
+            if VF[i,j,1] > VFlo
+                PLIC_height[i] = y[j] + dx*VF[i,j,1]
+                break
+            end
+        end
+    end
+
+    # set up least squares problem to fit sine curve
+    A = zeros(imax,3)
+    b = zeros(imax)
+    for i in imin_:imax_
+        A[i,1] = 1.0
+        A[i,2] = sin(2π*xm[i]/(imax*dx))
+        A[i,3] = cos(2π*xm[i]/(imax*dx))
+        b[i] = PLIC_height[i]
+    end
+    x = A\b
+    amp = sqrt(x[2]^2 + x[3]^2)
+    return amp  
+
+end
