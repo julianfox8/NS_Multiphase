@@ -2,7 +2,7 @@
 Apply BC's on pressure
 """
 function Neumann!(A,mesh,par_env)
-    # @unpack xper,yper,zper = param
+    
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     @unpack nprocx,nprocy,nprocz,irankx,iranky,irankz = par_env
 
@@ -191,34 +191,46 @@ function initArrays(mesh)
 end
 
 
-function mg_initArrays(mg_mesh, param)
+function mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
     @unpack mg_lvl = param
-    # Dictionaries or arrays to store per-level fields
+    
+    # Per-level storage of OffsetArrays 
     P_h_arr   = Vector{OffsetArray{Float64,3}}(undef, mg_lvl)
-    gradx_arr = Vector{OffsetArray{Float64,3}}(undef, mg_lvl)
-    grady_arr = similar(gradx_arr)
-    gradz_arr = similar(gradx_arr)
-    uf_arr = similar(gradx_arr)
-    vf_arr = similar(gradx_arr)
-    wf_arr = similar(gradx_arr)
-    denx_arr = similar(gradx_arr)
-    deny_arr = similar(gradx_arr)
-    denz_arr = similar(gradx_arr)
-    AP_f_arr = similar(gradx_arr)
-    AP_c_arr = similar(gradx_arr)
-    RHS_arr = similar(gradx_arr)
-    res_arr = similar(gradx_arr)
-    P_bar_H_arr = similar(gradx_arr)
-    P_H_arr = similar(gradx_arr)
-    tmp1_arr = similar(gradx_arr)
-    tmplrg_arr = similar(gradx_arr)
+    gradx_arr = similar(P_h_arr)
+    grady_arr = similar(P_h_arr)
+    gradz_arr = similar(P_h_arr)
+    uf_arr = similar(P_h_arr)
+    vf_arr = similar(P_h_arr)
+    wf_arr = similar(P_h_arr)
+    denx_arr = similar(P_h_arr)
+    deny_arr = similar(P_h_arr)
+    denz_arr = similar(P_h_arr)
+    AP_f_arr = similar(P_h_arr)
+    AP_c_arr = similar(P_h_arr)
+    RHS_arr = similar(P_h_arr)
+    res_arr = similar(P_h_arr)
+    P_bar_H_arr = similar(P_h_arr)
+    P_H_arr = similar(P_h_arr)
+    tmp1_arr = similar(P_h_arr)
+    tmp2_arr = similar(P_h_arr)
+    tmp3_arr = similar(P_h_arr)
+    Pdx_arr = similar(P_h_arr)
+    Pdy_arr = similar(P_h_arr)
+    Pdz_arr = similar(P_h_arr)
+    tmplrg_arr = similar(P_h_arr)
     band_arr = Vector{OffsetArray{Int16,3}}(undef, mg_lvl)
+    
+    # Per-level storage of HYPRE arrays
+    jacob_arr = Vector{HYPRE_IJMatrix}(undef, mg_lvl)
+    b_vec_arr = Vector{HYPRE_IJVector}(undef, mg_lvl)
+    x_vec_arr = Vector{HYPRE_IJVector}(undef, mg_lvl)
 
     for l in 1:mg_lvl
         mesh = mg_mesh.mesh_lvls[l]
         @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
         size3D = (imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_)
 
+        # Initialize OffsetArrays 
         P_h_arr[l]     = OffsetArray(zeros(size3D), size3D)
         gradx_arr[l] = OffsetArray(zeros(size3D), size3D)
         grady_arr[l] = OffsetArray(zeros(size3D), size3D)
@@ -236,8 +248,35 @@ function mg_initArrays(mg_mesh, param)
         P_bar_H_arr[l]  = OffsetArray(zeros(size3D), size3D)
         P_H_arr[l]  = OffsetArray(zeros(size3D), size3D)
         tmp1_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        tmp2_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        tmp3_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        Pdx_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        Pdy_arr[l]  = OffsetArray(zeros(size3D), size3D)
+        Pdz_arr[l]  = OffsetArray(zeros(size3D), size3D)
         tmplrg_arr[l]  = OffsetArray(zeros(imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3), (imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3))
         band_arr[l]  = OffsetArray(zeros(size3D),size3D)
+
+        # Initialize HYPRE objects 
+        p_min,p_max = prepare_indices(tmp3_arr[l],par_env,mesh);fill!(tmp3_arr[l],0.0)
+        
+        jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
+        HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
+        jacob_arr[l] = jacob_ref[]
+        HYPRE_IJMatrixSetObjectType(jacob_arr[l],HYPRE_PARCSR)    
+        HYPRE_IJMatrixInitialize(jacob_arr[l])
+    
+        b_ref = Ref{HYPRE_IJVector}(C_NULL)
+        HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
+        b_vec_arr[l] = b_ref[]
+        HYPRE_IJVectorSetObjectType(b_vec_arr[l],HYPRE_PARCSR)
+        HYPRE_IJVectorInitialize(b_vec_arr[l])
+    
+        x_ref = Ref{HYPRE_IJVector}(C_NULL)
+        HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
+        x_vec_arr[l] = x_ref[]
+        HYPRE_IJVectorSetObjectType(x_vec_arr[l],HYPRE_PARCSR)
+        HYPRE_IJVectorInitialize(x_vec_arr[l])
+        
     end
 
     return (
@@ -258,8 +297,16 @@ function mg_initArrays(mg_mesh, param)
         P_bar_H = P_bar_H_arr,
         P_H = P_H_arr,
         tmp1 = tmp1_arr,
+        tmp2 = tmp2_arr,
+        tmp3 = tmp3_arr,
+        Pdx = Pdx_arr,
+        Pdy = Pdy_arr,
+        Pdz = Pdz_arr,
         tmplrg = tmplrg_arr,
-        band = band_arr
+        band = band_arr,
+        jacob = jacob_arr,
+        b_vec = b_vec_arr,
+        x_vec = x_vec_arr
     )
 end
 
@@ -619,6 +666,98 @@ function defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         vf[i,j,k] = v_fun(xm[i], y[j],zm[k],t)
         wf[i,j,k] = w_fun(xm[i],ym[j], z[k],t)
     end
+    return nothing
+end
+
+"""
+Exact VF values for 2D sine wave
+"""
+function VFkhi(alpha, mesh, A, k, ϕ)
+    @unpack xm, ym, dx, dy, Ly,imin_,imax_,jmin_,jmax_ = mesh  # Unpack necessary variables from mesh
+    yshift = Ly / 2                    # Vertical shift
+    f(x) = yshift + A * sin(k * x + ϕ) # Interface function
+    anti(x) = yshift * x - (A / k) * cos(k * x + ϕ)  # Antiderivative of f(x)
+
+    # Find crossings of f(x) = y_level in [xL, xR]
+    function crossings_in_cell(y_level, xL, xR)
+        xs = Float64[]
+        s = (y_level - yshift) / A
+        if -1.0 <= s <= 1.0
+            θ = asin(s)
+            tmin, tmax = k * xL + ϕ, k * xR + ϕ
+            # Family 1
+            nmin = ceil((tmin - θ) / (2π))
+            nmax = floor((tmax - θ) / (2π))
+            for n in Int(nmin):Int(nmax)
+                t = θ + 2π * n
+                x = (t - ϕ) / k
+                if xL <= x <= xR
+                    push!(xs, x)
+                end
+            end
+            # Family 2
+            base = π - θ
+            nmin = ceil((tmin - base) / (2π))
+            nmax = floor((tmax - base) / (2π))
+            for n in Int(nmin):Int(nmax)
+                t = base + 2π * n
+                x = (t - ϕ) / k
+                if xL <= x <= xR
+                    push!(xs, x)
+                end
+            end
+        end
+        sort!(xs)
+        return unique(xs)
+    end
+
+    @inbounds for j in jmin_:jmax_
+        # Cell vertical bounds
+        yB, yT = ym[j] - dy / 2, ym[j] + dy / 2
+        h = yT - yB
+
+        # Check if the cell is outside the sine wave range
+        ymin_wave = yshift - A - eps()
+        ymax_wave = yshift + A + eps()
+        if yT < ymin_wave 
+            alpha[:,j,:] .= 1.0
+            continue
+        elseif yB > ymax_wave
+            # Skip this row of cells if it is completely outside the sine wave range
+            continue
+        end
+        for i in imin_:imax_
+            # Cell horizontal bounds
+            xL, xR = xm[i] - dx / 2, xm[i] + dx / 2
+
+            # Partition along x with crossings
+            pts = Float64[xL, xR]
+            append!(pts, crossings_in_cell(yB, xL, xR))
+            append!(pts, crossings_in_cell(yT, xL, xR))
+            sort!(pts)
+            pts = unique(pts)
+
+            area = 0.0
+            for p in 1:length(pts) - 1
+                xa, xb = pts[p], pts[p + 1]
+                if xb <= xa
+                    continue
+                end
+                xm_cell = 0.5 * (xa + xb)
+                fxm = f(xm_cell)
+
+                if fxm <= yB
+                    # Empty slice
+                elseif fxm >= yT
+                    area += h * (xb - xa)
+                else
+                    area += (anti(xb) - anti(xa)) - yB * (xb - xa)
+                end
+            end
+            alpha[i, j, :] .= clamp(area / (dx * h), 0.0, 1.0)
+        end
+    end
+
     return nothing
 end
 
@@ -1465,6 +1604,8 @@ function hypreMat2JSON(jacob,cell1,cell2)
     end
 end
 
+
+
 function compute_kinEnergy(u,v,w,denx,deny,denz,mesh,param,par_env)
     @unpack dx,dy,dx,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     KE = 0.0
@@ -1571,3 +1712,34 @@ function grav_centerline(xo,yo,mesh,param,par_env)
 
 end
 
+function get_KH_amp(VF,mesh,param,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imax,dx,y,z,xm,ym,zm = mesh
+    @unpack VFlo = param
+    @unpack nproc,irank = par_env
+
+    # init array to hold PLIC heights
+    PLIC_height = zeros(imax)
+    # grab PLIC heights along x-direction
+    for i in imin_:imax_
+        for j in jmin_:jmax_
+            if VF[i,j,1] > VFlo
+                PLIC_height[i] = y[j] + dx*VF[i,j,1]
+                break
+            end
+        end
+    end
+
+    # set up least squares problem to fit sine curve
+    A = zeros(imax,3)
+    b = zeros(imax)
+    for i in imin_:imax_
+        A[i,1] = 1.0
+        A[i,2] = sin(2π*xm[i]/(imax*dx))
+        A[i,3] = cos(2π*xm[i]/(imax*dx))
+        b[i] = PLIC_height[i]
+    end
+    x = A\b
+    amp = sqrt(x[2]^2 + x[3]^2)
+    return amp  
+
+end

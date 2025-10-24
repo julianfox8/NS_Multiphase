@@ -58,6 +58,8 @@ using Parameters
     pressureSolver :: String = "Secant" 
     tol :: Float64
     pressure_scheme :: String = "semi-lagrangian"
+    hypreSolver :: String = "LGMRES"
+    pressurePrecond :: String = "none"
     
     # Multigrid solver levels
     mg_lvl :: Int64 = 1
@@ -69,7 +71,7 @@ using Parameters
     # Velocity used for Vf transport when solveNS = false
     VFVelocity :: String  = "Nothing" 
     projection_method :: String = "RK4"
-    tesselation :: String = "6_tets"
+    tesselation :: String = "5_tets"
 
     # Iterator type 
     # - standard : standard julia for loop  
@@ -77,11 +79,11 @@ using Parameters
     # - floop : parallelizes loop with FLoop
     iter_type :: String = "floop"
     
-
+    # Simulation specific parameters
+    instability :: String = "none" 
 
     # Dynamic VTK directory creation
     test_case :: String = "test"
-    # VTK_dir :: String = "results/bubble_rise_$(Nx)_$(Ny)_$(Nz)/VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
     VTK_dir :: String = "results/VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
 
 end

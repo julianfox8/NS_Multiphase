@@ -81,32 +81,32 @@ function divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh)
         divg = (v2-v1) / v2 / dt
     else
         # Calculate divergence with finite volume/difference (and SL at edge of band)
-        if pressure_scheme == "semi-lagrangian" && band[i-1,j,k] <= 1
+        if pressure_scheme == "semi-lagrangian" && abs(band[i-1,j,k]) <= 1
             Fxm = SLfluxVol(1,i  ,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
         else
             Fxm = dy*dz*uf[i,j,k]
         end
-        if pressure_scheme == "semi-lagrangian" && band[i+1,j,k] <= 1
+        if pressure_scheme == "semi-lagrangian" && abs(band[i+1,j,k]) <= 1
             Fxp = SLfluxVol(1,i+1,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
         else
             Fxp = dy*dz*uf[i+1,j,k]
         end
-        if pressure_scheme == "semi-lagrangian" && band[i,j-1,k] <= 1
+        if pressure_scheme == "semi-lagrangian" && abs(band[i,j-1,k]) <= 1
             Fym = SLfluxVol(2,i,j  ,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
         else
             Fym = dx*dz*vf[i,j,k]
         end
-        if pressure_scheme == "semi-lagrangian" && band[i,j+1,k] <= 1
+        if pressure_scheme == "semi-lagrangian" && abs(band[i,j+1,k]) <= 1
             Fyp = SLfluxVol(2,i,j+1,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
         else
             Fyp = dx*dz*vf[i,j+1,k]
         end
-        if pressure_scheme == "semi-lagrangian" && band[i,j,k-1] <= 1
+        if pressure_scheme == "semi-lagrangian" && abs(band[i,j,k-1]) <= 1
             Fzm = SLfluxVol(3,i,j,k  ,verts,tets,uf,vf,wf,dt,param,mesh)/dt
         else
             Fzm = dx*dy*wf[i,j,k]
         end
-        if pressure_scheme == "semi-lagrangian" && band[i,j,k+1] <= 1
+        if pressure_scheme == "semi-lagrangian" && abs(band[i,j,k+1]) <= 1
             Fzp = SLfluxVol(3,i,j,k+1,verts,tets,uf,vf,wf,dt,param,mesh)/dt
         else
             Fzp = dx*dy*wf[i,j,k+1]

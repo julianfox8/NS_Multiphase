@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, VFcircle, VFsphere, VFbubble2d, VFellipbub3d, VFellipbub2d, VFdroplet2d, VFbubble3d, VFdroplet3d, @unpack
+export run_solver, parameters, VFkhi, VFcircle, VFsphere, VFbubble2d, VFellipbub3d, VFellipbub2d, VFdroplet2d, VFbubble3d, VFdroplet3d, @unpack
 
 using MPI
 using HYPRE
@@ -44,8 +44,7 @@ function run_solver(param, IC!, BC!)
     print("on $(nthreads()) threads\n")
 
     # Create mesh
-    # mesh = create_mesh(param,par_env)
-
+    solveNS && HYPRE_Init()
     # Create multigrid mesh for each level
     mg_mesh = init_mg_mesh(param,par_env)
 
@@ -53,11 +52,8 @@ function run_solver(param, IC!, BC!)
     mesh = mg_mesh.mesh_lvls[1]
     @unpack dx,dy,dz,x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds = initArrays(mesh)
-    mg_arrays = mg_initArrays(mg_mesh,param)
-
-    solveNS && HYPRE_Init()
-    #! will need to get indices when parallelizing for secant method with multigrid
     p_min,p_max = prepare_indices(tmp5,par_env,mesh)
+    mg_arrays = mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
 
     # Check simulation param for restart
     if restart == true
@@ -73,8 +69,9 @@ function run_solver(param, IC!, BC!)
         # Create initial condition
         t = 0.0 :: Float64
         nstep = 0
-        # xo,yo,zo = IC!(P,u,v,w,VF,mesh)
+        
         IC!(P,u,v,w,VF,mesh)
+        Neumann!(VF,mesh,par_env)
         # Apply boundary conditions
         BC!(u,v,w,mesh,par_env)
         # Update processor boundaries (overwrites BCs if periodic)
@@ -85,56 +82,22 @@ function run_solver(param, IC!, BC!)
         # Create face velocities
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
     end
-    xo = 0.125
-    yo = 0.125
-    zo = 0.125
-
-    # Initialize hypre matrices
-    # jacob = HYPREMatrix(comm,Int32(p_min),Int32(p_max),Int32(p_min),Int32(p_max))
-    # b_vec = HYPREVector(comm, Int32(p_min), Int32(p_max))
-    # x_vec = HYPREVector(comm, Int32(p_min), Int32(p_max))
-
-    #! determine the best place to initialize these objects
-    #! currently done inside pressure which is not computationally efficient
-    # jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
-    # HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
-    # jacob = jacob_ref[]
-    # HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
-    # HYPRE_IJMatrixInitialize(jacob)
-
-    # b_ref = Ref{HYPRE_IJVector}(C_NULL)
-    # HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
-    # b_vec = b_ref[]
-    # HYPRE_IJVectorSetObjectType(b_vec,HYPRE_PARCSR)
-    # HYPRE_IJVectorInitialize(b_vec)
-
-    # x_ref = Ref{HYPRE_IJVector}(C_NULL)
-    # HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
-    # x_vec = x_ref[]
-    # HYPRE_IJVectorSetObjectType(x_vec,HYPRE_PARCSR)
-    # HYPRE_IJVectorInitialize(x_vec)
     
     # Compute density and viscosity at intial conditions
     compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
     # Compute band around interface
     computeBand!(band,VF,param,mesh,par_env)
-    
+
     # Compute interface normal 
     # !restart && computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
+
     # Compute PLIC reconstruction 
     # !restart && computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
     computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
     !restart && csv_init!(param,par_env)
-    grav_cl = grav_centerline(xo,yo,mesh,param,par_env)
-    # bubble_height = term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
-    # println(grav_cl)
-    # bubble_height = bub_height(grav_cl,VF,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
 
-    # println(terminal_vel)
-    # println(bubble_height)
-    # error("stop")
     dt = compute_dt(u,v,w,param,mesh,par_env)
 
     divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
@@ -155,11 +118,10 @@ function run_solver(param, IC!, BC!)
 
     std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,0,param,mesh,par_env)
     !restart && VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-    # error("stop")
+    
     # Loop over time
-    # nstep = 0
     iter = 0
-    J=nothing
+    
     while nstep<stepMax && t<tFinal
 
         # Update step counter
@@ -188,13 +150,10 @@ function run_solver(param, IC!, BC!)
             # Create face velocities
             interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
 
-            # divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
-            # println("divergence pre pressure solver $(parallel_max(abs.(divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env))")
-            # std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,bubble_height,iter,param,mesh,par_env)
-
             # Call pressure Solver (handles processor boundaries for P)
-            @time iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
-                
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
+            # println("Pressure solver iters: ", iter)
+
             # Corrector face velocities
             corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
 
@@ -208,12 +167,9 @@ function run_solver(param, IC!, BC!)
     
         end
 
-        # Compute case specific outputs
-        # bubble_height = term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
-        
         # Check divergence
         divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
-
+        # error("stop"̉)
         # Output
         std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)

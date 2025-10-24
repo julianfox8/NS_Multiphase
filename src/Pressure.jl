@@ -3,61 +3,89 @@ using JSON
 
 # Solve Poisson equation: δP form
 function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
-    @unpack pressure_scheme = param
+    @unpack pressure_scheme,mg_lvl = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mg_mesh.mesh_lvls[1]
 
     # RHS = nothing
-    if pressure_scheme == "finite-difference"
-        # RHS = @view tmp4[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
-        @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-            # RHS
-            RHS[i,j,k]= 1/dt* ( 
-                ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
-                ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
-                ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
+    if mg_lvl > 1 
+        iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env)
+    else    
+        if pressure_scheme == "finite-difference"
+            # RHS = @view tmp4[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+            RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
+            @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
+                # RHS
+                RHS[i,j,k]= 1/dt*( 
+                    ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
+                    ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
+                    ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
+            end
+        else
+            RHS = nothing
         end
-    else
-        RHS = nothing
+        iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays)
     end
-    iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,VF,verts,tets,mg_arrays,BC!)
 
     return iter
 end
 
-function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,VF,verts,tets,mg_arrays,BC!)
-    @unpack mg_lvl,pressureSolver = param
-    # @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+# Poisson solver for Pressure.jl
+function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays)
+    @unpack mg_lvl,pressureSolver,pressurePrecond = param
 
-    if mg_lvl > 1
-        iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,mg_arrays,mg_mesh,VF,verts,tets,param,par_env,BC!)
-    elseif pressureSolver == "FC_hypre"
-        iter = FC_hypre_solver(P,RHS,tmp1,denx,deny,denz,tmp4,dt,param,mg_mesh.mesh_lvls[1],par_env,1000)
-        # iter = fp_aa(P,RHS,tmp2,denx,deny,denz,dt,param,mesh,par_env)
-        # iter = gs(P,tmp1,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter= 100000,lvl=1)
-        # iter = cg_pressure_solver(P,RHS,denx,deny,denz,tmp1,dt,param, mesh,par_env)
+
+    # Point to hypre objects
+    jacob = mg_arrays.jacob[1]
+    b_vec = mg_arrays.b_vec[1]
+    x_vec = mg_arrays.x_vec[1]
+
+    if pressurePrecond == "nl_jacobi"
+        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;max_iter = 50)
+    end
+
+    if pressureSolver == "FC_hypre"
+        iter = FC_hypre_solver(P,RHS,tmp1,denx,deny,denz,tmp4,jacob,x_vec,b_vec,dt,param,mg_mesh.mesh_lvls[1],par_env,1000)
     elseif pressureSolver == "gauss-seidel"
-        iter = gs(P,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter= 100000,lvl=1)
+        iter = gs(P,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
     elseif pressureSolver == "congugateGradient"
-        iter = cg_pressure_solver(P, RHS, denx, deny, denz,tmp1,dt, param, mg_mesh.mesh_lvls[1], par_env)    
+        iter = cg!(P, RHS, denx, deny, denz,tmp1,dt, param, mg_mesh.mesh_lvls[1], par_env)    
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env)
+        iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,jacob,b_vec,x_vec,param,mg_mesh.mesh_lvls[1],par_env)
     elseif pressureSolver == "hypreSecantLS"
-        iter = Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
+        iter = Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,jacob,b_vec,x_vec,param,mg_mesh.mesh_lvls[1],par_env)
     elseif pressureSolver == "Ostrowski"
         iter = Ostrowski(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "SOR"
-        iter = SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
+        iter = SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,verts,tets,param,mg_mesh.mesh_lvls[1],par_env,mg_arrays.jacob[1],mg_arrays.b_vec[1],mg_arrays.x_vec[1])
     elseif pressureSolver == "SecantSOR"
-        iter = Secant_SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
+        iter = Secant_SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,mg_arrays.jacob[1],mg_arrays.b_vec[1],mg_arrays.x_vec[1])
     elseif pressureSolver == "res_iteration"
-        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,verts,tets,param,mg_mesh.mesh_lvls[1],par_env) 
-        # iter = nonlin_gs(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env) 
+        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env)
+    elseif pressureSolver == "nl_gs" 
+        iter = nonlin_gs(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env) 
+        # iter = nonlin_jacobi(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env) 
     else
         error("Unknown pressure solver $pressureSolver")
     end
 
     return iter
+end
+
+# Poisson solver for Multigrid.jl
+function poisson_solve!(P,RHS,res,mg_arrays,lvl,mg_mesh,dt,param,par_env,max_iter;verts=nothing,tets=nothing,iter=nothing,tol_lvl=nothing,converged_flag=nothing)
+    @unpack mg_lvl,pressureSolver = param
+    
+    if pressureSolver == "gauss-seidel"
+        iter = gs(P,RHS,res,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,iter,tol_lvl,converged=converged_flag)
+    elseif pressureSolver == "res_iteration"
+        res_iteration(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp2[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter,τ=mg_arrays.tmp1[lvl],converged=converged_flag,tol_lvl = tol_lvl)
+    elseif pressureSolver == "nl_gs"
+        nonlin_gs(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.tmp2[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,τ=mg_arrays.tmp1[lvl],iter,converged = converged_flag,tol_lvl = tol_lvl) 
+    else
+        error("Unknown pressure solver $pressureSolver")
+    end
+
+    return nothing
 end
 
 # LHS of pressure poisson equation
@@ -143,7 +171,8 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         # Set some parameters (See Reference Manual for more parameters)
         # HYPRE_BoomerAMGSetPrintLevel(solver, 3) # print solve info + parameters
         HYPRE_BoomerAMGSetOldDefault(solver)    # Falgout coarsening with modified classical interpolaiton
-        HYPRE_BoomerAMGSetRelaxType(solver, 0)  # G-S/Jacobi hybrid relaxation
+        HYPRE_BoomerAMGSetCoarsenType(solver, 6)
+        HYPRE_BoomerAMGSetRelaxType(solver, 13)  # G-S/Jacobi hybrid relaxation
         HYPRE_BoomerAMGSetRelaxOrder(solver, 1) # uses C/F relaxation
         HYPRE_BoomerAMGSetNumSweeps(solver, 3)  # Sweeeps on each level
         HYPRE_BoomerAMGSetMaxLevels(solver, 20) # maximum number of levels
@@ -152,7 +181,11 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         # Now setup and solve!
         HYPRE_BoomerAMGSetup(solver,  parcsr_J, par_AP_old, par_P_new)
         HYPRE_BoomerAMGSolve(solver,  parcsr_J, par_AP_old, par_P_new)
+        num_iter = Ref{HYPRE_Int}(C_NULL)
+        HYPRE_BoomerAMGGetNumIterations(solver, num_iter)
         HYPRE_BoomerAMGDestroy(solver)
+
+        return num_iter[]
     elseif solver_tag == "PCG-AMG"
         # ! PCG with AMG precond
         HYPRE_ParCSRPCGCreate(par_env.comm, solver_ref)
@@ -162,7 +195,7 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         HYPRE_PCGSetMaxIter(solver, 100) # max iterations
         HYPRE_PCGSetTol(solver, 1e-7) # conv. tolerance
         HYPRE_PCGSetTwoNorm(solver, 1) # use the two norm as the stopping criteria
-        HYPRE_PCGSetPrintLevel(solver, 2) # print solve info
+        # HYPRE_PCGSetPrintLevel(solver, 2) # print solve info
         HYPRE_PCGSetLogging(solver, 1) # needed to get run info later
 
         # Now set up the AMG preconditioner and specify any parameters
@@ -171,9 +204,9 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         # HYPRE_BoomerAMGSetPrintLevel(precond, 1) # print amg solution info
         HYPRE_BoomerAMGSetCoarsenType(precond, 6)
         HYPRE_BoomerAMGSetOldDefault(precond)
-        HYPRE_BoomerAMGSetRelaxType(precond, 3) # Sym G.S./Jacobi hybrid
+        HYPRE_BoomerAMGSetRelaxType(precond, 13) # Sym G.S./Jacobi hybrid
+        HYPRE_BoomerAMGSetRelaxOrder(precond, 1) # uses C/F relaxation``
         HYPRE_BoomerAMGSetNumSweeps(precond, 1)
-        HYPRE_BoomerAMGSetTol(precond, 0.0) # conv. tolerance zero
         HYPRE_BoomerAMGSetTol(precond, 1e-7) # conv. tolerance zero
         HYPRE_BoomerAMGSetMaxIter(precond, 1) # do only one iteration!
 
@@ -194,10 +227,10 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         solver = solver_ref[]
 
         HYPRE_LGMRESSetKDim(solver,20)
-        # HYPRE_LGMRESSetTol(solver, 1e-9) # conv. tolerance
-        HYPRE_LGMRESSetAbsoluteTol(solver,1e-9)
-        HYPRE_LGMRESSetMaxIter(solver,1000)
-        HYPRE_LGMRESSetPrintLevel(solver, 2) # print solve info
+        HYPRE_LGMRESSetTol(solver, 1e-10) # conv. tolerance
+        # HYPRE_LGMRESSetAbsoluteTol(solver,1e-10)
+        HYPRE_LGMRESSetMaxIter(solver,10000)
+        # HYPRE_LGMRESSetPrintLevel(solver, 2) # print solve info
         HYPRE_LGMRESSetLogging(solver, 1) # needed to get run info later
 
         # Now set up the AMG preconditioner and specify any parameters
@@ -207,7 +240,7 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         HYPRE_BoomerAMGSetCoarsenType(precond, 0)
         HYPRE_BoomerAMGSetInterpType(precond, 6)
         HYPRE_BoomerAMGSetOldDefault(precond)
-        # HYPRE_BoomerAMGSetRelaxType(precond, 3) # Sym G.S./Jacobi hybrid
+        HYPRE_BoomerAMGSetRelaxType(precond, 6) # Sym G.S./Jacobi hybrid
         HYPRE_BoomerAMGSetNumSweeps(precond, 2)
         HYPRE_BoomerAMGSetTol(precond, 0.0) # conv. tolerance zero
         HYPRE_BoomerAMGSetMaxIter(precond, 1) # do only one iteration!
@@ -229,38 +262,38 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
     # !GMRES
     # # # Create solver
         
-        HYPRE_ParCSRGMRESCreate(par_env.comm, solver_ref)
+        HYPRE_ParCSRFlexGMRESCreate(par_env.comm, solver_ref)
         solver = solver_ref[]
 
         # Set some parameters (See Reference Manual for more parameters)
-        HYPRE_GMRESSetKDim(solver,20) # restart
-        HYPRE_GMRESSetMaxIter(solver, 1000) # max iterations
-        HYPRE_GMRESSetTol(solver, 1e-9) # conv. tolerance
-        # HYPRE_LGMRESSetAbsoluteTol(solver,1e-9)
+        HYPRE_FlexGMRESSetKDim(solver,30) # restart
+        HYPRE_FlexGMRESSetMaxIter(solver, 100000) # max iterations
+        HYPRE_FlexGMRESSetTol(solver, 1e-10) # conv. tolerance
+        # HYPRE_FlexGMRESSetAbsoluteTol(solver,1e-10)
         # HYPRE_FlexGMRESSetPrintLevel(solver, 2) # print solve info
-        HYPRE_GMRESSetLogging(solver, 1) # needed to get run info later
+        HYPRE_FlexGMRESSetLogging(solver, 1) # needed to get run info later
 
         # Now set up the AMG preconditioner and specify any parameters
         HYPRE_BoomerAMGCreate(precond_ref)
         precond = precond_ref[]
         # HYPRE_BoomerAMGSetPrintLevel(precond, 1) # print amg solution info
-        HYPRE_BoomerAMGSetCoarsenType(precond, 0)
+        HYPRE_BoomerAMGSetCoarsenType(precond, 6)
         HYPRE_BoomerAMGSetInterpType(precond, 12)
         HYPRE_BoomerAMGSetOldDefault(precond)
-        HYPRE_BoomerAMGSetRelaxType(precond, 3) # Sym G.S./Jacobi hybrid
-        HYPRE_BoomerAMGSetNumSweeps(precond, 2)
+        HYPRE_BoomerAMGSetRelaxType(precond, 6) # Sym G.S./Jacobi hybrid
+        HYPRE_BoomerAMGSetNumSweeps(precond, 1)
         HYPRE_BoomerAMGSetTol(precond, 0.0) # conv. tolerance zero
         HYPRE_BoomerAMGSetMaxIter(precond, 1) # do only one iteration!
 
         # Set the FlexGMRES preconditioner
-        HYPRE_GMRESSetPrecond(solver, HYPRE_BoomerAMGSolve, HYPRE_BoomerAMGSetup, precond)
+        HYPRE_FlexGMRESSetPrecond(solver, HYPRE_BoomerAMGSolve, HYPRE_BoomerAMGSetup, precond)
 
         # Now setup and solve!
-        HYPRE_ParCSRGMRESSetup(solver,parcsr_J, par_AP_old, par_P_new)
-        HYPRE_ParCSRGMRESSolve(solver,parcsr_J, par_AP_old, par_P_new)
+        HYPRE_ParCSRFlexGMRESSetup(solver,parcsr_J, par_AP_old, par_P_new)
+        HYPRE_ParCSRFlexGMRESSolve(solver,parcsr_J, par_AP_old, par_P_new)
         num_iter = Ref{HYPRE_Int}(C_NULL)
-        HYPRE_ParCSRGMRESGetNumIterations(solver, num_iter)
-        HYPRE_ParCSRGMRESDestroy(solver)
+        HYPRE_ParCSRFlexGMRESGetNumIterations(solver, num_iter)
+        HYPRE_ParCSRFlexGMRESDestroy(solver)
         HYPRE_BoomerAMGDestroy(precond)
         return num_iter[]
     end
@@ -518,8 +551,8 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
     end    
 end
 
-function Secant_jacobian_hypre_full!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,P_k,AP_k,verts,tets,param,mesh,par_env)
-    @unpack tol,Nx,Ny,Nz = param
+function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,verts,tets,jacob,b_vec,x_vec,param,mesh,par_env;iter = nothing,max_iter = 10000,τ = nothing,converged=nothing)
+    @unpack tol,Nx,Ny,Nz,hypreSolver = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
     @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
@@ -529,174 +562,15 @@ function Secant_jacobian_hypre_full!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,d
     fill!(AP,0.0)
     fill!(p_index,0.0)
     
-    # pvd_pressure,dir = pVTK_init(param,par_env)
-    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env,nothing)
-
-    res_par_old = parallel_max_all(abs.(AP),par_env)
-    # println("Initial res = $res_par_old")
-    p_min,p_max = prepare_indices(p_index,par_env,mesh)
-
-    # Initialize hypre matrices
-    jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
-    HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
-    jacob = jacob_ref[]
-    HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
-    HYPRE_IJMatrixInitialize(jacob)
-
-    b_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
-    b_vec = b_ref[]
-    HYPRE_IJVectorSetObjectType(b_vec,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(b_vec)
-
-    x_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
-    x_vec = x_ref[]
-    HYPRE_IJVectorSetObjectType(x_vec,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(x_vec)
-    
-
-
-    cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
-    values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
-    
-    iter=0
-    jacobi_iter = 1 
-    # pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
-    dynamic_dP = false
-    max_δP = zeros(1)
-    max_δP_k = [res_par_old]
-    HYPRE_IJMatrixInitialize(jacob)
-    compute_hypre_jacobian!(dynamic_dP,jacobi_iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP,LHS,tmp4,verts,tets,par_env,mesh)
-    HYPRE_IJMatrixAssemble(jacob)
-
-    parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
-    HYPRE_IJMatrixGetObject(jacob, parcsr_J_ref)
-    J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
-
-    # Iterate
-    iter += 1
-        
-    while true
-        P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        
-        HYPRE_IJVectorInitialize(b_vec)
-        HYPRE_IJVectorInitialize(x_vec)
-        # if iter > 1
-        for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
-            row_ = p_index[i,j,k]
-            HYPRE_IJVectorSetValues(x_vec,1,pointer(Int32.([row_])),pointer(Float64.([P[i,j,k]])))
-            HYPRE_IJVectorSetValues(b_vec, 1, pointer(Int32.([row_])), pointer(Float64.([AP[i,j,k]])))
-        end
-        MPI.Barrier(par_env.comm)
-        HYPRE_IJVectorAssemble(b_vec)
-        par_AP_ref = Ref{Ptr{Cvoid}}(C_NULL)
-        HYPRE_IJVectorGetObject(b_vec, par_AP_ref)
-        par_b_old = convert(Ptr{HYPRE_ParVector}, par_AP_ref[])
-        HYPRE_IJVectorAssemble(x_vec)
-        par_Pn_ref = Ref{Ptr{Cvoid}}(C_NULL)
-        HYPRE_IJVectorGetObject(x_vec, par_Pn_ref)
-        par_x_new = convert(Ptr{HYPRE_ParVector}, par_Pn_ref[])
-
-
-        solver_ref = Ref{HYPRE_Solver}(C_NULL)
-        precond_ref = Ref{HYPRE_Solver}(C_NULL)
-
-        hyp_iter = hyp_solve(solver_ref,precond_ref, J, par_b_old, par_x_new, par_env, "LGMRES",1000)
-
-        for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
-            int_x = zeros(1)
-            HYPRE_IJVectorGetValues(x_vec,1,pointer(Int32.([p_index[i,j,k]])),int_x)
-            P_k[i,j,k] -= int_x[1]
-            if abs(maximum(int_x[1])) > max_δP[1]
-                max_δP[1] = int_x[1]
-            end
-        end
-
-        # account for drift
-        P_k .-=parallel_mean_all(P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-
-        #update new Ap
-        A!(AP_k,uf,vf,wf,P_k,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env,nothing)
-        # pressure_VTK(iter,P,AP,sfx,sfy,sfz,dir,pvd_pressure,param,mesh,par_env)
-        
-        
-        res_par = parallel_max_all(abs.(AP_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
-        sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-        # println("checking residual for potential recompute")
-        # if res_par_old < res_par
-        if abs(res_par_old - res_par) > 1e2    
-            # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res)
-            
-            println("number of jacobian recomputes = $jacobi_iter")
-            dynamic_dP = true
-            HYPRE_IJMatrixInitialize(jacob)
-            compute_hypre_jacobian!(dynamic_dP,jacobi_iter,jacob,p_index,cols_,values_,P,uf,vf,wf,gradx,grady,gradz,band,dt,param,denx,deny,denz,AP_k,LHS,tmp4,verts,tets,par_env,mesh)
-            HYPRE_IJMatrixAssemble(jacob)
-            jacobi_iter +=1
-            parcsr_J_ref = Ref{Ptr{Cvoid}}(C_NULL)
-            dynamic_dP = false
-        else 
-            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .=P_k[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env,nothing)
-            res_par_old = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
-            sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-            # if jacobi_iter > 0; println("Jacobian recomputed $jacobi_iter times"); end
-            # jacobi_iter = 1
-            iter += 1
-            # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g max_δP = %12.3g \n",iter,res_par_old,sum_res,max_δP[1])
-        end
-        
-        sum_res = parallel_sum_all(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
-        max_δP_k[1] = max_δP[1]
-    
-        @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g max_δP = %12.3g \n",iter,res_par,sum_res,max_δP[1])
-        # if iter % 10 == 0 ;@printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res); end
-
-        if res_par_old < tol; return iter; end
-
-    end    
-end
-function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,verts,tets,param,mesh,par_env;max_iter = 10000,τ = nothing)
-    @unpack tol,Nx,Ny,Nz = param
-    @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
-    @unpack dx,dy,dz = mesh
-    @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
-
-    # HYPRE.Init()
-    fill!(LHS,0.0)
-    fill!(AP,0.0)
-    fill!(p_index,0.0)
-    
-    # pvd_pressure,dir = pVTK_init(param,par_env)
+    # Calculate A(P) and apply tau correction if needed
     A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
     if τ !== nothing
         AP .-= τ
     end
+
     res_par_old = parallel_max_all(abs.(AP),par_env)
-    # println("Initial res = $res_par_old")
-    p_min,p_max = prepare_indices(p_index,par_env,mesh)
-
-    # Initialize hypre matrices
-    jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
-    HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
-    jacob = jacob_ref[]
-    HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
-    HYPRE_IJMatrixInitialize(jacob)
-
-    b_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
-    b_vec = b_ref[]
-    HYPRE_IJVectorSetObjectType(b_vec,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(b_vec)
-
-    x_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
-    x_vec = x_ref[]
-    HYPRE_IJVectorSetObjectType(x_vec,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(x_vec)
     
-
+    p_min,p_max = prepare_indices(p_index,par_env,mesh)
 
     cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
     values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
@@ -716,7 +590,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
     J = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_J_ref[])
 
     # Iterate
-    while true
+    while iter < max_iter
         iter += 1 
    
         HYPRE_IJVectorInitialize(b_vec)
@@ -742,7 +616,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
         solver_ref = Ref{HYPRE_Solver}(C_NULL)
         precond_ref = Ref{HYPRE_Solver}(C_NULL)
 
-        hyp_iter = hyp_solve(solver_ref,precond_ref, J, par_b_old, par_x_new, par_env, "LGMRES",1000)
+        hyp_iter = hyp_solve(solver_ref,precond_ref, J, par_b_old, par_x_new, par_env, hypreSolver)
 
         for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
             int_x = zeros(1)
@@ -1163,24 +1037,40 @@ function anderson_accel(Fhist)
 
 end
 
-function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,jacob,verts,tets,param,mesh,par_env;max_iter = 10000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing) 
+function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 10000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing) 
     @unpack Nx,Ny,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
     @unpack tol = param
 
+    if tol_lvl !== nothing
+        tol = tol_lvl
+    else
+        nothing
+    end
+
     Fhist = Vector{Array{Float64,3}}()
     Phist = Vector{Array{Float64,3}}()
-
-    #initialize PVTK for pressure
-    # pvd_pressure,dir  = pVTK_init(param,par_env)
-
+    fill!(Gn,0.0)
+    fill!(jacob,0.0)
+    # if iter !== nothing
+    #     #initialize PVTK for pressure
+    #     pvd_pressure,dir  = pVTK_init(param,par_env)
+    # end
     ω = 0.8
-    m = 10
-    
-    Gn = similar(P)
+    m=5
+    # evaluate objective function
+    # A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+    # res_norm = maximum(abs.(AP))
+    # println("Initial residual of $res_norm")
 
     jacob_single(jacob,AP,AP2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
 
     p_iter = 0
+
+    # if iter !== nothing
+    #     # store pressure field 
+    #     pressure_VTK(p_iter,P,AP,dir,pvd_pressure,param,mesh,par_env)
+    # end
+    
     while p_iter < max_iter
         p_iter += 1
         
@@ -1194,15 +1084,22 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
 
         res_norm = maximum(abs.(AP))
         if res_norm < tol
-            println("solution converged after $p_iter iterations")
-            break
+            if converged !== nothing
+                # println("solution converged after $iter iterations")    
+                converged[] = true
+            end
+            # println("solution converged after $p_iter iterations")
+            return p_iter
         end
 
         # define variables for anderson acceleration        
-        Fn = - ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ Fn
+        # Fn = - ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        # Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ Fn
 
-        if iter !== nothing
+        Gn = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        Fn = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+
+        # if iter !== nothing
             if length(Fhist) >= m
                 popfirst!(Fhist)
                 popfirst!(Phist)
@@ -1215,28 +1112,29 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
                 α = anderson_accel(Fhist)
                 # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = weighted_sum(Phist,α)
                 Pnew = weighted_sum(Phist,α)
-                β = 1.2
+                β = 0.5
                 P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = β * Pnew + (1-β) * P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-
             else
                 P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
             end
-        else
-            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        end
-        # store pressure field 
-        # pressure_VTK(iter,P,dir,pvd_pressure,param,mesh,par_env)
+        # else
+        #     P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        # end
 
+        # if iter !== nothing
+        #     # store pressure field 
+        #     pressure_VTK(p_iter,P,AP,dir,pvd_pressure,param,mesh,par_env)
+        # end
         
-        # println("residual at iter $p_iter = $(maximum(abs.(AP)))")
-        # if iter !== nothing && p_iter > (max_iter-1)
-        if p_iter % 100 == 0
-            println("residual at iter $p_iter = $(maximum(abs.(AP)))")
+        # if p_iter % 100 == 0 ;println("residual at iter $p_iter = $(maximum(abs.(AP)))"); end
+        if iter !== nothing && p_iter > (max_iter-1)
+            println("residual at iter $iter = $(maximum(abs.(AP)))")
         end
+        # if p_iter > (max_iter-1)
+        #     println("residual at iter $p_iter = $(maximum(abs.(AP)))")
+        # end
     end
-
     return p_iter
-
 end
 
 
@@ -1315,92 +1213,6 @@ function nonlin_gs(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,P_old,
     end
 
     return p_iter
-
-end
-# Flux-Corrected solvers 
-#! laplace operator containing face centered densities
-function compute_lap_op!(matrix,coeff_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
-    nrows = 1
-    for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
-        #define jacobian
-        fill!(cols_,0)
-        fill!(values_,0.0)
-        nst = 0
-        #! main diagonal
-        nst+=1
-        cols_[nst] = coeff_index[i,j,k]
-        values_[nst] = -(1.0 / (denx[i, j, k] * dx^2) + 1.0 / (denx[i+1, j, k] * dx^2) + 
-                        1.0 / (deny[i, j, k] * dy^2) + 1.0 / (deny[i, j+1, k] * dy^2) + 
-                        1.0 / (denz[i, j, k] * dz^2) + 1.0 / (denz[i, j, k+1] * dz^2))
-
-        #! x-dir off-diags
-        if i-1 < imin
-            values_[1] += 1.0/(denx[i,j,k]*dx^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i-1,j,k]
-            values_[nst] = 1.0 / (denx[i,j,k] * dx^2)
-        end
-
-        if i+1 > imax
-            values_[1] += 1.0/(denx[i+1,j,k]*dx^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i+1,j,k]
-            values_[nst] = 1.0 / (denx[i+1,j,k] * dx^2)
-        end
-
-        #! y-dir off-diags
-        if j-1 < jmin
-            values_[1] += 1.0/(deny[i,j,k]*dy^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i,j-1,k]
-            values_[nst] = 1.0 / (deny[i,j,k] * dy^2)
-        end
-
-        if j+1 > jmax
-            values_[1] += 1.0/(deny[i,j+1,k]*dy^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i,j+1,k]
-            values_[nst] = 1.0 / (deny[i,j+1,k] * dy^2)
-        end
-
-        #! z-dir off-diags
-        if k-1 < kmin
-            values_[1] += 1.0/(denz[i,j,k]*dz^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i,j,k-1]
-            values_[nst] = 1.0 / (denz[i,j,k] * dz^2)
-        end
-
-        if k+1 > kmax
-            values_[1] += 1.0/(denz[i,j,k+1]*dz^2)
-        else 
-            nst+=1
-            cols_[nst] = coeff_index[i,j,k+1]
-            values_[nst] = 1.0 / (denz[i,j,k+1] * dz^2)
-        end
-
-        for st in 1:nst
-            ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
-            tmpr = values_[st]
-            values_[st] = values_[ind]
-            values_[ind] = tmpr
-            tmpi = cols_[st]
-            cols_[st] = cols_[ind]
-            cols_[ind] = tmpi
-        end
-        
-        ncols = nst
-        rows_ = coeff_index[i,j,k]
-
-        # HYPRE.assemble!(matrix,[rows_],cols_[1:ncols],values_[:,1:ncols])
-        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
-    end
 end
 
 function res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
@@ -1424,33 +1236,143 @@ function lap!(lapP,P,denx,deny,denz,dt,param,mesh,par_env)
     end
 end
 
-function FC_hypre_solver(P,RHS,res,denx,deny,denz,p_index,dt,param,mesh,par_env,max_iter=1000,up = false;)
-    @unpack tol,Nx,Ny,Nz = param
+
+# Flux-Corrected solvers 
+function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_env,mesh,param)
+    @unpack  imin, imax, jmin,jmax,kmin,kmax,kmin_,kmax_,imin_, imax_, jmin_, jmax_,dx,dy,dz,Nx,Nz,Ny = mesh
+    @unpack xper,yper,zper = param
+    nrows = 1
+
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        # reset
+        fill!(cols_,0)
+        fill!(values_,0.0)
+        nst = 0
+
+        # main diagonal
+        nst += 1
+        cols_[nst] = coeff_index[i,j,k]
+        values_[nst] = -(1.0 / (denx[i, j, k] * dx^2) + 1.0 / (denx[i+1, j, k] * dx^2) +
+                        1.0 / (deny[i, j, k] * dy^2) + 1.0 / (deny[i, j+1, k] * dy^2) +
+                        1.0 / (denz[i, j, k] * dz^2) + 1.0 / (denz[i, j, k+1] * dz^2))
+
+        # --- x-direction neighbors ---
+        # left neighbor i-1
+        if i-1 < imin
+            if xper
+                nst += 1
+                cols_[nst] = coeff_index[imax, j, k]
+                values_[nst] = 1.0 / (denx[imax+1, j, k] * dx^2)
+            else
+                values_[1] += 1.0 / (denx[i, j, k] * dx^2)
+            end
+        else
+            nst += 1
+            cols_[nst] = coeff_index[i-1, j, k]
+            values_[nst] = 1.0 / (denx[i, j, k] * dx^2)
+        end
+
+        # right neighbor i+1
+        if i+1 > imax
+            if xper
+                nst += 1
+                cols_[nst] = coeff_index[imin, j, k]
+                values_[nst] = 1.0 / (denx[imin, j, k] * dx^2)
+            else
+                values_[1] += 1.0 / (denx[i+1, j, k] * dx^2)
+            end
+        else
+            nst += 1
+            cols_[nst] = coeff_index[i+1, j, k]
+            values_[nst] = 1.0 / (denx[i+1, j, k] * dx^2)
+        end
+
+        # --- y-direction neighbors ---
+        if j-1 < jmin
+            if yper
+                nst += 1
+                cols_[nst] = coeff_index[i, jmax, k]
+                values_[nst] = 1.0 / (deny[i, jmax+1, k] * dy^2)
+            else
+                values_[1] += 1.0 / (deny[i, j, k] * dy^2)
+            end
+        else
+            nst += 1
+            cols_[nst] = coeff_index[i, j-1, k]
+            values_[nst] = 1.0 / (deny[i, j, k] * dy^2)
+        end
+
+        if j+1 > jmax
+            if yper
+                nst += 1
+                cols_[nst] = coeff_index[i, jmin, k]
+                values_[nst] = 1.0 / (deny[i, jmin, k] * dy^2)
+            else
+                values_[1] += 1.0 / (deny[i, j+1, k] * dy^2)
+            end
+        else
+            nst += 1
+            cols_[nst] = coeff_index[i, j+1, k]
+            values_[nst] = 1.0 / (deny[i, j+1, k] * dy^2)
+        end
+
+        # --- z-direction neighbors ---
+        if k-1 < kmin
+            if zper
+                nst += 1
+                cols_[nst] = coeff_index[i, j, kmax]
+                values_[nst] = 1.0 / (denz[i, j, kmax+1] * dz^2)
+            else
+                values_[1] += 1.0 / (denz[i, j, k] * dz^2)
+            end
+        else
+            nst += 1
+            cols_[nst] = coeff_index[i, j, k-1]
+            values_[nst] = 1.0 / (denz[i, j, k] * dz^2)
+        end
+
+        if k+1 > kmax
+            if zper
+                nst += 1
+                cols_[nst] = coeff_index[i, j, kmin]
+                values_[nst] = 1.0 / (denz[i, j, kmin] * dz^2)
+            else
+                values_[1] += 1.0 / (denz[i, j, k+1] * dz^2)
+            end
+        else
+            nst += 1
+            cols_[nst] = coeff_index[i, j, k+1]
+            values_[nst] = 1.0 / (denz[i, j, k+1] * dz^2)
+        end
+
+        # reorder (your existing sorting block)
+        for st in 1:nst
+            ind = st + argmin(cols_[st:nst], dims=1)[1] - 1
+            tmpr = values_[st]
+            values_[st] = values_[ind]
+            values_[ind] = tmpr
+            tmpi = cols_[st]
+            cols_[st] = cols_[ind]
+            cols_[ind] = tmpi
+        end
+
+        ncols = nst
+        rows_ = coeff_index[i,j,k]
+
+        # assemble into HYPRE (unchanged)
+        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
+    end
+end
+
+
+function FC_hypre_solver(P,RHS,res,denx,deny,denz,p_index,jacob,x_vec,b_vec,dt,param,mesh,par_env,max_iter=1000,up = false;)
+    @unpack tol,Nx,Ny,Nz,hypreSolver = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
     @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
     
     #! prep indices
     p_min,p_max = prepare_indices(p_index,par_env,mesh)
-
-    jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
-    HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
-    jacob = jacob_ref[]
-    HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
-    HYPRE_IJMatrixInitialize(jacob)
-
-    b_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
-    b_vec = b_ref[]
-    HYPRE_IJVectorSetObjectType(b_vec,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(b_vec)
-
-    x_ref = Ref{HYPRE_IJVector}(C_NULL)
-    HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
-    x_vec = x_ref[]
-    HYPRE_IJVectorSetObjectType(x_vec,HYPRE_PARCSR)
-    HYPRE_IJVectorInitialize(x_vec)
-    
 
     cols_ = Vector{Int32}(undef,27); fill!(cols_,0)
     values_ = Matrix{Float64}(undef,1,27); fill!(values_,0.0)
@@ -1461,12 +1383,9 @@ function FC_hypre_solver(P,RHS,res,denx,deny,denz,p_index,dt,param,mesh,par_env,
     for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
         row_ = p_index[i,j,k]
         HYPRE_IJVectorSetValues(b_vec,1, pointer(Int32.([row_])), pointer(Float64.([RHS[i,j,k]])))
-        # if up
-        #     HYPRE_IJVectorSetValues(x_vec,1, pointer(Int32.([row_])), pointer(Float64.([P[i,j,k]])))
-        # else
         HYPRE_IJVectorSetValues(x_vec,1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
-        # end
     end
+
     HYPRE_IJVectorAssemble(x_vec)
     par_x_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJVectorGetObject(x_vec, par_x_ref)
@@ -1477,50 +1396,18 @@ function FC_hypre_solver(P,RHS,res,denx,deny,denz,p_index,dt,param,mesh,par_env,
     HYPRE_IJVectorGetObject(b_vec, par_b_ref)
     par_b = convert(Ptr{HYPRE_ParVector}, par_b_ref[])
 
-    
-    # RHS_assembler = HYPRE.start_assemble!(b)
-    # x_assembler = HYPRE.start_assemble!(x)
-
-    # for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
-    #     row_ = p_index[i,j,k]
-    #     HYPRE.assemble!(RHS_assembler,[row_],[RHS[i,j,k]])
-    #     HYPRE.assemble!(x_assembler,[row_],[0.0])
-    # end
-    
-    # b = HYPRE.finish_assemble!(RHS_assembler)
-    # x = HYPRE.finish_assemble!(x_assembler)
-    
-    # J_assembler = HYPRE.start_assemble!(jacob)
-
-    # compute_lap_op!(J_assembler,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
-    
-    # par_A = HYPRE.finish_assemble!(J_assembler)
-    # HYPRE_IJMatrixPrint(par_A,"par_A")
-    compute_lap_op!(jacob,p_index,cols_,values_,denx,deny,denz,par_env,mesh)
+    compute_lap_op!(jacob,p_index,cols_,values_,dt,denx,deny,denz,par_env,mesh,param)
 
     HYPRE_IJMatrixAssemble(jacob)
     parcsr_A_ref = Ref{Ptr{Cvoid}}(C_NULL)
     HYPRE_IJMatrixGetObject(jacob, parcsr_A_ref)
     par_A = convert(Ptr{HYPRE_ParCSRMatrix}, parcsr_A_ref[])
     
-
     solver_ref = Ref{HYPRE_Solver}(C_NULL)
     precond_ref = Ref{HYPRE_Solver}(C_NULL)
 
-    #! HYPRE.jl solver setup (not as expansive and more tricky to converge)
-    # precond = HYPRE.BoomerAMG(; MaxIter = 1, RelaxType = 3,CoarsenType = 0, InterpType = 12,NumSweeps= 2)
-    # solver = HYPRE.GMRES(comm; Tol= tol, KDim = 20, Precond=precond)
-    # HYPRE.solve!(solver,x,J,b)
-    # iter = HYPRE.GetNumIterations(solver)
+    iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env,hypreSolver)
 
-    #! HYPRE.LibHYPRE c function call solver
-    iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "GMRES-AMG")
-    # iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "PCG-AMG",max_iter)
-    # iter = hyp_solve(solver_ref,precond_ref, par_A, par_b, par_x, par_env, "LGMRES",max_iter)
-    
-    # println("Converged in $iter iterations")
-    maxdP = zeros(1)
-    
     for k in kmin_:kmax_,j in jmin_:jmax_,i in imin_:imax_
         int_x = zeros(1)
         HYPRE.HYPRE_IJVectorGetValues(x_vec,1,pointer(Int32.([p_index[i,j,k]])),int_x)
@@ -1531,51 +1418,14 @@ function FC_hypre_solver(P,RHS,res,denx,deny,denz,p_index,dt,param,mesh,par_env,
     P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
     Neumann!(P,mesh,par_env)
     update_borders!(P,mesh,par_env)
-    res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
-    # println(maximum(abs.(res[imin_:imax_,jmin_:jmax_,kmin_:kmax_])))
 
-    
     return iter
 end
 
-
-# function gs_pressure_update!(P, RHS, denx, deny, denz, mesh, dt;τ=nothing)
-#     @unpack dx,dy,dz,imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
-
-#     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-#         # Diagonal coefficient
-#         diag = -(1 / (denx[i, j, k] * dx^2) + 1 / (denx[i+1, j, k] * dx^2) +
-#                 1 / (deny[i, j, k] * dy^2) + 1 / (deny[i, j+1, k] * dy^2) +
-#                 1 / (denz[i, j, k] * dz^2) + 1 / (denz[i, j, k+1] * dz^2))
-
-#         # Neighbor contributions
-#         Px_m = P[i-1, j, k]
-#         Px_p = P[i+1, j, k]
-#         Py_m = P[i, j-1, k]
-#         Py_p = P[i, j+1, k]
-#         Pz_m = P[i, j, k-1]
-#         Pz_p = P[i, j, k+1]
-
-#         sum_neighbors = (1 / (denx[i, j, k]   * dx^2)) * Px_m +
-#                         (1 / (denx[i+1,j,k]   * dx^2)) * Px_p +
-#                         (1 / (deny[i,j,k]     * dy^2)) * Py_m +
-#                         (1 / (deny[i,j+1,k]   * dy^2)) * Py_p +
-#                         (1 / (denz[i,j,k]     * dz^2)) * Pz_m +
-#                         (1 / (denz[i,j,k+1]   * dz^2)) * Pz_p
-
-#         # Update pressure
-#         # P_new[i,j,k] = (RHS[i,j,k] + sum_neighbors) / diag
-#         ω = 1.0
-#         if isnothing(τ)
-#             P_new_val = (RHS[i,j,k]/dt - sum_neighbors) / diag
-#         else
-#             P_new_val = ((RHS[i,j,k] + τ[i,j,k])/dt - sum_neighbors) / diag
-#         end
-#         P[i,j,k] = (1-ω)*P[i,j,k] + ω*P_new_val
-#     end
-# end
-
-function gs_pressure_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
+"""
+Gauss-Seidel pressure update (red-black)
+"""
+function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
     @unpack dx, dy, dz, imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
     @unpack comm = par_env
     ω = 1.0
@@ -1615,7 +1465,7 @@ function gs_pressure_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=noth
 end
 
 
-function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Nothing, Any} = nothing ,max_iter = 10000,lvl=1,converged::Union{Nothing, Ref{Bool}}=nothing,τ=nothing,tol_lvl = nothing)
+function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Nothing, Any} = nothing ,max_iter = 10000,converged::Union{Nothing, Ref{Bool}}=nothing,τ=nothing,tol_lvl = nothing)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -1637,7 +1487,7 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
     for i = 1:max_iter
         p_iter +=1
         # update pressure with jacobi and compute
-        gs_pressure_update!(P, RHS, denx, deny, denz, mesh,dt,par_env;τ)
+        rbgs_update!(P, RHS, denx, deny, denz, mesh,dt,par_env;τ)
         # # account for drift
         P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         Neumann!(P,mesh,par_env)
@@ -1670,8 +1520,7 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
 end
 
 
-
-function jacobi_pressure_update!(P, P_new, RHS, denx, deny, denz, mesh, dt;τ=nothing)
+function jacobi_update!(P, P_new, RHS, denx, deny, denz, mesh, dt;τ=nothing)
     @unpack dx,dy,dz,imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
 
     fill!(P_new,0.0)
@@ -1720,16 +1569,12 @@ function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::
     update_borders!(residual,mesh,par_env)
     # Convergence check (L∞ norm)
     err = parallel_max_all(residual,par_env)
-    # if irank==0
-    #     println(dt)
-    #     println("div before smoothening $err")
-    # end
 
     p_iter = 0
     for i = 1:max_iter
         p_iter +=1
         # update pressure with jacobi and compute
-        jacobi_pressure_update!(P,P_new, RHS, denx, deny, denz, mesh,dt;τ)
+        jacobi_update!(P,P_new, RHS, denx, deny, denz, mesh,dt;τ)
         
         #update pressure
         for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
@@ -1747,16 +1592,7 @@ function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::
         # Convergence check (L∞ norm)
         err = parallel_max_all(residual,par_env)
 
-        # if irank == 0
-        #     println(err)
-        #     println(max_P)
-        # end
-        # copy!(P,P_new) 
-
-        # if iter % 50 == 0
-        #     println("Iter $iter: max error = $err")
-        # end
-        if iter !== nothing && irank == 0 && i > (max_iter-1)
+        if iter !== nothing && p_iter < 10 #irank == 0 #&& i > (max_iter-1)
         # if irank == 0 && i > (max_iter-1)
             # if iter % 50 == 0
                 println("Iter $iter: max error = $err")
@@ -1767,88 +1603,112 @@ function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::
                 converged[] = true
                 println("solution converged after $iter iterations")
             end
-            # println("solution converged after $p_iter iterations with res = $err")
+            println("solution converged after $p_iter iterations with res = $err")
             return p_iter
         end
     end
     return p_iter
 end
 
-function apply_A!(AP, P, denx, deny, denz, mesh, par_env)
+function apply_A!(AP, P, denx, deny, denz, mesh, par_env, param)
     @unpack dx, dy, dz, imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
-
+    @unpack xper, yper, zper = param
 
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
         # Diagonal coefficient
         diag = -(1 / (denx[i, j, k] * dx^2) + 1 / (denx[i+1, j, k] * dx^2) +
-                1 / (deny[i, j, k] * dy^2) + 1 / (deny[i, j+1, k] * dy^2) +
-                1 / (denz[i, j, k] * dz^2) + 1 / (denz[i, j, k+1] * dz^2))
+                 1 / (deny[i, j, k] * dy^2) + 1 / (deny[i, j+1, k] * dy^2) +
+                 1 / (denz[i, j, k] * dz^2) + 1 / (denz[i, j, k+1] * dz^2))
 
         sum_neighbors = 0.0
 
+        # --- x-direction ---
         if i == imin_
-            diag += 1.0/(denx[i,j,k]*dx^2)
+            if xper
+                sum_neighbors += (1 / (denx[imax_, j, k] * dx^2)) * P[imax_, j, k]
+            else
+                diag += 1.0 / (denx[i, j, k] * dx^2)
+            end
         else
             sum_neighbors += (1 / (denx[i, j, k] * dx^2)) * P[i-1, j, k]
         end
 
         if i == imax_
-            diag += 1.0/(denx[i+1,j,k]*dx^2)
+            if xper
+                sum_neighbors += (1 / (denx[imin_, j, k] * dx^2)) * P[imin_, j, k]
+            else
+                diag += 1.0 / (denx[i+1, j, k] * dx^2)
+            end
         else
             sum_neighbors += (1 / (denx[i+1, j, k] * dx^2)) * P[i+1, j, k]
         end
-        
+
+        # --- y-direction ---
         if j == jmin_
-            diag += 1.0/(deny[i,j,k]*dy^2)
-        else    
+            if yper
+                sum_neighbors += (1 / (deny[i, jmax_, k] * dy^2)) * P[i, jmax_, k]
+            else
+                diag += 1.0 / (deny[i, j, k] * dy^2)
+            end
+        else
             sum_neighbors += (1 / (deny[i, j, k] * dy^2)) * P[i, j-1, k]
         end
 
         if j == jmax_
-            diag += 1.0/(deny[i,j+1,k]*dy^2)
+            if yper
+                sum_neighbors += (1 / (deny[i, jmin_, k] * dy^2)) * P[i, jmin_, k]
+            else
+                diag += 1.0 / (deny[i, j+1, k] * dy^2)
+            end
         else
             sum_neighbors += (1 / (deny[i, j+1, k] * dy^2)) * P[i, j+1, k]
         end
 
+        # --- z-direction ---
         if k == kmin_
-            diag += 1.0/(denz[i,j,k]*dz^2)
+            if zper
+                sum_neighbors += (1 / (denz[i, j, kmax_] * dz^2)) * P[i, j, kmax_]
+            else
+                diag += 1.0 / (denz[i, j, k] * dz^2)
+            end
         else
             sum_neighbors += (1 / (denz[i, j, k] * dz^2)) * P[i, j, k-1]
         end
 
         if k == kmax_
-            diag += 1.0/(denz[i,j,k+1]*dz^2)
+            if zper
+                sum_neighbors += (1 / (denz[i, j, kmin_] * dz^2)) * P[i, j, kmin_]
+            else
+                diag += 1.0 / (denz[i, j, k+1] * dz^2)
+            end
         else
             sum_neighbors += (1 / (denz[i, j, k+1] * dz^2)) * P[i, j, k+1]
         end
 
+        # Apply the Laplacian
         AP[i, j, k] = diag * P[i, j, k] + sum_neighbors
     end
 end
 
-
-function cg_pressure_solver(P, RHS, denx, deny, denz,res,dt, param, mesh, par_env; tol=1e-6, max_iter=1000,τ = nothing)
-    @unpack imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
-    @unpack dx, dy, dz = mesh
+function cg!(P, RHS, denx, deny, denz,res,dt, param, mesh, par_env;max_iter=20000,iter = nothing,converged=nothing)
+    @unpack dx, dy, dz,imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
+    @unpack tol = param
 
     # Allocate working arrays
-    if !isnothing(τ)
-        RHS[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .+= τ[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
-    end
     r = copy(RHS)                        # residual
     Ap = similar(P); fill!(Ap,0.0)
     p = similar(P); fill!(p,0.0)
     z = similar(P); fill!(z,0.0)
 
-    apply_A!(Ap, P, denx, deny, denz, mesh, par_env) # Ap = A*P
+    apply_A!(Ap, P, denx, deny, denz, mesh, par_env,param) # Ap = A*P
     r[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .-= Ap[imin_:imax_, jmin_:jmax_, kmin_:kmax_]  # r = b - A*x
 
     p[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= r[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
     rs_old = sum(r .^ 2)
-    iter = 0
+    p_iter = 0
     for it = 1:max_iter
-        iter += 1
-        apply_A!(Ap, p, denx, deny, denz, mesh, par_env)
+        p_iter += 1
+        apply_A!(Ap, p, denx, deny, denz, mesh, par_env,param)
         
         alpha = rs_old / sum(p .* Ap)
 
@@ -1863,16 +1723,18 @@ function cg_pressure_solver(P, RHS, denx, deny, denz,res,dt, param, mesh, par_en
         update_borders!(P,mesh,par_env)
         res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
 
-        # if iter % 10 == 0
-        # #     println("other residual is $(parallel_max_all(res,par_env))")
-        #     println("residual is now $(sqrt(rs_new)) at iter $iter")
-        # end
-
-        # println(rs_new)
-        # if norm(res) < tol
-        if sqrt(rs_new) < tol
+        if iter !== nothing && p_iter > (max_iter-1) #&& iter % 100 == 0
+        
+            println("residual is now $(sqrt(rs_new)) at iter $iter")
+        end
+        
+        if (parallel_max_all(res,par_env)) < tol
+            if converged !== nothing
+                converged[] = true
+                # println("CG converged after $iter iterations, residual = $(sqrt(rs_new)) with other residual $(parallel_max_all(res,par_env))")
+            end
             # println("CG converged after $iter iterations, residual = $(sqrt(rs_new)) with other residual $(parallel_max_all(res,par_env))")
-            break
+            return p_iter
         end
 
         beta = rs_new / rs_old
@@ -1884,5 +1746,6 @@ function cg_pressure_solver(P, RHS, denx, deny, denz,res,dt, param, mesh, par_en
         rs_old = rs_new
     end
     
-    return iter
+    return p_iter
 end
+
