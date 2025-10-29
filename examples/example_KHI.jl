@@ -6,6 +6,7 @@ or REPL using julia> include("examples/example_KHI.jl")
 """
 
 using NavierStokes_Parallel
+using Random 
 
 # Define parameters
 param = parameters(
@@ -14,25 +15,25 @@ param = parameters(
     mu_gas = 0.0015, # Dynamic viscosity of gas (N⋅s/m^2)
     rho_liq= 1000,  # Density of liquid (kg/m^3)
     rho_gas = 783,  # Density of gas (kg/m^3)
-    sigma = 0.04, # surface tension coefficient (N/m)
+    sigma = 0.0295, # surface tension coefficient (N/m)
     grav_x = 0.706, # Gravity (m/s^2)
     grav_y = 9.785,#9.8, # Gravity (m/s^2)
     grav_z = 0.0, # Gravity (m/s^2)
     Lx=0.3,            # Domain size
     Ly=0.03,
     Lz=1/100,
-    tFinal=10.0,      # Simulation time
+    tFinal=5.0,      # Simulation time
 
     # Discretization inputs
-    Nx=1001,          # Number of grid cells
-    Ny=101,
+    Nx=601,          # Number of grid cells
+    Ny=61,
     Nz=1,
-    stepMax=10000,   # Maximum number of timesteps
+    stepMax=100000,   # Maximum number of timesteps
     CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    max_dt = 1e-4,
+    max_dt = 1e-3,
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-10,
+    tol = 1e-8,
 
     # Processors 
     nprocx = 1,
@@ -85,12 +86,16 @@ function IC!(P,u,v,w,VF,mesh)
     # VFkhi(VF, mesh, A, k1, ϕ)
     # u0 = 0.5
     
+    Random.seed!(1234) # for reproducibility
+    
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
         
-        if y[j] < Ly/2 && y[j+1] > Ly/2
+        #height
+        height = Ly/2 + (2 * rand()-1)*Ly*1e-3  # add small perturbation on order of 1e-2*Ly to initial interface
 
-            VF[i,j,k] = (Ly/2-y[j])/(y[j+1]-y[j])
-        elseif y[j] < Ly/2
+        if y[j] < height && y[j+1] > height 
+            VF[i,j,k] = (height - y[j])/(y[j+1]-y[j])
+        elseif y[j] < height
             VF[i,j,k] = 1.0
         else
             VF[i,j,k] = 0.0
