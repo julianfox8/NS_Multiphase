@@ -1715,9 +1715,9 @@ function grav_centerline(xo,yo,mesh,param,par_env)
 
 end
 
-function get_KH_amp(VF,mesh,param,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imax,dx,y,z,xm,ym,zm = mesh
-    @unpack VFlo = param
+function get_VF_heights(VF,mesh,param,par_env)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imax,dy,y,x,xm,ym,Lx = mesh
+    @unpack VFhi = param
     @unpack nproc,irank = par_env
 
     # init array to hold PLIC heights
@@ -1725,24 +1725,30 @@ function get_KH_amp(VF,mesh,param,par_env)
     # grab PLIC heights along x-direction
     for i in imin_:imax_
         for j in jmin_:jmax_
-            if VF[i,j,1] > VFlo
-                PLIC_height[i] = y[j] + dx*VF[i,j,1]
+            if VF[i,j,1] < VFhi 
+                PLIC_height[i] = y[j] + dy*VF[i,j,1]
                 break
             end
         end
     end
+    
+    return PLIC_height
+    # # Calculate wave number k from FFT of PLIC heights
+    # PLIC_mean = mean(PLIC_height[imin_:imax_])
+    # h .= PLIC_height .- PLIC_mean
+    # PLIC_fft = abs.(fft(PLIC_height[imin_:imax_]))
+    # # zero out DC component
+    # PLIC_fft[1] = 0.0
+    # # find index of max FFT value
+    # k_ind = argmax(PLIC_fft[1:div(length(PLIC_fft),2)])
+    # # calculate wave number
+    # k = 2π*(k_ind-1)/Lx
 
-    # set up least squares problem to fit sine curve
-    A = zeros(imax,3)
-    b = zeros(imax)
-    for i in imin_:imax_
-        A[i,1] = 1.0
-        A[i,2] = sin(2π*xm[i]/(imax*dx))
-        A[i,3] = cos(2π*xm[i]/(imax*dx))
-        b[i] = PLIC_height[i]
-    end
-    x = A\b
-    amp = sqrt(x[2]^2 + x[3]^2)
-    return amp  
+    # # Linear least square fit to determine amplitude (needs approximate k)
+    # X = [sin.(k*x) cos.(k*x)]
+    # coeffs = X \ PLIC_height[imin_:imax_]
+    # A = sqrt(coeffs[1]^2 + coeffs[2]^2)
+    # ϕ = atan(coeffs[2],coeffs[1])
+    # return A, ϕ
 
 end
