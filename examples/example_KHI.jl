@@ -25,12 +25,12 @@ param = parameters(
     tFinal=5.0,      # Simulation time
 
     # Discretization inputs
-    Nx=601,          # Number of grid cells
-    Ny=61,
+    Nx=600,          # Number of grid cells
+    Ny=60,
     Nz=1,
     stepMax=100000,   # Maximum number of timesteps
     CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    max_dt = 1e-3,
+    max_dt = 1e-4,
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
     tol = 1e-8,
@@ -45,27 +45,30 @@ param = parameters(
     yper = false,
     zper = false,
 
-    # solveNS = false,
+    # Restart  
+    # restart = true,
+    # restart_itr = 3620,
+    
 
-    # pressure_scheme = "semi-lagrangian",
-    # pressureSolver = "res_iteration",
+    pressure_scheme = "semi-lagrangian",
+    pressureSolver = "res_iteration",
     # pressureSolver = "hypreSecant",
     # pressurePrecond = "nl_jacobi",
 
-    pressure_scheme = "finite-difference",
+    # pressure_scheme = "finite-difference",
     # pressureSolver = "congugateGradient",
-    pressureSolver = "FC_hypre",
+    # pressureSolver = "FC_hypre",
     # pressureSolver = "gauss-seidel",
 
-    hypreSolver = "LGMRES",
-    mg_lvl = 1,
+    hypreSolver = "GMRES-AMG",
+    mg_lvl = 3,
 
     instability = "kelvin-helmholtz", # Type of instability to simulate
 
     # Iteration method used in @loop macro
     iter_type = "standard",
     # iter_type = "floop",
-    test_case = "KHI_gforced_test",
+    test_case = "KHI_test_even",
 ) 
 
 
@@ -88,26 +91,37 @@ function IC!(P,u,v,w,VF,mesh)
     
     Random.seed!(1234) # for reproducibility
     
-    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
-        
+    u[:,:,:] .= 0.0
+    v[:,:,:] .= 0.0
+    w[:,:,:] .= 0.0
+
+    for i = imin_:imax_
+
         #height
-        height = Ly/2 + (2 * rand()-1)*Ly*1e-3  # add small perturbation on order of 1e-2*Ly to initial interface
+        height = Ly/2 + (2 * rand()-1)*Ly*1e-3  # add small perturbation on order of 1e-3*Ly to initial interface
 
-        if y[j] < height && y[j+1] > height 
-            VF[i,j,k] = (height - y[j])/(y[j+1]-y[j])
-        elseif y[j] < height
-            VF[i,j,k] = 1.0
-        else
-            VF[i,j,k] = 0.0
+        for j = jmin_:jmax_        
+            if y[j] < height && y[j+1] > height 
+                VF[i,j,1] = (height - y[j])/(y[j+1]-y[j]) 
+            elseif y[j] < height
+                VF[i,j,1] = 1.0
+            else
+                VF[i,j,1] = 0.0
+            end
         end
-
-        # u[i,j,k] = u0*tanh((ym[j]-Ly/2-A*sin(k1*xm[i]))/(4*dy))  # Smooth transition between the two layers
-        u[i,j,k] = 0.0
-        # v[i,j,k] = A*2π/λ*sin(2π*xm[i]/λ)*u[i,j,k]
-        v[i, j, k] = 0.0  
-        w[i,j,k] = 0.0
-        
     end
+
+    # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
+        
+
+
+    #     # u[i,j,k] = u0*tanh((ym[j]-Ly/2-A*sin(k1*xm[i]))/(4*dy))  # Smooth transition between the two layers
+    #     u[i,j,k] = 0.0
+    #     # v[i,j,k] = A*2π/λ*sin(2π*xm[i]/λ)*u[i,j,k]
+    #     v[i, j, k] = 0.0  
+    #     w[i,j,k] = 0.0
+        
+    # end
 
     return nothing    
 end
