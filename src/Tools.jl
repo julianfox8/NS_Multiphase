@@ -331,7 +331,7 @@ function compute_dt(u,v,w,param,mesh,par_env)
     capillary_dt = sqrt((mu_liq+mu_gas)*0.5*dx^3/(2*pi*sigma))
     
     # Timestep
-    dt=min(max_dt,CFL*minimum([convec_dt,viscous_dt]),capillary_dt)
+    dt=min(max_dt,CFL*minimum([convec_dt,viscous_dt]))
 
     return dt::Float64
 end
