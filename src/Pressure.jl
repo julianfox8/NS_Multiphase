@@ -1038,7 +1038,7 @@ function anderson_accel(Fhist)
 end
 
 function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 10000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing) 
-    @unpack Nx,Ny,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
+    @unpack Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
     @unpack tol = param
 
     if tol_lvl !== nothing
@@ -1047,8 +1047,6 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
         nothing
     end
 
-    Fhist = Vector{Array{Float64,3}}()
-    Phist = Vector{Array{Float64,3}}()
     fill!(Gn,0.0)
     fill!(jacob,0.0)
     # if iter !== nothing
@@ -1056,21 +1054,19 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
     #     pvd_pressure,dir  = pVTK_init(param,par_env)
     # end
     ω = 0.8
-    m=5
+    m=10
+    Fhist = [zeros(Nx,Ny,Nz) for _ in 1:m]
+    Phist = [zeros(Nx,Ny,Nz) for _ in 1:m]
+    hist_idx = 0
+    n_hist = 0
+
     # evaluate objective function
-    # A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
-    # res_norm = maximum(abs.(AP))
-    # println("Initial residual of $res_norm")
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
 
     jacob_single(jacob,AP,AP2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
 
     p_iter = 0
 
-    # if iter !== nothing
-    #     # store pressure field 
-    #     pressure_VTK(p_iter,P,AP,dir,pvd_pressure,param,mesh,par_env)
-    # end
-    
     while p_iter < max_iter
         p_iter += 1
         
@@ -1088,68 +1084,58 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
                 # println("solution converged after $iter iterations")    
                 converged[] = true
             end
-            # println("solution converged after $p_iter iterations")
+            println("solution converged after $p_iter iterations")
             return p_iter
         end
 
         # define variables for anderson acceleration        
-        # Fn = - ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        # Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+ Fn
-
         Gn = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         Fn = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
 
-        # if iter !== nothing
-            if length(Fhist) >= m
-                popfirst!(Fhist)
-                popfirst!(Phist)
-            end
-            
-            push!(Fhist,Fn[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
-            push!(Phist,Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        hist_idx = mod(hist_idx,m) + 1
+        if n_hist < m
+            n_hist += 1
+        end
 
-            if length(Fhist) > 1
-                α = anderson_accel(Fhist)
-                # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = weighted_sum(Phist,α)
-                Pnew = weighted_sum(Phist,α)
-                β = 0.5
-                P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = β * Pnew + (1-β) * P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            else
-                P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-            end
-        # else
-        #     P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        # end
+        @views Fhist[hist_idx] .= Fn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        @views Phist[hist_idx] .= Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
 
-        # if iter !== nothing
-        #     # store pressure field 
-        #     pressure_VTK(p_iter,P,AP,dir,pvd_pressure,param,mesh,par_env)
-        # end
+
+        if n_hist > 1
+            α = anderson_accel(Fhist[1:n_hist])
+            # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = weighted_sum(Phist,α)
+            Pnew = weighted_sum(Phist[1:n_hist],α)
+            β = 0.5
+            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = β * Pnew + (1-β) * P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        else
+            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        end
         
-        # if p_iter % 100 == 0 ;println("residual at iter $p_iter = $(maximum(abs.(AP)))"); end
+        # if p_iter % 50 == 0 ;println("residual at iter $p_iter = $(maximum(abs.(AP)))"); end
         if iter !== nothing && p_iter > (max_iter-1)
             println("residual at iter $iter = $(maximum(abs.(AP)))")
         end
-        # if p_iter > (max_iter-1)
-        #     println("residual at iter $p_iter = $(maximum(abs.(AP)))")
-        # end
+
+        # account for drift
+        P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+
     end
     return p_iter
 end
 
 
-function nonlin_gs(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,P_old,AP2,jacob,verts,tets,param,mesh,par_env;max_iter = 5000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing) 
+function nonlin_gs(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,P_old,AP2,jacob,verts,tets,param,mesh,par_env;max_iter = 5000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing) 
     @unpack Nx,Ny,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
     @unpack tol = param
 
-    Fhist = Vector{Array{Float64,3}}()
-    Phist = Vector{Array{Float64,3}}()
-
-    #initialize PVTK for pressure
-    # pvd_pressure,dir  = pVTK_init(param,par_env)
+    if tol_lvl !== nothing
+        tol = tol_lvl
+    else
+        nothing
+    end
 
     ω = 0.8
-    m = 30
+    β = 1.0
     
     Gn = copy(P)
     Fn = zeros(size(P))
@@ -1219,7 +1205,7 @@ function res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     fill!(res,0.0)
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        lapP = dt*( (1/denx[i+1,j,k]*(P[i+1,j,k] - P[i,j,k]) - 1/denx[i,j,k]*(P[i,j,k] - P[i-1,j,k])) / dx^2 +
+        lapP = ( (1/denx[i+1,j,k]*(P[i+1,j,k] - P[i,j,k]) - 1/denx[i,j,k]*(P[i,j,k] - P[i-1,j,k])) / dx^2 +
                (1/deny[i,j+1,k]*(P[i,j+1,k] - P[i,j,k]) - 1/deny[i,j,k]*(P[i,j,k] - P[i,j-1,k])) / dy^2 +
                (1/denz[i,j,k+1]*(P[i,j,k+1] - P[i,j,k]) - 1/denz[i,j,k]*(P[i,j,k] - P[i,j,k-1])) / dz^2)
 
@@ -1230,7 +1216,7 @@ end
 function lap!(lapP,P,denx,deny,denz,dt,param,mesh,par_env)
     @unpack x,y,z,dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        lapP[i,j,k] = dt*( (1/denx[i+1,j,k]*(P[i+1,j,k] - P[i,j,k]) - 1/denx[i,j,k]*(P[i,j,k] - P[i-1,j,k])) / dx^2 +
+        lapP[i,j,k] = ( (1/denx[i+1,j,k]*(P[i+1,j,k] - P[i,j,k]) - 1/denx[i,j,k]*(P[i,j,k] - P[i-1,j,k])) / dx^2 +
                       (1/deny[i,j+1,k]*(P[i,j+1,k] - P[i,j,k]) - 1/deny[i,j,k]*(P[i,j,k] - P[i,j-1,k])) / dy^2 +
                       (1/denz[i,j,k+1]*(P[i,j,k+1] - P[i,j,k]) - 1/denz[i,j,k]*(P[i,j,k] - P[i,j,k-1])) / dz^2)
     end
@@ -1452,9 +1438,9 @@ function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
                                 (1 / (denz[i,j,k+1]   * dz^2)) * Pz_p
 
                 if isnothing(τ)
-                    P_new_val = (RHS[i,j,k]/dt - sum_neighbors) / diag
+                    P_new_val = (RHS[i,j,k] - sum_neighbors) / diag
                 else
-                    P_new_val = ((RHS[i,j,k] + τ[i,j,k])/dt - sum_neighbors) / diag
+                    P_new_val = ((RHS[i,j,k] + τ[i,j,k]) - sum_neighbors) / diag
                 end
                 P[i,j,k] = (1 - ω) * P[i,j,k] + ω * P_new_val
             end
