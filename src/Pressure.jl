@@ -1084,7 +1084,7 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
                 # println("solution converged after $iter iterations")    
                 converged[] = true
             end
-            println("solution converged after $p_iter iterations")
+            # println("solution converged after $p_iter iterations")
             return p_iter
         end
 
@@ -1112,9 +1112,9 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
         end
         
         # if p_iter % 50 == 0 ;println("residual at iter $p_iter = $(maximum(abs.(AP)))"); end
-        if iter !== nothing && p_iter > (max_iter-1)
-            println("residual at iter $iter = $(maximum(abs.(AP)))")
-        end
+        # if iter !== nothing && p_iter > (max_iter-1)
+        #     println("residual at iter $iter = $(maximum(abs.(AP)))")
+        # end
 
         # account for drift
         P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
