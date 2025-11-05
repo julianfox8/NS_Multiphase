@@ -25,8 +25,8 @@ param = parameters(
     tFinal=5.0,      # Simulation time
 
     # Discretization inputs
-    Nx=600,          # Number of grid cells
-    Ny=60,
+    Nx=601,          # Number of grid cells
+    Ny=61,
     Nz=1,
     stepMax=100000,   # Maximum number of timesteps
     CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -43,7 +43,7 @@ param = parameters(
     # Periodicity
     xper = true,
     yper = false,
-    zper = false,
+    zper = true,
 
     # Restart  
     # restart = true,
@@ -61,7 +61,7 @@ param = parameters(
     # pressureSolver = "gauss-seidel",
 
     hypreSolver = "GMRES-AMG",
-    mg_lvl = 3,
+    mg_lvl = 1,
 
     instability = "kelvin-helmholtz", # Type of instability to simulate
 
@@ -96,9 +96,8 @@ function IC!(P,u,v,w,VF,mesh)
     w[:,:,:] .= 0.0
 
     for i = imin_:imax_
-
         #height
-        height = Ly/2 + (2 * rand()-1)*Ly*1e-3  # add small perturbation on order of 1e-3*Ly to initial interface
+        height = Ly/2 #+ (2 * rand()-1)*Ly*1e-3  # add small perturbation on order of 1e-3*Ly to initial interface
 
         for j = jmin_:jmax_        
             if y[j] < height && y[j+1] > height 
@@ -110,19 +109,6 @@ function IC!(P,u,v,w,VF,mesh)
             end
         end
     end
-
-    # for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_ 
-        
-
-
-    #     # u[i,j,k] = u0*tanh((ym[j]-Ly/2-A*sin(k1*xm[i]))/(4*dy))  # Smooth transition between the two layers
-    #     u[i,j,k] = 0.0
-    #     # v[i,j,k] = A*2π/λ*sin(2π*xm[i]/λ)*u[i,j,k]
-    #     v[i, j, k] = 0.0  
-    #     w[i,j,k] = 0.0
-        
-    # end
-
     return nothing    
 end
 
@@ -132,44 +118,45 @@ Boundary conditions for velocity
 function BC!(u,v,w,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
     @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
-    
+    @unpack xper,yper,zper = param
+
      # Left 
-     if irankx == 0 
+     if irankx == 0 && xper == false
         i = imin-1
-        u[i,:,:] = u[imax,:,:] # periodic
-        v[i,:,:] = v[imax,:,:] # No slip
+        u[i,:,:] = -u[imin,:,:] # periodic
+        v[i,:,:] = -v[imin,:,:] # No slip
         w[i,:,:] = -w[imin,:,:] # No slip
     end
     # Right
-    if irankx == nprocx-1
+    if irankx == nprocx-1 && xper == false
         i = imax+1
-        u[i,:,:] = u[imin,:,:] #periodic
-        v[i,:,:] = v[imin,:,:] # No slip
+        u[i,:,:] = -u[imax,:,:] #periodic
+        v[i,:,:] = -v[imax,:,:] # No slip
         w[i,:,:] = -w[imax,:,:] # No slip
     end
     # Bottom 
-    if iranky == 0 
+    if iranky == 0 && yper == false
         j = jmin-1
         u[:,j,:] .= -u[:,jmin,:] # No slip
         v[:,j,:] .= -v[:,jmin,:] # No slip
         w[:,j,:] .= -w[:,jmin,:] # No slip
     end
     # Top
-    if iranky == nprocy-1
+    if iranky == nprocy-1 && yper == false
         j = jmax+1
         u[:,j,:] .= -u[:,jmax,:] # No slip
         v[:,j,:] .= -v[:,jmax,:] # No slip
         w[:,j,:] .= -w[:,jmax,:] # No slip
     end
     # Back 
-    if irankz == 0 
+    if irankz == 0 && zper == false
         k = kmin-1
         u[:,:,k] = -u[:,:,kmin] # No slip
         v[:,:,k] = -v[:,:,kmin] # No slip
         w[:,:,k] = -w[:,:,kmin] # No slip
     end
     # Front
-    if irankz == nprocz-1
+    if irankz == nprocz-1 && zper == false
         k = kmax+1
         u[:,:,k] = -u[:,:,kmax] # No slip
         v[:,:,k] = -v[:,:,kmax] # No slip
@@ -180,4 +167,4 @@ function BC!(u,v,w,mesh,par_env)
 end
 
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!)
+@time run_solver(param, IC!, BC!)
