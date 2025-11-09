@@ -1245,7 +1245,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
         # --- x-direction neighbors ---
         # left neighbor i-1
         if i-1 < imin
-            if xper
+            if xper && Nx > 1
                 nst += 1
                 cols_[nst] = coeff_index[imax, j, k]
                 values_[nst] = 1.0 / (denx[imax+1, j, k] * dx^2)
@@ -1260,7 +1260,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
 
         # right neighbor i+1
         if i+1 > imax
-            if xper
+            if xper && Nx > 1
                 nst += 1
                 cols_[nst] = coeff_index[imin, j, k]
                 values_[nst] = 1.0 / (denx[imin, j, k] * dx^2)
@@ -1275,7 +1275,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
 
         # --- y-direction neighbors ---
         if j-1 < jmin
-            if yper
+            if yper && Ny > 1
                 nst += 1
                 cols_[nst] = coeff_index[i, jmax, k]
                 values_[nst] = 1.0 / (deny[i, jmax+1, k] * dy^2)
@@ -1289,7 +1289,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
         end
 
         if j+1 > jmax
-            if yper
+            if yper && Ny > 1
                 nst += 1
                 cols_[nst] = coeff_index[i, jmin, k]
                 values_[nst] = 1.0 / (deny[i, jmin, k] * dy^2)
@@ -1304,7 +1304,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
 
         # --- z-direction neighbors ---
         if k-1 < kmin
-            if zper
+            if zper && Nz > 1
                 nst += 1
                 cols_[nst] = coeff_index[i, j, kmax]
                 values_[nst] = 1.0 / (denz[i, j, kmax+1] * dz^2)
@@ -1318,7 +1318,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
         end
 
         if k+1 > kmax
-            if zper
+            if zper && Nz > 1
                 nst += 1
                 cols_[nst] = coeff_index[i, j, kmin]
                 values_[nst] = 1.0 / (denz[i, j, kmin] * dz^2)

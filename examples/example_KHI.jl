@@ -15,7 +15,7 @@ param = parameters(
     mu_gas = 0.0015, # Dynamic viscosity of gas (N⋅s/m^2)
     rho_liq= 1000,  # Density of liquid (kg/m^3)
     rho_gas = 783,  # Density of gas (kg/m^3)
-    sigma = 0.0295, # surface tension coefficient (N/m)
+    sigma = 0.04, # surface tension coefficient (N/m)
     grav_x = 0.706, # Gravity (m/s^2)
     grav_y = 9.785,#9.8, # Gravity (m/s^2)
     grav_z = 0.0, # Gravity (m/s^2)
@@ -123,14 +123,14 @@ function BC!(u,v,w,mesh,par_env)
      # Left 
      if irankx == 0 && xper == false
         i = imin-1
-        u[i,:,:] = -u[imin,:,:] # periodic
+        u[i,:,:] = -u[imin,:,:] # No slip
         v[i,:,:] = -v[imin,:,:] # No slip
         w[i,:,:] = -w[imin,:,:] # No slip
     end
     # Right
     if irankx == nprocx-1 && xper == false
         i = imax+1
-        u[i,:,:] = -u[imax,:,:] #periodic
+        u[i,:,:] = -u[imax,:,:] # No slip
         v[i,:,:] = -v[imax,:,:] # No slip
         w[i,:,:] = -w[imax,:,:] # No slip
     end
