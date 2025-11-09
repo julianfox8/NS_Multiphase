@@ -3,20 +3,26 @@ using Printf
 
 function csv_init!(param,par_env)
     @unpack isroot = par_env
-    @unpack VTK_dir = param
+    @unpack VTK_dir,instability = param
     if isroot
         param_fields = [(key,getfield(param,key)) for key in fieldnames(typeof(param))]
         open(VTK_dir*".csv","w") do io
             println(io, join(first.(param_fields), ","))
             println(io, join(last.(param_fields), ","))
-            println(io,"Iteration ,Time, max(u), max(v), max(w), max(divg), sum(mass_err), Piters")
+            header = "Iteration, Time, max(u), max(v), max(w), max(divg), sum(mass_err), Piters"
+            println(io,header)
+        end
+        if instability == "kelvin-helmholtz"
+            open(VTK_dir*"KH_height.csv","w") do io
+                println(io, "Iteration, Time, Heights")
+            end
         end
     end
     return nothing
 end
 
 function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
-    @unpack std_out_period,VTK_dir = param
+    @unpack std_out_period,VTK_dir,instability = param
     @unpack isroot = par_env
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mesh
 
@@ -38,8 +44,20 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,p
             end
             # Write values
             @printf(" %9i  %8.3f  %8.3g  %8.3g  %8.3g   %8.3g      %9.3g      %8.3g \n",nstep,t,max_u,max_v,max_w,max_divg,VF_init-sum_VF,iter)
+            
+            # Write values to CSV
             open(VTK_dir*".csv","a") do io
-                println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$(VF_init-sum_VF),$iter"))
+                # if instability == "kelvin-helmholtz"
+                #     println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$(VF_init-sum_VF),$iter,$A,$ϕ"))
+                # else    
+                    println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$(VF_init-sum_VF),$iter"))
+                # end
+            end
+            if instability == "kelvin-helmholtz"
+                heights = get_VF_heights(VF,mesh,param,par_env)
+                open(VTK_dir*"KH_height.csv","a") do io
+                    println(io,("$nstep,$t,"*join(heights,",")))
+                end
             end
         end
     end
