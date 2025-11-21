@@ -315,7 +315,7 @@ end
 Compute timestep 
 """
 function compute_dt(u,v,w,param,mesh,par_env)
-    @unpack CFL,max_dt,mu_liq,mu_gas = param
+    @unpack CFL,max_dt,mu_liq,mu_gas,sigma = param
     @unpack dx,dy,dz = mesh
 
 
@@ -326,6 +326,9 @@ function compute_dt(u,v,w,param,mesh,par_env)
 
     # Viscous Δt 
     viscous_dt = minimum([dx,dy,dz])/max(mu_liq,mu_gas)
+
+    # Capillary Δt
+    capillary_dt = sqrt((mu_liq+mu_gas)*0.5*dx^3/(2*pi*sigma))
     
     # Timestep
     dt=min(max_dt,CFL*minimum([convec_dt,viscous_dt]))
