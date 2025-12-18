@@ -1,6 +1,6 @@
 module NavierStokes_Parallel
 
-export run_solver, parameters, VFkhi, VFcircle, VFsphere, VFbubble2d, VFellipbub3d, VFellipbub2d, VFdroplet2d, VFbubble3d, VFdroplet3d, @unpack
+export run_solver, parameters, VFzalesak2d, VFkhi, VFcircle, VFsphere, VFbubble2d, VFellipbub3d, VFellipbub2d, VFdroplet2d, VFbubble3d, VFdroplet3d, @unpack
 
 using MPI
 using HYPRE

@@ -389,9 +389,20 @@ Semi-Lagrangian projection of point back in time
 - assumes face velocities
 - pt is updated by function
 """ 
-function project!(pt,i,j,k,uf,vf,wf,dt,param,mesh)
-    @unpack projection_method = param
-    if projection_method == "RK4"
+function project!(pt,i,j,k,uf,vf,wf,dt,param,mesh;t=nothing)
+    @unpack projection_method,test_case,pressure_scheme = param
+
+    if test_case == "Zalesak"# && pressure_scheme == "semi-lagrangian"
+        pt_init = copy(pt)
+        pt[1] = 0.5 + cos(2*π*dt)*(pt_init[1]-0.5) + sin(2*π*dt)*(pt_init[2]-0.5)
+        pt[2] = 0.5 - sin(2*π*dt)*(pt_init[1]-0.5) + cos(2*π*dt)*(pt_init[2]-0.5)
+
+    # elseif test_case == "Deformation"
+    #     # println(pt[1],", ",pt[2])
+    #     pt[1],pt[2] = backtrace_particle_rk2(pt[1],pt[2],t,dt)
+    #     # println(" -> ",pt[1],", ",pt[2])
+    #     # error("stop here")
+    elseif projection_method == "RK4"
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
         v2=get_velocity_face(pt+0.5dt*v1,i,j,k,uf,vf,wf,mesh)
         v3=get_velocity_face(pt+0.5dt*v2,i,j,k,uf,vf,wf,mesh)
@@ -656,6 +667,10 @@ function defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         u_fun = (x,y,z,t) -> 200*x
         v_fun = (x,y,z,t) -> -100(5-y)
         w_fun = (x,y,z,t) -> -50*(5-z)
+    elseif VFVelocity == "rotation"
+        u_fun = (x,y,z,t) -> 2π*(0.5 - y)
+        v_fun = (x,y,z,t) -> 2π*(x - 0.5)
+        w_fun = (x,y,z,t) -> 0.0
     else
         error("Unknown VFVelocity = $VFVelocity")
     end
@@ -1132,6 +1147,33 @@ function VFdroplet3d(xmin,xmax,ymin,ymax,zmin,zmax,rad,xo,yo,zo)
     end
     return VF
 end
+
+"""
+VF values for 2D Bubble
+"""
+function VFzalesak2d(xmin,xmax,ymin,ymax,rad,xo,yo,slot_w,slot_l)
+    nF = 20
+    VF=1.0
+    VFsubcell = 1.0/nF^2
+    # Loop over finer grid to evaluate VF 
+    for j=1:nF, i=1:nF
+        xh = xmin + i/(nF+1)*(xmax-xmin)
+        yh = ymin + j/(nF+1)*(ymax-ymin)
+        G = rad^2 - ((xh-xo)^2 + (yh-yo)^2 )
+
+        if G > 0.0
+            VF -= VFsubcell
+            if abs(xh - xo) <= slot_w/2 && (yh <= (yo+0.08) && yh >= yo - slot_l)
+                VF += VFsubcell
+            end
+        end
+
+ 
+
+    end
+    return VF
+end
+
 
 """
 Density/Viscosity calculation
