@@ -296,6 +296,27 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         HYPRE_ParCSRFlexGMRESDestroy(solver)
         HYPRE_BoomerAMGDestroy(precond)
         return num_iter[]
+    elseif solver_tag == "BiCGSTAB"
+    # !GMRES
+        # Create solver
+        HYPRE_ParCSRBiCGSTABCreate(par_env.comm, solver_ref)
+        solver = solver_ref[]
+
+        # Set some parameters (See Reference Manual for more parameters)
+        HYPRE_BiCGSTABSetMaxIter(solver, 100000) # max iterations
+        HYPRE_BiCGSTABSetTol(solver, 1e-10) # conv. tolerance
+        # HYPRE_BiCGSTABSetAbsoluteTol(solver,1e-10)
+        # HYPRE_BiCGSTABSetPrintLevel(solver, 2) # print solve info
+        HYPRE_BiCGSTABSetLogging(solver, 1) # needed to get run info later
+
+        # Now setup and solve!
+        HYPRE_ParCSRBiCGSTABSetup(solver,parcsr_J, par_AP_old, par_P_new)
+        HYPRE_ParCSRBiCGSTABSolve(solver,parcsr_J, par_AP_old, par_P_new)
+        num_iter = Ref{HYPRE_Int}(C_NULL)
+        HYPRE_ParCSRBiCGSTABGetNumIterations(solver, num_iter)
+        HYPRE_ParCSRBiCGSTABDestroy(solver)
+        # HYPRE_BoomerAMGDestroy(precond)
+        return num_iter[]
     end
 end
 
