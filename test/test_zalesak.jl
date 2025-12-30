@@ -8,8 +8,8 @@ function test_pressure()
     # Define parameters 
     param = parameters(
         # Constants
-        mu_liq=1.0,            # Dynamic viscosity
-        mu_gas = 1.0,
+        mu_liq=0.0,            # Dynamic viscosity
+        mu_gas = 0.0,
         rho_liq=1.0,           # Density
         rho_gas = 1.0,
         sigma = 0.0, # surface tension coefficient (N/m)
@@ -19,7 +19,7 @@ function test_pressure()
         Lx=1.0,            # Domain size
         Ly=1.0,
         Lz=1/50,
-        tFinal=8.0,      # Simulation time
+        tFinal=1.0,      # Simulation time
         
         # Discretization inputs
         Nx=100,           # Number of grid cells
@@ -44,17 +44,20 @@ function test_pressure()
 
         # Turn off NS solver
         solveNS = false,
-        VFVelocity = "Deformation",
+        VFVelocity = "rotation",
 
         # pressure_scheme = "finite-difference",
         pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
         pressureSolver = "res_iteration",
 
+        # hypreSolver = "GMRES-AMG",
+        hypreSolver = "BiCGSTAB",
+
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
-        test_case = "Deformation_2D",
+        test_case = "Zalesak_psolve",
     )
 
     """
@@ -67,9 +70,9 @@ function test_pressure()
 
         # Velocity
         t=0.0
-        u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/8.0)
-        v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/8.0)
-        w_fun(x,y,z,t) = 0.0
+        u_fun = (x,y,z,t) -> 2π*(0.5 - y)
+        v_fun = (x,y,z,t) -> 2π*(x - 0.5)
+        w_fun = (x,y,z,t) -> 0.0
         # Set velocities (including ghost cells)
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
             u[i,j,k]  = u_fun(xm[i],ym[j],zm[k],t)
@@ -81,67 +84,16 @@ function test_pressure()
         rad=0.15
         xo=0.5
         yo=0.75
-
+        slot_width = 0.05
+        slot_length = 0.24
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-            VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+            VF[i,j,k]=VFzalesak2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo,slot_width,slot_length)
+            
         end
 
         return nothing    
     end
 
-    """
-    Boundary conditions for velocity
-    """
-    function BC!(u,v,w,mesh,par_env)
-        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-        @unpack jmin_,jmax_,xm,ym,imin,imax,jmin,jmax,kmin,kmax = mesh
-        @unpack xper,yper,zper = param
-        
-        # Left 
-        if irankx == 0 && xper == false
-            i = imin-1
-            u[i,:,:] = -u[imin,:,:] # No slip
-            v[i,:,:] = -v[imin,:,:] # No slip
-            w[i,:,:] = -w[imin,:,:] # No slip
-        end
-        # Right
-        if irankx == nprocx-1 && xper == false
-            i = imax+1
-            u[i,:,:] = -u[imax,:,:] # No slip
-            v[i,:,:] = -v[imax,:,:] # No slip
-            w[i,:,:] = -w[imax,:,:] # No slip
-        end
-        # Bottom 
-        if iranky == 0 && yper == false
-            j = jmin-1
-            u[:,j,:] .= -u[:,jmin,:] # No slip
-            v[:,j,:] .= -v[:,jmin,:] # No slip
-            w[:,j,:] .= -w[:,jmin,:] # No slip
-        end
-        # Top
-        if iranky == nprocy-1 && yper == false
-            j = jmax+1
-            u[:,j,:] .= -u[:,jmax,:] # No slip
-            v[:,j,:] .= -v[:,jmax,:] # No slip
-            w[:,j,:] .= -w[:,jmax,:] # No slip
-        end
-        # Back 
-        if irankz == 0 && zper == false
-            k = kmin-1
-            u[:,:,k] = -u[:,:,kmin] # No slip
-            v[:,:,k] = -v[:,:,kmin] # No slip
-            w[:,:,k] = -w[:,:,kmin] # No slip
-        end
-        # Front
-        if irankz == nprocz-1 && zper == false
-            k = kmax+1
-            u[:,:,k] = -u[:,:,kmax] # No slip
-            v[:,:,k] = -v[:,:,kmax] # No slip
-            w[:,:,k] = -w[:,:,kmax] # No slip
-        end
-
-        return nothing
-    end
 
     # Setup par_env
     par_env = NS.parallel_init(param)
@@ -156,11 +108,9 @@ function test_pressure()
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
     mg_arrays = NS.mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
 
-
     # Create initial condition
     t = 0.0 :: Float64
     IC!(P,u,v,w,VF,mesh)
-    #printArray("VF",VF,par_env)
 
     # Compute band around interface
     NS.computeBand!(band,VF,param,mesh,par_env)
