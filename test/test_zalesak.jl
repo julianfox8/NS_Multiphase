@@ -94,6 +94,59 @@ function test_pressure()
         return nothing    
     end
 
+    """
+    Boundary conditions for velocity
+    """
+    function BC!(u,v,w,mesh,par_env)
+        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
+        @unpack jmin_,jmax_,xm,ym,imin,imax,jmin,jmax,kmin,kmax = mesh
+        @unpack xper,yper,zper = param
+        
+        # Left 
+        if irankx == 0 && xper == false
+            i = imin-1
+            u[i,:,:] = -u[imin,:,:] # No slip
+            v[i,:,:] = -v[imin,:,:] # No slip
+            w[i,:,:] = -w[imin,:,:] # No slip
+        end
+        # Right
+        if irankx == nprocx-1 && xper == false
+            i = imax+1
+            u[i,:,:] = -u[imax,:,:] # No slip
+            v[i,:,:] = -v[imax,:,:] # No slip
+            w[i,:,:] = -w[imax,:,:] # No slip
+        end
+        # Bottom 
+        if iranky == 0 && yper == false
+            j = jmin-1
+            u[:,j,:] .= -u[:,jmin,:] # No slip
+            v[:,j,:] .= -v[:,jmin,:] # No slip
+            w[:,j,:] .= -w[:,jmin,:] # No slip
+        end
+        # Top
+        if iranky == nprocy-1 && yper == false
+            j = jmax+1
+            u[:,j,:] .= -u[:,jmax,:] # No slip
+            v[:,j,:] .= -v[:,jmax,:] # No slip
+            w[:,j,:] .= -w[:,jmax,:] # No slip
+        end
+        # Back 
+        if irankz == 0 && zper == false
+            k = kmin-1
+            u[:,:,k] = -u[:,:,kmin] # No slip
+            v[:,:,k] = -v[:,:,kmin] # No slip
+            w[:,:,k] = -w[:,:,kmin] # No slip
+        end
+        # Front
+        if irankz == nprocz-1 && zper == false
+            k = kmax+1
+            u[:,:,k] = -u[:,:,kmax] # No slip
+            v[:,:,k] = -v[:,:,kmax] # No slip
+            w[:,:,k] = -w[:,:,kmax] # No slip
+        end
+
+        return nothing
+    end
 
     # Setup par_env
     par_env = NS.parallel_init(param)
