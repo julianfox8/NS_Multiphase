@@ -22,12 +22,12 @@ function test_pressure()
         tFinal=1.0,      # Simulation time
         
         # Discretization inputs
-        Nx=100,           # Number of grid cells
-        Ny=100,
+        Nx=50,           # Number of grid cells
+        Ny=50,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
-        max_dt = 1e-2,
-        CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        # max_dt = 1e-2,
+        CFL=2.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-11,

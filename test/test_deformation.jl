@@ -22,12 +22,12 @@ function test_pressure()
         tFinal=8.0,      # Simulation time
         
         # Discretization inputs
-        Nx=100,           # Number of grid cells
-        Ny=100,
+        Nx=50,           # Number of grid cells
+        Ny=50,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
-        max_dt = 1e-2,
-        CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        # max_dt = 1e-2,
+        CFL=1.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-11,
@@ -50,6 +50,9 @@ function test_pressure()
         pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
         pressureSolver = "res_iteration",
+
+        hypreSolver = "GMRES-AMG",
+        # hypreSolver = "BiCGSTAB",
 
         # Iteration method used in @loop macro
         iter_type = "standard",
