@@ -67,6 +67,8 @@ using Parameters
     # Interface solver
     VFlo :: Float64 = 1e-10 
     VFhi :: Float64 = 1.0 - VFlo 
+    nband :: Int64 = ceil(CFL)
+
     normalMethod :: String = "ELVIRA" 
     # Velocity used for Vf transport when solveNS = false
     VFVelocity :: String  = "Nothing" 

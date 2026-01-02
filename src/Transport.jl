@@ -1,6 +1,6 @@
 
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,Fvy,Fvz,Fwx,Fwy,Fwz,VFnew,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
-    @unpack instability,grav_x,grav_y,grav_z,pressure_scheme,tesselation,VFlo,VFhi,rho_liq,rho_gas = param
+    @unpack instability,grav_x,grav_y,grav_z,pressure_scheme,tesselation,VFlo,VFhi,rho_liq,rho_gas,nband = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     
@@ -37,12 +37,12 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
         uface = 0.5*(u[i-1,j,k] + u[i,j,k])
         vface = 0.5*(v[i-1,j,k] + v[i,j,k])
         wface = 0.5*(w[i-1,j,k] + w[i,j,k])
-        if abs(band[i-1,j,k]) <= 1 && abs(band[i,j,k]) <= 1 
+        if abs(band[i-1,j,k]) <= nband && abs(band[i,j,k]) <= nband 
             # No flux needed : Both cells transported with SL
             Fux[i,j,k] = 0
             Fvx[i,j,k] = 0
             Fwx[i,j,k] = 0
-        elseif (abs(band[i-1,j,k]) <=1 || abs(band[i,j,k]) <= 1) && pressure_scheme == "semi-lagrangian"
+        elseif (abs(band[i-1,j,k]) <= nband || abs(band[i,j,k]) <= nband) && pressure_scheme == "semi-lagrangian"
             # Compute flux with SL : One of cells transported with SL
             vol = SLfluxVol(1,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fux[i,j,k] = -uface * vol
@@ -61,12 +61,12 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
         uface = 0.5*(u[i,j-1,k] + u[i,j,k])
         vface = 0.5*(v[i,j-1,k] + v[i,j,k])
         wface = 0.5*(w[i,j-1,k] + w[i,j,k])
-        if abs(band[i,j-1,k]) <= 1 && abs(band[i,j,k]) <= 1 
+        if abs(band[i,j-1,k]) <= nband && abs(band[i,j,k]) <= nband 
             # No flux needed : Both cells transported with SL
             Fuy[i,j,k] = 0
             Fvy[i,j,k] = 0
             Fwy[i,j,k] = 0
-        elseif (abs(band[i,j-1,k]) <=1 || abs(band[i,j,k]) <= 1) && pressure_scheme == "semi-lagrangian"
+        elseif (abs(band[i,j-1,k]) <= nband || abs(band[i,j,k]) <= nband) && pressure_scheme == "semi-lagrangian"
             # Compute flux with SL : One of cells transported with SL
             vol = SLfluxVol(2,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fuy[i,j,k] = -uface * vol
@@ -85,12 +85,12 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
         uface = 0.5*(u[i,j,k-1] + u[i,j,k])
         vface = 0.5*(v[i,j,k-1] + v[i,j,k])
         wface = 0.5*(w[i,j,k-1] + w[i,j,k])
-        if abs(band[i,j,k-1]) <= 1 && abs(band[i,j,k]) <= 1 
+        if abs(band[i,j,k-1]) <= nband && abs(band[i,j,k]) <= nband 
             # No flux needed : Both cells transported with SL
             Fuz[i,j,k] = 0
             Fvz[i,j,k] = 0
             Fwz[i,j,k] = 0
-        elseif (abs(band[i,j,k-1]) <=1 || abs(band[i,j,k]) <= 1) && pressure_scheme == "semi-lagrangian"
+        elseif (abs(band[i,j,k-1]) <= nband || abs(band[i,j,k]) <= nband) && pressure_scheme == "semi-lagrangian"
             # Compute flux with SL : One of cells transported with SL
             vol = SLfluxVol(3,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)/dt
             Fuz[i,j,k] = -uface * vol
@@ -108,7 +108,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         
         # Calculate inertia near or away from the interface
-        if abs(band[i,j,k]) <= 1
+        if abs(band[i,j,k]) <= nband
             # Semi-Lagrangian near interface 
             # ------------------------------
             # Form projected cell and break into tets using face velocities

@@ -14,11 +14,11 @@ Compute band around interface
 ⋅ band==-n = gas phase (n-away from interface)
 """ 
 function computeBand!(band,VF,param,mesh,par_env)
-    @unpack VFlo,VFhi = param
+    @unpack VFlo,VFhi,CFL,nband = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh 
 
     # Number of bands to create 
-    nband=1
+    # nband=1
 
     # Sweep to set gas/liquid/interface cells 
     @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
