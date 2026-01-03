@@ -27,7 +27,7 @@ function test_pressure()
         Nz=64,
         stepMax=10000,   # Maximum number of timesteps
         max_dt = 1e-2,
-        CFL=4.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=2.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -46,13 +46,15 @@ function test_pressure()
         solveNS = false,
         VFVelocity = "Deformation3D",
 
-        # pressure_scheme = "finite-difference",
-        pressure_scheme = "semi-lagrangian",
+        pressure_scheme = "finite-difference",
+        # pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
-        pressureSolver = "res_iteration",
+        # pressureSolver = "res_iteration",
 
         # hypreSolver = "GMRES-AMG",
         hypreSolver = "BiCGSTAB",
+
+        mg_lvl = 3,
 
         # Iteration method used in @loop macro
         iter_type = "standard",
@@ -168,12 +170,6 @@ function test_pressure()
     IC!(P,u,v,w,VF,mesh,param)
     #printArray("VF",VF,par_env)
 
-    # Apply boundary conditions
-    BC!(u,v,w,mesh,par_env)
-
-    # Create face velocities
-    NS.interpolateFace!(u,v,w,uf,vf,wf,mesh)
-
     # Compute band around interface
     NS.computeBand!(band,VF,param,mesh,par_env)
     # fill!(band,1.0)
@@ -220,17 +216,11 @@ function test_pressure()
         t += dt
 
         if param.pressure_scheme == "semi-lagrangian"
-
             # Determine pressure correction
             iter = NS.poisson_solve!(P,tmp9,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays)
-            NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
             
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
-            NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-            
-            # Interpolate velocity to cell centers (keeping BCs from predictor)
-            NS.interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
         end
 
         # Calculate divergence
@@ -248,10 +238,6 @@ function test_pressure()
         # Update density and viscosity with transported VF
         NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
-        # Check divergence
-        NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
-        # println("Divergence Max: ", sum(abs.(divg[mesh.imin_:mesh.imax_,mesh.jmin_:mesh.jmax_,mesh.kmin_:mesh.kmax_]))*dx*dy*dz)
-       
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
     
