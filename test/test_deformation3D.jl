@@ -54,7 +54,7 @@ function test_pressure()
         # hypreSolver = "GMRES-AMG",
         hypreSolver = "BiCGSTAB",
 
-        mg_lvl = 3,
+        mg_lvl = 1,
 
         # Iteration method used in @loop macro
         iter_type = "standard",
@@ -91,7 +91,7 @@ function test_pressure()
         zo=0.5
 
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-            VF[i,j,k]=VFsphere(x[i],x[i+1],y[j],y[j+1],z[i],z[i+1],rad,xo,yo,zo)
+            VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
         end
 
         return nothing    
@@ -217,7 +217,7 @@ function test_pressure()
 
         if param.pressure_scheme == "semi-lagrangian"
             # Determine pressure correction
-            iter = NS.poisson_solve!(P,tmp9,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays)
+            iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
             
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
