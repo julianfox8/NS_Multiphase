@@ -396,25 +396,18 @@ function project!(pt,i,j,k,uf,vf,wf,dt,param,mesh;t=nothing)
         pt_init = copy(pt)
         pt[1] = 0.5 + cos(2*π*dt)*(pt_init[1]-0.5) + sin(2*π*dt)*(pt_init[2]-0.5)
         pt[2] = 0.5 - sin(2*π*dt)*(pt_init[1]-0.5) + cos(2*π*dt)*(pt_init[2]-0.5)
-
-    # elseif test_case == "Deformation"
-    #     # println(pt[1],", ",pt[2])
-    #     pt[1],pt[2] = backtrace_particle_rk2(pt[1],pt[2],t,dt)
-    #     # println(" -> ",pt[1],", ",pt[2])
-    #     # error("stop here")
     elseif projection_method == "RK4"
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
-        v2=get_velocity_face(pt+0.5dt*v1,i,j,k,uf,vf,wf,mesh)
-        v3=get_velocity_face(pt+0.5dt*v2,i,j,k,uf,vf,wf,mesh)
-        v4=get_velocity_face(pt+   dt*v3,i,j,k,uf,vf,wf,mesh)
+        v2=get_velocity_face(pt-0.5dt*v1,i,j,k,uf,vf,wf,mesh)
+        v3=get_velocity_face(pt-0.5dt*v2,i,j,k,uf,vf,wf,mesh)
+        v4=get_velocity_face(pt-   dt*v3,i,j,k,uf,vf,wf,mesh)
         pt[:]+=(-dt)/6.0*(v1+2.0v2+2.0v3+v4)
-        
     elseif projection_method == "Euler"
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
         pt[:]+=(-dt)*v1
     elseif projection_method == "Midpoint"
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
-        v2=get_velocity_face(pt+0.5dt*v1,i,j,k,uf,vf,wf,mesh)
+        v2=get_velocity_face(pt-0.5dt*v1,i,j,k,uf,vf,wf,mesh)
         pt[:]+=(-dt)*(v2)
     else
         error("Unknown projection_method in project!")
