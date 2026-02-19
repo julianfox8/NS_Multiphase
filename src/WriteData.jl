@@ -298,6 +298,50 @@ function tets2VTK(tets,filename)
 
 end
 
+
+"""
+Writes analytic pre-image mesh object to unstructured VTK file using poly-lines.
+"""
+function a_preimage2VTK(ap, filename)
+    # Number of edges and points per edge
+    n_edges = length(ap.edge_pts)
+    sample_freq = length(ap.edge_pts[1])  # assume all edges sampled equally
+    npts = n_edges * sample_freq
+
+    # Flatten all edge points into a 3xN matrix
+    points = Matrix{Float64}(undef, 3, npts)
+    pt_counter = 1
+    for e in 1:n_edges
+        for s in 1:sample_freq
+            points[:, pt_counter] .= ap.edge_pts[e][s]
+            pt_counter += 1
+        end
+    end
+
+    # Build polyline connectivity (VTK_POLY_LINE)
+    ncells = n_edges
+    cells = Vector{WriteVTK.MeshCell{WriteVTK.VTKCellTypes.VTKCellType, Vector{Int64}}}(undef, ncells)
+    pt_offset = 0
+
+    for e in 1:n_edges
+        indices = pt_offset .+ (1:sample_freq)  # all points along this edge
+        cells[e] = WriteVTK.MeshCell(WriteVTK.VTKCellTypes.VTK_POLY_LINE, collect(indices))
+        pt_offset += sample_freq
+    end
+
+    # Optional: attach per-cell data (e.g., edge_cell ID)
+    cell_data = Dict(
+        "edge_cell" => ap.edge_cell
+    )
+
+    # Write to VTU
+    vtk_grid(filename, points, cells) do vtk
+        for (name, data) in cell_data
+            vtk["cell_data/$name"] = data
+        end
+    end
+end
+
 function pVTK_init(param,par_env)
     @unpack isroot = par_env
     dir = joinpath(pwd(),"Piter_fields")
