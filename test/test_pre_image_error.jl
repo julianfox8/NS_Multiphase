@@ -138,9 +138,9 @@ function plot_sampled_cell(sample_pts, verts, ns; original_verts = nothing, titl
     # Plot original 8 vertices for reference
     if !isnothing(original_verts)
         scatter!(ax,
-            verts[1, 1:8],
-            verts[2, 1:8],
-            verts[3, 1:8],
+            original_verts[1, 1:8],
+            original_verts[2, 1:8],
+            original_verts[3, 1:8],
             markersize = 9,
             color = :red
         )
@@ -218,7 +218,8 @@ function sample_cell_faces!(pts,verts,tetsign,ns)
 
     faces = tetsign > 0 ? FACES_EVEN : FACES_ODD
 
-    ξvals = range(0, 1, length=ns)
+    # ξvals = range(0, 1, length=ns)
+    ξvals = ((1:ns) .- 0.5) ./ ns
     ηvals = ξvals
 
     idx = 1
@@ -325,7 +326,7 @@ Determine triangulated vertices from the tets
     - tets is a 4xN array of the vertex indices for each tetrahedron in the cell (independent of cell orientation)
     - tri_verts is a 3x14 array of the 8 cell vertices followed by the 6 face midpoints
 """
-function triangulate_face_wtets(tetsign,verts,tets)
+function triangulate_face_wtets!(tetsign,verts,tets)
     if tetsign > 0
         
         verts[:,9] = tets[:,4,6] # face 1: verts 5,7,3,1
@@ -455,15 +456,15 @@ function pre_image_err(dts)
         grav_z = 0.0, # Gravity (m/s^2)
         Lx=1.0,            # Domain size
         Ly=1.0,
-        Lz=1.0,#1/50,
+        Lz=1/50,
         tFinal=3.0,      # Simulation time
         
         # Discretization inputs
-        Nx=32,           # Number of grid cells
-        Ny=32,
-        Nz=32,
+        Nx=48,           # Number of grid cells
+        Ny=48,
+        Nz=1,
         stepMax=1,   # Maximum number of timesteps
-        max_dt = 1e-1,
+        max_dt = 6e-2,
         CFL=3.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
@@ -477,12 +478,12 @@ function pre_image_err(dts)
         # Periodicity
         xper = false,
         yper = false,
-        zper = false,
+        zper = true,
 
         # Turn off NS solver
         solveNS = false,
-        # VFVelocity = "Deformation",
-        VFVelocity = "Deformation3D",
+        VFVelocity = "Deformation",
+        # VFVelocity = "Deformation3D",
 
         pressure_scheme = "finite-difference",
         # pressure_scheme = "semi-lagrangian",
@@ -504,46 +505,53 @@ function pre_image_err(dts)
     """
     Initial conditions for pressure and velocity
     """
-    function IC!(P,u,v,w,VF,mesh)
+    function IC!(P,u,v,w,VF,mesh,param)
         @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
         @unpack x,y,z = mesh
         @unpack xm,ym,zm = mesh
+        @unpack VFVelocity = param
+
+        
+        t=0.0
 
         # Velocity
-        t=0.0
-        # u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/3.0)
-        # v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/3.0)
-        # w_fun(x,y,z,t) = 0.0
+        if VFVelocity == "Deformation"
+            u_fun = (x,y,z,t) -> -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/3.0)
+            v_fun = (x,y,z,t) -> +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/3.0)
+            w_fun = (x,y,z,t) -> 0.0
 
-        u_fun = (x,y,z,t) -> 2(sin(π*x))^2*sin(2π*y)*sin(2π*z)*cos(π*t/3.0)
-        v_fun = (x,y,z,t) -> -(sin(π*y))^2*sin(2π*x)*sin(2π*z)*cos(π*t/3.0)
-        w_fun = (x,y,z,t) -> -(sin(π*z))^2*sin(2π*x)*sin(2π*y)*cos(π*t/3.0)
+            # Volume Fraction
+            rad=0.15
+            xo=0.5
+            yo=0.75
+
+            for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+                VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+            end
+        elseif VFVelocity == "Deformation3D"
+            u_fun = (x,y,z,t) -> 2(sin(π*x))^2*sin(2π*y)*sin(2π*z)*cos(π*t/3.0)
+            v_fun = (x,y,z,t) -> -(sin(π*y))^2*sin(2π*x)*sin(2π*z)*cos(π*t/3.0)
+            w_fun = (x,y,z,t) -> -(sin(π*z))^2*sin(2π*x)*sin(2π*y)*cos(π*t/3.0)
+
+            # Volume Fraction 3D
+            rad=0.15
+            xo=0.5
+            yo=0.75
+            zo=0.5
+
+            for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+                VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+            end
+
+        end
+
         # Set velocities (including ghost cells)
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
             u[i,j,k]  = u_fun(xm[i],ym[j],zm[k],t)
             v[i,j,k]  = v_fun(xm[i],ym[j],zm[k],t)
             w[i,j,k]  = w_fun(xm[i],ym[j],zm[k],t)
         end
-
-        # Volume Fraction
-        # rad=0.15
-        # xo=0.5
-        # yo=0.75
-
-        # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        #     VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
-        # end
-
-
-        # # Volume Fraction 3D
-        rad=0.15
-        xo=0.5
-        yo=0.75
-        zo=0.5
-
-        for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-            VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
-        end
+        
         return nothing    
     end
 
@@ -581,7 +589,7 @@ function pre_image_err(dts)
 
     # Create initial condition
     t = 0.0 :: Float64
-    IC!(P,u,v,w,VF,mesh)
+    IC!(P,u,v,w,VF,mesh,param)
 
 
     # # Check divergence
@@ -593,7 +601,7 @@ function pre_image_err(dts)
     NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
     #initialize sample points along cell face
-    ns = 5
+    ns = 10
     nfaces = 6
     nfp = ns^2
     nverts = 8
@@ -636,6 +644,7 @@ function pre_image_err(dts)
             
             # Get cell vertices with triangulation ordering
             tetsign = NS.cell2verts!(verts,i,j,k,param,mesh)
+            original_verts = copy(verts)
             
             tri_verts[:,1:8] = verts
             triangulate_face!(tetsign,tri_verts)
@@ -644,9 +653,10 @@ function pre_image_err(dts)
             sample_cell_faces!(sample_pts, verts, tetsign, ns)
             
             # Visualize sampled points on faces before projection
-            # if k == 1 && j == 11 && i == 11
-            #     plot_sampled_cell(sample_pts, verts, ns;title_str = "cell sampled with $nfp points per face")
-            # end
+            if k == 1 && j == 11 && i == 11
+                plot_sampled_cell(sample_pts, verts, ns;title_str = "cell sampled with $nfp points per face")
+                error("stop")
+            end
             # Compute barycentric coordinates 
             compute_barycentric!(tri_verts, sample_pts, tri_ids, lambdas, tetsign, ns)
             
@@ -687,15 +697,15 @@ function pre_image_err(dts)
             if param.pressure_scheme == "semi-lagrangian"
                 triangulate_face!(tetsign,pre_tri_verts)
             elseif param.pressure_scheme == "finite-difference"
-                triangulate_face_wtets(tetsign,pre_tri_verts,tets)
+                triangulate_face_wtets!(tetsign,pre_tri_verts,tets)
             end
 
             # Map sample points to pre-image using barycentric coordinates and triangulation with tets
             map_sample_points_to_preimage!(preimage_sample_pts, pre_tri_verts, tri_ids, lambdas, tetsign, ns)
 
             # Check that barycentric coordinates map back to the correct point on the face
-            if k == 11 && j == 11 && i == 11
-                plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;title_str = "flux-corrected pre-image of sampled points with $nfp points per face")
+            if k == 1 && j == 11 && i == 11
+                plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "flux-corrected pre-image of sampled points with $nfp points per face")
                 error("stop")
             end
 
