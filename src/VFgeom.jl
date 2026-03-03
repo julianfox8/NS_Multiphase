@@ -344,7 +344,7 @@ Create 5 tets to represent computational cell
 """
 function cell2tets!(verts, tets, i, j, k, param, mesh; 
     project_verts=false, uf=nothing, vf=nothing, wf=nothing, dt=nothing, 
-    compute_indices=false, inds=nothing, vInds=nothing,iter=nothing
+    compute_indices=false, inds=nothing, vInds=nothing,iter=nothing,pmesh=nothing
     )
     @unpack x, y, z = mesh
     @unpack tesselation = param
@@ -359,6 +359,43 @@ function cell2tets!(verts, tets, i, j, k, param, mesh;
     if project_verts
         for n=1:8
             project!(@view(verts[:,n]),i,j,k,uf,vf,wf,dt,param,mesh)
+        end
+    end
+
+    #! add function to store vertex locations and indices for debugging
+    if !isnothing(pmesh)
+        p0 = length(pmesh.vertex_pts)
+
+        # Choose permutation based on tetsign
+        if tetsign > 0
+            vtk_perm = (1,2,4,3,5,6,8,7)
+        else
+            vtk_perm = (2,1,3,4,6,5,7,8)
+        end
+
+        for n in vtk_perm
+            push!(pmesh.vertex_pts, @view(verts[:,n]))
+        end
+        cell_conn = collect(p0+1:p0+8)
+        push!(pmesh.vertex_cells, cell_conn)
+        cell_id = length(pmesh.cell_id) + 1
+        push!(pmesh.cell_id, cell_id)
+
+        v = pmesh.vertex_cells[cell_id]
+
+        # orients the face such that the normal points outward from the cell
+        faces = (
+            (v[1], v[5], v[8], v[4]),  # x−
+            (v[2], v[3], v[7], v[6]),  # x+
+            (v[1], v[2], v[6], v[5]),  # y−
+            (v[4], v[8], v[7], v[3]),  # y+
+            (v[1], v[4], v[3], v[2]),  # z−
+            (v[5], v[6], v[7], v[8])   # z+
+        )
+
+        for f in faces
+            push!(pmesh.faces, f)
+            push!(pmesh.face_cells, cell_id)
         end
     end
 
@@ -474,7 +511,7 @@ end
 """
 Add correction tets on to semi-Lagrangian cell
 """
-function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, param, mesh)
+function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, param, mesh;pmesh=nothing)
     @unpack dx,dy,dz = mesh
 
     """ 
@@ -587,6 +624,34 @@ function add_correction_tets(ntets,verts,tets, inds, i, j, k, uf, vf, wf, dt, pa
     new_tets = add_correction_tets_y(new_tets,verts,i,j+1,k,param); ntets += 2
     new_tets = add_correction_tets_z(new_tets,verts,i,j,k  ,param); ntets += 2
     new_tets = add_correction_tets_z(new_tets,verts,i,j,k+1,param); ntets += 2
+
+    if !isnothing(pmesh)
+        # list the faces in the order you want
+        face_tet_map = [
+            (1, 6),  # x- face: use tetrahedron index 6, apex = column 4
+            (2, 8),  # x+ face
+            (3,10),  # y- face
+            (4,12),  # y+ face
+            (5,14),  # z- face
+            (6,16)   # z+ face
+        ]
+
+        for (f, tet_idx) in face_tet_map
+            v_inds = pmesh.faces[f]                  # indices of the quad face vertices
+            a = pmesh.vertex_pts[v_inds[1]]
+            b = pmesh.vertex_pts[v_inds[2]]
+            c = pmesh.vertex_pts[v_inds[3]]
+            d = pmesh.vertex_pts[v_inds[4]]
+
+            # grab apex directly from new_tets
+            e = new_tets[:,4,tet_idx]
+
+            # store pyramid as 5 points
+            push!(pmesh.pyramids, [a,b,c,d,e])
+            push!(pmesh.pyramid_faces, f)
+        end
+    end
+
     # Compute indices of new tets 
     new_inds = Array{eltype(inds)}(undef, size(new_tets))
     new_inds[:,:,1:5] = inds[:,:,1:5] # transfer original indices 

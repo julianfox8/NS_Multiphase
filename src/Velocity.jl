@@ -69,13 +69,13 @@ end
 
 # Divergence in a computational cell ∇⋅u 
 # - Main divergence operator used throughout code
-function divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh)
+function divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh;pmesh=nothing)
     @unpack dx,dy,dz = mesh
     @unpack pressure_scheme,nband = param
 
     if pressure_scheme == "semi-lagrangian" && abs(band[i,j,k]) <= nband
         # Calculate divergence with semi-Lagrangian
-        tetsign = cell2tets!(verts,tets,i,j,k,param,mesh,project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt)
+        tetsign = cell2tets!(verts,tets,i,j,k,param,mesh;project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,pmesh=pmesh)
         v2 = dx*dy*dz
         v1 = tetsign * tets_vol(tets)
         divg = (v2-v1) / v2 / dt

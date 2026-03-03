@@ -1,5 +1,5 @@
 
-function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,Fvy,Fvz,Fwx,Fwy,Fwz,VFnew,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
+function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,Fvy,Fvz,Fwx,Fwy,Fwz,VFnew,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds;pmesh=nothing)
     @unpack instability,grav_x,grav_y,grav_z,pressure_scheme,tesselation,VFlo,VFhi,rho_liq,rho_gas,nband = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
@@ -112,16 +112,17 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             # Semi-Lagrangian near interface 
             # ------------------------------
             # Form projected cell and break into tets using face velocities
+
             ntets = num_tets
             tetsign = cell2tets!(verts,tets,i,j,k,param,mesh; 
                 project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,
-                compute_indices=true,inds=inds,vInds=vInds)
+                compute_indices=true,inds=inds,vInds=vInds,pmesh=pmesh)
 
             if pressure_scheme == "finite-difference"
                 # Add correction tets 
-                tets,inds,ntets = add_correction_tets(ntets,verts,tets,inds,i,j,k,uf,vf,wf,dt,param,mesh)
+                tets,inds,ntets = add_correction_tets(ntets,verts,tets,inds,i,j,k,uf,vf,wf,dt,param,mesh;pmesh=pmesh)
             end
-            
+
             # Compute VF in semi-Lagrangian cell 
             vol  = 0.0
             vLiq = 0.0

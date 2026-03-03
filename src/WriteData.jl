@@ -298,6 +298,104 @@ function tets2VTK(tets,filename)
 
 end
 
+"""
+Writes pre-image mesh object to unstructered VTK file
+"""
+function pmesh2VTK_old(pmesh,filename,param)
+    @unpack vertex_pts,vertex_cells,pyramids,face_cells,faces = pmesh
+    @unpack pressure_scheme = param
+
+    npts = length(vertex_pts)
+
+    points = Matrix{Float64}(undef,3,npts)
+    for n = 1:npts
+        points[:,n] = vertex_pts[n]
+    end
+
+    ncells = length(vertex_cells)
+    cells  = Vector{WriteVTK.MeshCell{WriteVTK.VTKCellTypes.VTKCellType, Vector{Int64}}}(undef,ncells)
+    for n = 1:ncells
+        cells[n]=MeshCell(VTKCellTypes.VTK_HEXAHEDRON, vertex_cells[n])
+    end
+
+    # Write data
+    if ncells > 0    
+        vtk_grid(
+            filename, 
+            points,
+            cells,
+            ) do vtk
+        end
+    end
+
+end
+
+function pmesh2VTK(pmesh, filename, param)
+    @unpack vertex_pts, vertex_cells, pyramids, face_cells, faces = pmesh
+
+    # Put pre-image vertex points into VTK format
+    points = zeros(Float64, 3, length(vertex_pts))
+    for i in eachindex(vertex_pts)
+        points[:, i] = vertex_pts[i]
+    end
+
+    # Store the indices of the apex points appended to the pre-image vertex points
+    apex_indices = Int[]
+    if param.pressure_scheme == "finite-difference" && !isempty(pyramids)
+        for pyr in pyramids
+            points = hcat(points, pyr[5][:])   # pyr[5] is apex, ensure column vector
+            push!(apex_indices, size(points, 2))  # global index of apex
+        end
+    end
+
+    # Determine number of cells and allocate AbstractMeshCell array
+    ncells = length(vertex_cells)
+    cells = Vector{VTKBase.AbstractMeshCell}(undef, ncells)
+    
+    # Map cell → apex indices
+    cell_to_apex = Dict{Int, Vector{Int}}()
+    if param.pressure_scheme == "finite-difference" && !isempty(apex_indices)
+        for (idx, cell_id) in enumerate(face_cells)
+            push!(get!(cell_to_apex, cell_id, Int[]), apex_indices[idx])
+        end
+    end
+
+    # Construct cells
+    for c = 1:ncells
+        # Grab base hexahedron vertices
+        base_verts = vertex_cells[c]
+    
+        if param.pressure_scheme == "finite-difference" && haskey(cell_to_apex, c)
+            # Flux-corrected polyhedron: append apex indices to base vertices
+            all_indices = vcat(base_verts, cell_to_apex[c])
+            # Build faces
+            poly_faces = Tuple{Vararg{Int}}[]
+            for idx in eachindex(face_cells)
+                if face_cells[idx] == c
+                    # build trangles and store in poly_faces
+                    for i = 1:4
+                        v1 = faces[idx][i] # face vertex 1 index
+                        v2 = faces[idx][mod1(i+1,4)] # face vertex 2 index
+                        apex = all_indices[8+mod1(idx,6)]  # apex index
+                        push!(poly_faces, (v1, v2, apex))
+                    end
+                end
+            end
+            # Polyhedron cell
+            cells[c] = WriteVTK.VTKPolyhedron(all_indices,poly_faces...)
+        else
+            # Hexahedron cell
+            cells[c] = WriteVTK.MeshCell(WriteVTK.VTKCellTypes.VTK_HEXAHEDRON, base_verts)
+        end
+    end
+
+    # -------------------------------
+    # 4) Write VTK file
+    # -------------------------------
+    vtk_grid(filename, points, cells) do vtk
+        println("VTK written: $filename")
+    end
+end
 
 """
 Writes analytic pre-image mesh object to unstructured VTK file using poly-lines.
