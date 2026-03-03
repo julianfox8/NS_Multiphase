@@ -2,10 +2,10 @@ using JSON
 
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
+function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;pmesh=nothing)
     @unpack pressure_scheme,mg_lvl = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mg_mesh.mesh_lvls[1]
-
+    
     # RHS = nothing
     if mg_lvl > 1 
         iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env)
@@ -23,14 +23,14 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,
         else
             RHS = nothing
         end
-        iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays)
+        iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays;pmesh=pmesh)
     end
 
     return iter
 end
 
 # Poisson solver for Pressure.jl
-function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays)
+function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays;pmesh=nothing)
     @unpack mg_lvl,pressureSolver,pressurePrecond = param
 
 
@@ -50,9 +50,9 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,p
     elseif pressureSolver == "congugateGradient"
         iter = cg!(P, RHS, denx, deny, denz,tmp1,dt, param, mg_mesh.mesh_lvls[1], par_env)    
     elseif pressureSolver == "hypreSecant"
-        iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,jacob,b_vec,x_vec,param,mg_mesh.mesh_lvls[1],par_env)
+        iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,jacob,b_vec,x_vec,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "hypreSecantLS"
-        iter = Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,jacob,b_vec,x_vec,param,mg_mesh.mesh_lvls[1],par_env)
+        iter = Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mg_mesh.mesh_lvls[1],par_env,jacob,b_vec,x_vec)
     elseif pressureSolver == "Ostrowski"
         iter = Ostrowski(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,jacob,b,x)
     elseif pressureSolver == "SOR"
@@ -60,7 +60,7 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,p
     elseif pressureSolver == "SecantSOR"
         iter = Secant_SOR(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mesh,par_env,mg_arrays.jacob[1],mg_arrays.b_vec[1],mg_arrays.x_vec[1])
     elseif pressureSolver == "res_iteration"
-        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env)
+        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "nl_gs" 
         iter = nonlin_gs(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env) 
         # iter = nonlin_jacobi(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env) 
@@ -100,25 +100,27 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,p
     update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
 
     @loop param for kk=kmin_-1:kmax_+1, jj=jmin_-1:jmax_+1, ii=imin_-1:imax_+2
-        gradx[ii,jj,kk]=uf[ii,jj,kk]-dt/̂denx[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii-1,jj,kk])/̂dx
+    # @loop param for kk=kmin_-3:kmax_+3, jj=jmin_-3:jmax_+3, ii=imin_-3:imax_+3
+        gradx[ii,jj,kk]=uf[ii,jj,kk]- dt/denx[ii,jj,kk]*(P[ii,jj,kk]-P[ii-1,jj,kk])/dx
     end
 
     @loop param for kk=kmin_-1:kmax_+1, jj=jmin_-1:jmax_+2, ii=imin_-1:imax_+1
-        grady[ii,jj,kk]=vf[ii,jj,kk] - dt/̂deny[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii,jj-1,kk])/̂dy
+    # @loop param for kk=kmin_-3:kmax_+3, jj=jmin_-3:jmax_+3, ii=imin_-3:imax_+3
+        grady[ii,jj,kk]=vf[ii,jj,kk] - dt/̂deny[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj-1,kk])/̂dy
     end
 
     @loop param for kk=kmin_-1:kmax_+2, jj=jmin_-1:jmax_+1, ii=imin_-1:imax_+1
-        gradz[ii,jj,kk]=wf[ii,jj,kk] -dt/̂denz[ii,jj,kk]*̂(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
+    # @loop param for kk=kmin_-3:kmax_+3, jj=jmin_-3:jmax_+3, ii=imin_-3:imax_+3
+        gradz[ii,jj,kk]=wf[ii,jj,kk] -dt/̂denz[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
     end
 
     fill!(LHS,0.0)
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        LHS[i,j,k] = divg_cell(i,j,k,gradx,grady,gradz,band,dt,p,tets_arr,param,mesh)
+        LHS[i,j,k] = divg_cell(i,j,k,gradx,grady,gradz,band,dt,p,tets_arr,param,mesh;pmesh=pmesh)
     end
 
     return nothing
 end
-
 
 # Local A! matrix
 function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env)
@@ -572,7 +574,7 @@ function Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,
     end    
 end
 
-function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,verts,tets,jacob,b_vec,x_vec,param,mesh,par_env;iter = nothing,max_iter = 10000,τ = nothing,converged=nothing)
+function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,LHS,AP,p_index,tmp4,verts,tets,jacob,b_vec,x_vec,param,mesh,par_env;iter = nothing,max_iter = 20000,τ = nothing,converged=nothing,pmesh=nothing)
     @unpack tol,Nx,Ny,Nz,hypreSolver = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -1055,10 +1057,12 @@ function anderson_accel(Fhist)
     α_aug = KKT \ rhs
     α = α_aug[1:end-1]
     return α
-
 end
 
-function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 10000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing) 
+
+
+
+function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 30000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
     @unpack Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
     @unpack tol = param
 

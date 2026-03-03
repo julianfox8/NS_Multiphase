@@ -26,8 +26,8 @@ function test_pressure()
     # Define parameters 
     param = parameters(
         # Constants
-        mu_liq=1.0,            # Dynamic viscosity
-        mu_gas = 1.0,
+        mu_liq=0.0,            # Dynamic viscosity
+        mu_gas = 0.0,
         rho_liq=1.0,           # Density
         rho_gas = 1.0,
         sigma = 0.0, # surface tension coefficient (N/m)
@@ -37,7 +37,7 @@ function test_pressure()
         Lx=1.0,            # Domain size
         Ly=1.0,
         Lz=1/50,
-        tFinal=8.0,      # Simulation time
+        tFinal=4.0,      # Simulation time
         
         # Discretization inputs
         Nx=48,           # Number of grid cells
@@ -64,10 +64,10 @@ function test_pressure()
         solveNS = false,
         VFVelocity = "Deformation",
 
-        pressure_scheme = "finite-difference",
-        # pressure_scheme = "semi-lagrangian",
+        # pressure_scheme = "finite-difference",
+        pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
-        # pressureSolver = "res_iteration",
+        pressureSolver = "res_iteration",
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
@@ -91,8 +91,8 @@ function test_pressure()
 
         # Velocity
         t=0.0
-        u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/2.0)
-        v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/2.0)
+        u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/1.0)
+        v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/1.0)
         w_fun(x,y,z,t) = 0.0
         # Set velocities (including ghost cells)
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
@@ -105,10 +105,13 @@ function test_pressure()
         rad=0.15
         xo=0.5
         yo=0.75
-
+        slot_width = 0.05
+        slot_length = 0.24
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-            VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+            VF[i,j,k]=VFzalesak2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo,slot_width,slot_length)
+            
         end
+
 
         return nothing    
     end
@@ -270,10 +273,10 @@ function test_pressure()
 
         # output before transport with divergence free velocity field    
         NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
-        println("starting transport")
+        # println("starting transport")
         # Predictor step (including VF transport)
         NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds;pmesh=tpmesh)
-        NS.pmesh2VTK(tpmesh,"def_FD_transport_preimage3",param)
+        # NS.pmesh2VTK(tpmesh,"def_FD_transport_preimage3",param)
         # Update bands with transported VF
         # NS.computeBand!(band,VF,param,mesh,par_env)
         
@@ -282,7 +285,7 @@ function test_pressure()
 
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-        error("stop")
+        # error("stop")
     end
 end
 
