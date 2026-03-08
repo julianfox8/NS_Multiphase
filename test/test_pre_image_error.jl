@@ -442,7 +442,7 @@ end
 
 
 
-function pre_image_err(dts)
+function pre_image_err(dts,scheme)
     # Define parameters 
     param = parameters(
         # Constants
@@ -484,11 +484,11 @@ function pre_image_err(dts)
         solveNS = false,
         VFVelocity = "Deformation",
         # VFVelocity = "Deformation3D",
-
-        pressure_scheme = "finite-difference",
+        pressure_scheme = scheme,
+        # pressure_scheme = "finite-difference",
         # pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
-        # pressureSolver = "res_iteration",
+        pressureSolver = "res_iteration",
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
@@ -601,7 +601,7 @@ function pre_image_err(dts)
     NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
     #initialize sample points along cell face
-    ns = 10
+    ns = 5
     nfaces = 6
     nfp = ns^2
     nverts = 8
@@ -633,11 +633,12 @@ function pre_image_err(dts)
         if param.pressure_scheme == "semi-lagrangian" #need to determine corrected field
             # Determine pressure correction
             iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;)
-            println("Pressure solver converged in $iter iterations for dt = $dt")
+            # println("Pressure solver converged in $iter iterations for dt = $dt")
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
         end
 
+        println("starting error calc for dt = $dt")
         errors = tmp9; fill!(errors,0.0)
         # loop over domain and project vertices to test numerical integration 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
@@ -653,10 +654,10 @@ function pre_image_err(dts)
             sample_cell_faces!(sample_pts, verts, tetsign, ns)
             
             # Visualize sampled points on faces before projection
-            if k == 1 && j == 11 && i == 11
-                plot_sampled_cell(sample_pts, verts, ns;title_str = "cell sampled with $nfp points per face")
-                error("stop")
-            end
+            # if k == 1 && j == 11 && i == 11
+            #     plot_sampled_cell(sample_pts, verts, ns;title_str = "cell sampled with $nfp points per face")
+            #     error("stop")
+            # end
             # Compute barycentric coordinates 
             compute_barycentric!(tri_verts, sample_pts, tri_ids, lambdas, tetsign, ns)
             
@@ -704,10 +705,10 @@ function pre_image_err(dts)
             map_sample_points_to_preimage!(preimage_sample_pts, pre_tri_verts, tri_ids, lambdas, tetsign, ns)
 
             # Check that barycentric coordinates map back to the correct point on the face
-            if k == 1 && j == 11 && i == 11
-                plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "flux-corrected pre-image of sampled points with $nfp points per face")
-                error("stop")
-            end
+            # if k == 1 && j == 11 && i == 11
+            #     plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "flux-corrected pre-image of sampled points with $nfp points per face")
+            #     error("stop")
+            # end
 
             # Compute error in sample points for i,j,k cell
             # errors[i,j,k] = maximum(sqrt.(sum((preimage_sample_pts .- sample_pts).^2)))
@@ -724,39 +725,47 @@ function pre_image_err(dts)
     
 end
 
-
-dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001] 
+scheme = "finite-difference"
+# scheme = "semi-lagrangian"
+dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
+# dts = [0.005,0.0025,0.001] 
 # dts = [0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
-errors = pre_image_err(dts)
+errors = pre_image_err(dts,scheme)
 
-println("Errors for each dt: ", errors)
-f = Figure(size = (700, 500))
-ax = Axis(
-    f[1,1],
-    xscale = log10,
-    yscale = log10,
-    xlabel = "Δt",
-    ylabel = "L2 error",
-    title  = "Flux-corrected pre-image 3D deformation flow"
-)
+open("$(scheme)_errors.csv","w") do io 
+    println(io,"$dt,$error") # header
+    for (dt,err) in zip(dts,errors)
+        println(io,"$dt,$err")
+    end
+end
+# println("Errors for each dt: ", errors)
+# f = Figure(size = (700, 500))
+# ax = Axis(
+#     f[1,1],
+#     xscale = log10,
+#     yscale = log10,
+#     xlabel = "Δt",
+#     ylabel = "L2 error",
+#     title  = "Flux-corrected pre-image 3D deformation flow"
+# )
 
-# line
-lines!(ax, dts, errors, label = "Observed error")
+# # line
+# lines!(ax, dts, errors, label = "Observed error")
 
-# markers
-scatter!(ax, dts, errors, markersize = 10)
+# # markers
+# scatter!(ax, dts, errors, markersize = 10)
 
-# reference slopes (anchored at first point)
-err0 = errors[1]
-dt0  = dts[1]
+# # reference slopes (anchored at first point)
+# err0 = errors[1]
+# dt0  = dts[1]
 
-ref2 = err0 .* (dts ./ dt0).^2
-ref3 = err0 .* (dts ./ dt0).^3
-ref4 = err0 .* (dts ./ dt0).^4
+# ref2 = err0 .* (dts ./ dt0).^2
+# ref3 = err0 .* (dts ./ dt0).^3
+# ref4 = err0 .* (dts ./ dt0).^4
 
-lines!(ax, dts, ref2, linestyle = :dot,  label = "O(Δt²)")
-lines!(ax, dts, ref3, linestyle = :dashdot, label = "O(Δt³)")
-lines!(ax, dts, ref4, linestyle = :dash, label = "O(Δt⁴)")
-axislegend(ax, position = :rb)
+# lines!(ax, dts, ref2, linestyle = :dot,  label = "O(Δt²)")
+# lines!(ax, dts, ref3, linestyle = :dashdot, label = "O(Δt³)")
+# lines!(ax, dts, ref4, linestyle = :dash, label = "O(Δt⁴)")
+# axislegend(ax, position = :rb)
 
-f
+# f
