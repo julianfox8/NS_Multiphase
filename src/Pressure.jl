@@ -15,7 +15,7 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,
             RHS = OffsetArray{Float64}(undef, imin_:imax_,jmin_:jmax_,kmin_:kmax_)
             @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
                 # RHS
-                RHS[i,j,k]= 1/dt*( 
+                RHS[i,j,k]= ( 
                     ( uf[i+1,j,k] - uf[i,j,k] )/(dx) +
                     ( vf[i,j+1,k] - vf[i,j,k] )/(dy) +
                     ( wf[i,j,k+1] - wf[i,j,k] )/(dz) )
@@ -1263,9 +1263,9 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
         # main diagonal
         nst += 1
         cols_[nst] = coeff_index[i,j,k]
-        values_[nst] = -(1.0 / (denx[i, j, k] * dx^2) + 1.0 / (denx[i+1, j, k] * dx^2) +
-                        1.0 / (deny[i, j, k] * dy^2) + 1.0 / (deny[i, j+1, k] * dy^2) +
-                        1.0 / (denz[i, j, k] * dz^2) + 1.0 / (denz[i, j, k+1] * dz^2))
+        values_[nst] = -(dt / (denx[i, j, k] * dx^2) + dt / (denx[i+1, j, k] * dx^2) +
+                         dt / (deny[i, j, k] * dy^2) + dt / (deny[i, j+1, k] * dy^2) +
+                         dt / (denz[i, j, k] * dz^2) + dt / (denz[i, j, k+1] * dz^2))
 
         # --- x-direction neighbors ---
         # left neighbor i-1
@@ -1273,14 +1273,14 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
             if xper && Nx > 1
                 nst += 1
                 cols_[nst] = coeff_index[imax, j, k]
-                values_[nst] = 1.0 / (denx[imax+1, j, k] * dx^2)
+                values_[nst] = dt / (denx[imax+1, j, k] * dx^2)
             else
-                values_[1] += 1.0 / (denx[i, j, k] * dx^2)
+                values_[1] += dt / (denx[i, j, k] * dx^2)
             end
         else
             nst += 1
             cols_[nst] = coeff_index[i-1, j, k]
-            values_[nst] = 1.0 / (denx[i, j, k] * dx^2)
+            values_[nst] = dt / (denx[i, j, k] * dx^2)
         end
 
         # right neighbor i+1
@@ -1288,14 +1288,14 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
             if xper && Nx > 1
                 nst += 1
                 cols_[nst] = coeff_index[imin, j, k]
-                values_[nst] = 1.0 / (denx[imin, j, k] * dx^2)
+                values_[nst] = dt / (denx[imin, j, k] * dx^2)
             else
-                values_[1] += 1.0 / (denx[i+1, j, k] * dx^2)
+                values_[1] += dt / (denx[i+1, j, k] * dx^2)
             end
         else
             nst += 1
             cols_[nst] = coeff_index[i+1, j, k]
-            values_[nst] = 1.0 / (denx[i+1, j, k] * dx^2)
+            values_[nst] = dt / (denx[i+1, j, k] * dx^2)
         end
 
         # --- y-direction neighbors ---
@@ -1303,28 +1303,28 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
             if yper && Ny > 1
                 nst += 1
                 cols_[nst] = coeff_index[i, jmax, k]
-                values_[nst] = 1.0 / (deny[i, jmax+1, k] * dy^2)
+                values_[nst] = dt / (deny[i, jmax+1, k] * dy^2)
             else
-                values_[1] += 1.0 / (deny[i, j, k] * dy^2)
+                values_[1] += dt / (deny[i, j, k] * dy^2)
             end
         else
             nst += 1
             cols_[nst] = coeff_index[i, j-1, k]
-            values_[nst] = 1.0 / (deny[i, j, k] * dy^2)
+            values_[nst] = dt / (deny[i, j, k] * dy^2)
         end
 
         if j+1 > jmax
             if yper && Ny > 1
                 nst += 1
                 cols_[nst] = coeff_index[i, jmin, k]
-                values_[nst] = 1.0 / (deny[i, jmin, k] * dy^2)
+                values_[nst] = dt / (deny[i, jmin, k] * dy^2)
             else
-                values_[1] += 1.0 / (deny[i, j+1, k] * dy^2)
+                values_[1] += dt / (deny[i, j+1, k] * dy^2)
             end
         else
             nst += 1
             cols_[nst] = coeff_index[i, j+1, k]
-            values_[nst] = 1.0 / (deny[i, j+1, k] * dy^2)
+            values_[nst] = dt / (deny[i, j+1, k] * dy^2)
         end
 
         # --- z-direction neighbors ---
@@ -1332,28 +1332,28 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
             if zper && Nz > 1
                 nst += 1
                 cols_[nst] = coeff_index[i, j, kmax]
-                values_[nst] = 1.0 / (denz[i, j, kmax+1] * dz^2)
+                values_[nst] = dt / (denz[i, j, kmax+1] * dz^2)
             else
-                values_[1] += 1.0 / (denz[i, j, k] * dz^2)
+                values_[1] += dt / (denz[i, j, k] * dz^2)
             end
         else
             nst += 1
             cols_[nst] = coeff_index[i, j, k-1]
-            values_[nst] = 1.0 / (denz[i, j, k] * dz^2)
+            values_[nst] = dt / (denz[i, j, k] * dz^2)
         end
 
         if k+1 > kmax
             if zper && Nz > 1
                 nst += 1
                 cols_[nst] = coeff_index[i, j, kmin]
-                values_[nst] = 1.0 / (denz[i, j, kmin] * dz^2)
+                values_[nst] = dt / (denz[i, j, kmin] * dz^2)
             else
-                values_[1] += 1.0 / (denz[i, j, k+1] * dz^2)
+                values_[1] += dt / (denz[i, j, k+1] * dz^2)
             end
         else
             nst += 1
             cols_[nst] = coeff_index[i, j, k+1]
-            values_[nst] = 1.0 / (denz[i, j, k+1] * dz^2)
+            values_[nst] = dt / (denz[i, j, k+1] * dz^2)
         end
 
         # reorder (your existing sorting block)
@@ -1444,9 +1444,9 @@ function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
     for color in (0, 1)  # 0: red, 1: black
         for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
             if (i + j + k) % 2 == color
-                diag = -(1 / (denx[i, j, k] * dx^2) + 1 / (denx[i+1, j, k] * dx^2) +
-                         1 / (deny[i, j, k] * dy^2) + 1 / (deny[i, j+1, k] * dy^2) +
-                         1 / (denz[i, j, k] * dz^2) + 1 / (denz[i, j, k+1] * dz^2))
+                diag = -(dt / (denx[i, j, k] * dx^2) + dt / (denx[i+1, j, k] * dx^2) +
+                         dt / (deny[i, j, k] * dy^2) + dt / (deny[i, j+1, k] * dy^2) +
+                         dt / (denz[i, j, k] * dz^2) + dt / (denz[i, j, k+1] * dz^2))
 
                 Px_m = P[i-1, j, k]
                 Px_p = P[i+1, j, k]
@@ -1455,12 +1455,12 @@ function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
                 Pz_m = P[i, j, k-1]
                 Pz_p = P[i, j, k+1]
 
-                sum_neighbors = (1 / (denx[i, j, k]   * dx^2)) * Px_m +
-                                (1 / (denx[i+1,j,k]   * dx^2)) * Px_p +
-                                (1 / (deny[i,j,k]     * dy^2)) * Py_m +
-                                (1 / (deny[i,j+1,k]   * dy^2)) * Py_p +
-                                (1 / (denz[i,j,k]     * dz^2)) * Pz_m +
-                                (1 / (denz[i,j,k+1]   * dz^2)) * Pz_p
+                sum_neighbors = (dt / (denx[i, j, k]   * dx^2)) * Px_m +
+                                (dt / (denx[i+1,j,k]   * dx^2)) * Px_p +
+                                (dt / (deny[i,j,k]     * dy^2)) * Py_m +
+                                (dt / (deny[i,j+1,k]   * dy^2)) * Py_p +
+                                (dt / (denz[i,j,k]     * dz^2)) * Pz_m +
+                                (dt / (denz[i,j,k+1]   * dz^2)) * Pz_p
 
                 if isnothing(τ)
                     P_new_val = (RHS[i,j,k] - sum_neighbors) / diag
