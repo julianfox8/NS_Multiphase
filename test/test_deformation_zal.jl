@@ -40,12 +40,12 @@ function test_pressure()
         tFinal=4.0,      # Simulation time
         
         # Discretization inputs
-        Nx=48,           # Number of grid cells
-        Ny=48,
+        Nx=64,           # Number of grid cells
+        Ny=64,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
-        max_dt = 6e-2,
-        CFL=3.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        max_dt = 2e-1,
+        CFL=2.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -240,22 +240,21 @@ function test_pressure()
     NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
     
     while nstep<param.stepMax && t<param.tFinal
-
         # Update step counter
         nstep += 1
         
-        # Compute timestep and update time
-        dt = NS.compute_dt(u,v,w,param,mesh,par_env)
-        t += dt
         # Set velocity for iteration using deformation field
         NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
 
+        # Compute timestep and update time
+        CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
+        if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
+            dt = param.tFinal-t
+        else
+            dt = NS.compute_dt(u,v,w,param,mesh,par_env)
+        end
+        t += dt
 
-
-        # NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
-        # println("initial divergence before going into pressure solver = ",NS.parallel_max_all(abs.(divg[mesh.imin_:mesh.imax_,mesh.jmin_:mesh.jmax_,mesh.kmin_:mesh.kmax_]),par_env))
-        
-        # println("CFL number of :", dt/max(dx/maximum(abs.(u)),dy/maximum(abs.(v))))
         if param.pressure_scheme == "semi-lagrangian"
 
             # Determine pressure correction
