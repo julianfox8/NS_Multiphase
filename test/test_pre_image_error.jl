@@ -733,7 +733,7 @@ dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
 errors = pre_image_err(dts,scheme)
 
 open("$(scheme)_errors.csv","w") do io 
-    println(io,"$dt,$error") # header
+    println(io,"dts,errors") # header
     for (dt,err) in zip(dts,errors)
         println(io,"$dt,$err")
     end
