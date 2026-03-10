@@ -44,7 +44,7 @@ function test_pressure()
         Ny=48,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
-        max_dt = 6e-2,
+        max_dt = 1e-1,
         CFL=3.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
@@ -241,17 +241,18 @@ function test_pressure()
         # Update step counter
         nstep += 1
         
-        # Compute timestep and update time
-        dt = NS.compute_dt(u,v,w,param,mesh,par_env)
-        t += dt
         # Set velocity for iteration using deformation field
         NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
 
+        # Compute timestep and update time
+        CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
+        if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
+            dt = param.tFinal-t
+        else
+            dt = NS.compute_dt(u,v,w,param,mesh,par_env)
+        end
+        t += dt
 
-
-        # NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
-        # println("initial divergence before going into pressure solver = ",NS.parallel_max_all(abs.(divg[mesh.imin_:mesh.imax_,mesh.jmin_:mesh.jmax_,mesh.kmin_:mesh.kmax_]),par_env))
-        
         # println("CFL number of :", dt/max(dx/maximum(abs.(u)),dy/maximum(abs.(v))))
         if param.pressure_scheme == "semi-lagrangian"
 
@@ -270,10 +271,11 @@ function test_pressure()
 
         # output before transport with divergence free velocity field    
         NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
-        println("starting transport")
+        
         # Predictor step (including VF transport)
-        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds;pmesh=tpmesh)
-        NS.pmesh2VTK(tpmesh,"def_FD_transport_preimage3",param)
+        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)#;pmesh=tpmesh)
+        # NS.pmesh2VTK(tpmesh,"def_FD_transport_preimage3",param)
+
         # Update bands with transported VF
         # NS.computeBand!(band,VF,param,mesh,par_env)
         
@@ -282,7 +284,7 @@ function test_pressure()
 
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-        error("stop")
+        
     end
 end
 
