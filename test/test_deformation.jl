@@ -37,7 +37,7 @@ function test_pressure()
         Lx=1.0,            # Domain size
         Ly=1.0,
         Lz=1/50,
-        tFinal=4.0,      # Simulation time
+        tFinal=8.0,      # Simulation time
         
         # Discretization inputs
         Nx=48,           # Number of grid cells
@@ -196,7 +196,9 @@ function test_pressure()
         
         # Set velocity for iteration using deformation field
         NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
-
+        us[:,:,:] = u[:,:,:]
+        vs[:,:,:] = v[:,:,:]
+        ws[:,:,:] = w[:,:,:]
         # Compute timestep and update time
         CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
         if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
@@ -210,12 +212,13 @@ function test_pressure()
 
             # Determine pressure correction
             iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;)#pmesh=pmesh)
-
+                  
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
             # NS.pmesh2VTK(pmesh,"pressure_preimage",param)
 
             NS.interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
+            
         end
         
         # Calculate divergence
