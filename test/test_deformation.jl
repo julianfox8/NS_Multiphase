@@ -263,6 +263,8 @@ function test_pressure()
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
             # NS.pmesh2VTK(pmesh,"pressure_preimage",param)
 
+            NS.interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
+
         end
         
 
