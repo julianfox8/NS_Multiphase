@@ -37,7 +37,7 @@ function test_pressure()
         Lx=1.0,            # Domain size
         Ly=1.0,
         Lz=1/50,
-        tFinal=8.0,      # Simulation time
+        tFinal=4.0,      # Simulation time
         
         # Discretization inputs
         Nx=48,           # Number of grid cells
@@ -45,7 +45,7 @@ function test_pressure()
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
         max_dt = 1e-1,
-        CFL=3.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=1.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -64,10 +64,10 @@ function test_pressure()
         solveNS = false,
         VFVelocity = "Deformation",
 
-        pressure_scheme = "finite-difference",
-        # pressure_scheme = "semi-lagrangian",
+        # pressure_scheme = "finite-difference",
+        pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
-        # pressureSolver = "res_iteration",
+        pressureSolver = "res_iteration",
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
@@ -78,7 +78,7 @@ function test_pressure()
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
-        test_case = "Deformation_2D",
+        test_case = "Deformation",
     )
 
     """
@@ -117,53 +117,7 @@ function test_pressure()
     Boundary conditions for velocity
     """
     function BC!(u,v,w,mesh,par_env)
-        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-        @unpack jmin_,jmax_,xm,ym,imin,imax,jmin,jmax,kmin,kmax = mesh
-        @unpack xper,yper,zper = param
-        
-        # Left 
-        if irankx == 0 && xper == false
-            i = imin-1
-            u[i,:,:] = -u[imin,:,:] # No slip
-            v[i,:,:] = -v[imin,:,:] # No slip
-            w[i,:,:] = -w[imin,:,:] # No slip
-        end
-        # Right
-        if irankx == nprocx-1 && xper == false
-            i = imax+1
-            u[i,:,:] = -u[imax,:,:] # No slip
-            v[i,:,:] = -v[imax,:,:] # No slip
-            w[i,:,:] = -w[imax,:,:] # No slip
-        end
-        # Bottom 
-        if iranky == 0 && yper == false
-            j = jmin-1
-            u[:,j,:] .= -u[:,jmin,:] # No slip
-            v[:,j,:] .= -v[:,jmin,:] # No slip
-            w[:,j,:] .= -w[:,jmin,:] # No slip
-        end
-        # Top
-        if iranky == nprocy-1 && yper == false
-            j = jmax+1
-            u[:,j,:] .= -u[:,jmax,:] # No slip
-            v[:,j,:] .= -v[:,jmax,:] # No slip
-            w[:,j,:] .= -w[:,jmax,:] # No slip
-        end
-        # Back 
-        if irankz == 0 && zper == false
-            k = kmin-1
-            u[:,:,k] = -u[:,:,kmin] # No slip
-            v[:,:,k] = -v[:,:,kmin] # No slip
-            w[:,:,k] = -w[:,:,kmin] # No slip
-        end
-        # Front
-        if irankz == nprocz-1 && zper == false
-            k = kmax+1
-            u[:,:,k] = -u[:,:,kmax] # No slip
-            v[:,:,k] = -v[:,:,kmax] # No slip
-            w[:,:,k] = -w[:,:,kmax] # No slip
-        end
-
+        # Not needed for deformation test
         return nothing
     end
 
@@ -180,15 +134,14 @@ function test_pressure()
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
     mg_arrays = NS.mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
 
-
     # Create initial condition
     t = 0.0 :: Float64
     IC!(P,u,v,w,VF,mesh)
-    #printArray("VF",VF,par_env)
 
     # Compute band around interface
     # NS.computeBand!(band,VF,param,mesh,par_env)
     fill!(band,0.0)
+
     # Compute interface normal 
     NS.computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
@@ -253,7 +206,6 @@ function test_pressure()
         end
         t += dt
 
-        # println("CFL number of :", dt/max(dx/maximum(abs.(u)),dy/maximum(abs.(v))))
         if param.pressure_scheme == "semi-lagrangian"
 
             # Determine pressure correction
@@ -264,10 +216,8 @@ function test_pressure()
             # NS.pmesh2VTK(pmesh,"pressure_preimage",param)
 
             NS.interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
-
         end
         
-
         # Calculate divergence
         NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
 
