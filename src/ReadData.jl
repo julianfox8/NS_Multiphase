@@ -72,3 +72,42 @@ function pvd_file_cleanup!(t,param)
         write(joinpath(VTK_dir,file),doc)
     end
 end
+
+# fill array at the provided time step
+function fillArray!(A,t,pvd_path)
+    
+    # Load time series (.pvd)
+    pvd = PVDFile(pvd_path)
+
+    # Get file corresponding to timestep t
+    tol = 1e-8
+    idx = findfirst(x -> abs(x - t) < tol, pvd.timesteps)
+    
+
+    vtk_file_path = joinpath(dirname(pvd_path),pvd.vtk_filenames[idx])   # or use index if needed
+
+    # Load parallel VTK
+    vtk = PVTKFile(vtk_file_path,dir=dirname(pvd_path))
+
+    # Extract cell data
+    celldata = get_cell_data(vtk)
+
+    # Get the VF field (PVTKDataArray)
+    VF = get_data(celldata["VF"])
+
+    # Determine the global extents (total number of cells in each direction)
+    global_exts = ReadVTK.get_extents(celldata.parent_xml)
+    Nx = global_exts[1][1][end] - 1
+    Ny = global_exts[1][2][end] - 1
+    Nz = global_exts[1][3][end] - 1
+    
+    # Reshape into full 3D array
+    VF_full = reshape(VF[1], (Nx, Ny, Nz))
+    
+    # Copy into provided array
+    A .= VF_full
+
+    return nothing
+end
+
+
