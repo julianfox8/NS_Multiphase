@@ -1193,9 +1193,9 @@ function jacobi_update!(P, P_new, RHS, denx, deny, denz, mesh, dt;τ=nothing)
 
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
         # Diagonal coefficient
-        diag = -(1 / (denx[i, j, k] * dx^2) + 1 / (denx[i+1, j, k] * dx^2) +
-                1 / (deny[i, j, k] * dy^2) + 1 / (deny[i, j+1, k] * dy^2) +
-                1 / (denz[i, j, k] * dz^2) + 1 / (denz[i, j, k+1] * dz^2))
+        diag = -(dt / (denx[i, j, k] * dx^2) + dt / (denx[i+1, j, k] * dx^2) +
+                dt / (deny[i, j, k] * dy^2) + dt / (deny[i, j+1, k] * dy^2) +
+                dt / (denz[i, j, k] * dz^2) + dt / (denz[i, j, k+1] * dz^2))
 
         # Neighbor contributions
         Px_m = P[i-1, j, k]
@@ -1205,13 +1205,12 @@ function jacobi_update!(P, P_new, RHS, denx, deny, denz, mesh, dt;τ=nothing)
         Pz_m = P[i, j, k-1]
         Pz_p = P[i, j, k+1]
 
-        sum_neighbors = (1 / (denx[i, j, k]   * dx^2)) * Px_m +
-                        (1 / (denx[i+1,j,k]   * dx^2)) * Px_p +
-                        (1 / (deny[i,j,k]     * dy^2)) * Py_m +
-                        (1 / (deny[i,j+1,k]   * dy^2)) * Py_p +
-                        (1 / (denz[i,j,k]     * dz^2)) * Pz_m +
-                        (1 / (denz[i,j,k+1]   * dz^2)) * Pz_p
-
+        sum_neighbors = (dt / (denx[i, j, k]   * dx^2)) * Px_m +
+                        (dt / (denx[i+1,j,k]   * dx^2)) * Px_p +
+                        (dt / (deny[i,j,k]     * dy^2)) * Py_m +
+                        (dt / (deny[i,j+1,k]   * dy^2)) * Py_p +
+                        (dt / (denz[i,j,k]     * dz^2)) * Pz_m +
+                        (dt / (denz[i,j,k+1]   * dz^2)) * Pz_p
         # Update pressure
         if isnothing(τ)
             P_new[i,j,k] = (RHS[i,j,k]/dt - sum_neighbors) / diag
@@ -1282,73 +1281,73 @@ function apply_A!(AP, P, denx, deny, denz, mesh, par_env, param)
 
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
         # Diagonal coefficient
-        diag = -(1 / (denx[i, j, k] * dx^2) + 1 / (denx[i+1, j, k] * dx^2) +
-                 1 / (deny[i, j, k] * dy^2) + 1 / (deny[i, j+1, k] * dy^2) +
-                 1 / (denz[i, j, k] * dz^2) + 1 / (denz[i, j, k+1] * dz^2))
+        diag = -(dt / (denx[i, j, k] * dx^2) + dt / (denx[i+1, j, k] * dx^2) +
+                 dt / (deny[i, j, k] * dy^2) + dt / (deny[i, j+1, k] * dy^2) +
+                 dt / (denz[i, j, k] * dz^2) + dt / (denz[i, j, k+1] * dz^2))
 
         sum_neighbors = 0.0
 
         # --- x-direction ---
         if i == imin_
             if xper
-                sum_neighbors += (1 / (denx[imax_, j, k] * dx^2)) * P[imax_, j, k]
+                sum_neighbors += (dt / (denx[imax_, j, k] * dx^2)) * P[imax_, j, k]
             else
-                diag += 1.0 / (denx[i, j, k] * dx^2)
+                diag += dt / (denx[i, j, k] * dx^2)
             end
         else
-            sum_neighbors += (1 / (denx[i, j, k] * dx^2)) * P[i-1, j, k]
+            sum_neighbors += (dt / (denx[i, j, k] * dx^2)) * P[i-1, j, k]
         end
 
         if i == imax_
             if xper
-                sum_neighbors += (1 / (denx[imin_, j, k] * dx^2)) * P[imin_, j, k]
+                sum_neighbors += (dt / (denx[imin_, j, k] * dx^2)) * P[imin_, j, k]
             else
-                diag += 1.0 / (denx[i+1, j, k] * dx^2)
+                diag += dt / (denx[i+1, j, k] * dx^2)
             end
         else
-            sum_neighbors += (1 / (denx[i+1, j, k] * dx^2)) * P[i+1, j, k]
+            sum_neighbors += (dt / (denx[i+1, j, k] * dx^2)) * P[i+1, j, k]
         end
 
         # --- y-direction ---
         if j == jmin_
             if yper
-                sum_neighbors += (1 / (deny[i, jmax_, k] * dy^2)) * P[i, jmax_, k]
+                sum_neighbors += (dt / (deny[i, jmax_, k] * dy^2)) * P[i, jmax_, k]
             else
-                diag += 1.0 / (deny[i, j, k] * dy^2)
+                diag += dt / (deny[i, j, k] * dy^2)
             end
         else
-            sum_neighbors += (1 / (deny[i, j, k] * dy^2)) * P[i, j-1, k]
+            sum_neighbors += (dt / (deny[i, j, k] * dy^2)) * P[i, j-1, k]
         end
 
         if j == jmax_
             if yper
-                sum_neighbors += (1 / (deny[i, jmin_, k] * dy^2)) * P[i, jmin_, k]
+                sum_neighbors += (dt / (deny[i, jmin_, k] * dy^2)) * P[i, jmin_, k]
             else
-                diag += 1.0 / (deny[i, j+1, k] * dy^2)
+                diag += dt / (deny[i, j+1, k] * dy^2)
             end
         else
-            sum_neighbors += (1 / (deny[i, j+1, k] * dy^2)) * P[i, j+1, k]
+            sum_neighbors += (dt / (deny[i, j+1, k] * dy^2)) * P[i, j+1, k]
         end
 
         # --- z-direction ---
         if k == kmin_
             if zper
-                sum_neighbors += (1 / (denz[i, j, kmax_] * dz^2)) * P[i, j, kmax_]
+                sum_neighbors += (dt / (denz[i, j, kmax_] * dz^2)) * P[i, j, kmax_]
             else
-                diag += 1.0 / (denz[i, j, k] * dz^2)
+                diag += dt / (denz[i, j, k] * dz^2)
             end
         else
-            sum_neighbors += (1 / (denz[i, j, k] * dz^2)) * P[i, j, k-1]
+            sum_neighbors += (dt / (denz[i, j, k] * dz^2)) * P[i, j, k-1]
         end
 
         if k == kmax_
             if zper
-                sum_neighbors += (1 / (denz[i, j, kmin_] * dz^2)) * P[i, j, kmin_]
+                sum_neighbors += (dt / (denz[i, j, kmin_] * dz^2)) * P[i, j, kmin_]
             else
-                diag += 1.0 / (denz[i, j, k+1] * dz^2)
+                diag += dt / (denz[i, j, k+1] * dz^2)
             end
         else
-            sum_neighbors += (1 / (denz[i, j, k+1] * dz^2)) * P[i, j, k+1]
+            sum_neighbors += (dt / (denz[i, j, k+1] * dz^2)) * P[i, j, k+1]
         end
 
         # Apply the Laplacian
