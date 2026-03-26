@@ -744,10 +744,40 @@ function anderson_accel(Fhist)
     return α
 end
 
+function par_anderson_accel(Fhist,par_env)
+    m = length(Fhist)
+    G = zeros(m,m)
+    
+    for i in 1:m
+        for j in 1:m
+            local_dot = sum(Fhist[i].*Fhist[j])
+            global_dot = parallel_sum_all(local_dot,par_env)
+            G[i,j] = global_dot 
+            G[j,i] = global_dot 
+        end
+    end
+    ϵ = 1e-12 * maximum(diag(G))
+    for i in 1:m
+        G[i,i] += ϵ
+    end
+    # construct constraint matrix
+    C = ones(1,m)
+
+    KKT = [G C';
+            C zeros(1,1)]
+    
+    rhs = [zeros(m); 1.0]
+    # println(KKT)
+    # println(rhs)
+    α_aug = KKT \ rhs
+    α = α_aug[1:end-1]
+    return α
+end
 
 
 
-function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 30000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
+
+function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
     @unpack Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
     @unpack tol = param
 
@@ -763,10 +793,10 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
     #     #initialize PVTK for pressure
     #     pvd_pressure,dir  = pVTK_init(param,par_env)
     # end
-    ω = 0.8
-    m=10
-    Fhist = [zeros(Nx,Ny,Nz) for _ in 1:m]
-    Phist = [zeros(Nx,Ny,Nz) for _ in 1:m]
+    ω = 1.2
+    m=3
+    Fhist = [zeros(length(imin_:imax_),length(jmin_:jmax_),length(kmin_:kmax_)) for _ in 1:m]
+    Phist = [zeros(length(imin_:imax_),length(jmin_:jmax_),length(kmin_:kmax_)) for _ in 1:m]
     hist_idx = 0
     n_hist = 0
 
@@ -788,8 +818,11 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
             AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+= τ[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         end
 
-        res_norm = maximum(abs.(AP))
+        res_norm = parallel_max_all(abs.(AP),par_env)
+        
         if res_norm < tol
+            # reevaluate objective function for pmesh
+            #A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env;pmesh=pmesh)
             if converged !== nothing
                 # println("solution converged after $iter iterations")    
                 converged[] = true
@@ -798,21 +831,34 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
             return p_iter
         end
 
-        # define variables for anderson acceleration        
-        Gn = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        Fn = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        # define variables for anderson acceleration
+        @views begin
+            P_loc = P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+            AP_loc = AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+            J_loc  = jacob[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
 
+            Gn_loc = P_loc .- ω * AP_loc ./ J_loc
+            Fn_loc = Gn_loc .- P_loc
+        end
+        # Gn = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        # Fn = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+
+        
         hist_idx = mod(hist_idx,m) + 1
         if n_hist < m
             n_hist += 1
         end
 
-        @views Fhist[hist_idx] .= Fn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        @views Phist[hist_idx] .= Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-
-
-        if n_hist > 1
-            α = anderson_accel(Fhist[1:n_hist])
+        # @views Fhist[hist_idx] .= Fn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]#Fn_loc
+        # @views Phist[hist_idx] .= Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]#Gn_loc
+        @views Fhist[hist_idx] .= Fn_loc
+        @views Phist[hist_idx] .= Gn_loc
+        
+        if n_hist > 1 
+        
+            # α = anderson_accel(Fhist[1:n_hist])
+            α = par_anderson_accel(Fhist[1:n_hist],par_env)
+        
             # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = weighted_sum(Phist,α)
             Pnew = weighted_sum(Phist[1:n_hist],α)
             β = 0.5
@@ -821,7 +867,8 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
             P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         end
         
-        # if p_iter % 50 == 0 ;println("residual at iter $p_iter = $(maximum(abs.(AP)))"); end
+        # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g  \n",p_iter,res_norm,sum_norm)
+        # if p_iter % 100 == 0 ;println("residual at iter $p_iter = $(maximum(abs.(AP)))"); end
         # if iter !== nothing && p_iter > (max_iter-1)
         #     println("residual at iter $iter = $(maximum(abs.(AP)))")
         # end
