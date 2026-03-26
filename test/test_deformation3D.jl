@@ -19,23 +19,23 @@ function test_pressure()
         Lx=1.0,            # Domain size
         Ly=1.0,
         Lz=1.0,
-        tFinal=3.0,      # Simulation time
+        tFinal=2.0,      # Simulation time
         
         # Discretization inputs
         Nx=64,           # Number of grid cells
         Ny=64,
         Nz=64,
         stepMax=10000,   # Maximum number of timesteps
-        max_dt = 1e-2,
-        CFL=2.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        max_dt = 7.5e-2,
+        CFL=1.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
 
         # Processors 
-        nprocx = 1,
-        nprocy = 1,
-        nprocz = 1,
+        nprocx = 2,
+        nprocy = 2,
+        nprocz = 2,
 
         # Periodicity
         xper = false,
@@ -46,13 +46,13 @@ function test_pressure()
         solveNS = false,
         VFVelocity = "Deformation3D",
 
-        pressure_scheme = "finite-difference",
-        # pressure_scheme = "semi-lagrangian",
-        # pressureSolver = "hypreSecant",
+        # pressure_scheme = "finite-difference",
+        pressure_scheme = "semi-lagrangian",
+        pressureSolver = "hypreSecant",
         # pressureSolver = "res_iteration",
 
-        # hypreSolver = "GMRES-AMG",
-        hypreSolver = "BiCGSTAB",
+        hypreSolver = "GMRES-AMG",
+        # hypreSolver = "BiCGSTAB",
 
         mg_lvl = 1,
 
@@ -73,9 +73,9 @@ function test_pressure()
         # Velocity
         t=0.0
 
-        u_fun = (x,y,z,t) -> 2(sin(π*x))^2*sin(2π*y)*sin(2π*z)*cos(π*t/3.0)
-        v_fun = (x,y,z,t) -> -(sin(π*y))^2*sin(2π*x)*sin(2π*z)*cos(π*t/3.0)
-        w_fun = (x,y,z,t) -> -(sin(π*z))^2*sin(2π*x)*sin(2π*y)*cos(π*t/3.0)
+        u_fun = (x,y,z,t) -> 2(sin(π*x))^2*sin(2π*y)*sin(2π*z)*cos(π*t/2.0)
+        v_fun = (x,y,z,t) -> -(sin(π*y))^2*sin(2π*x)*sin(2π*z)*cos(π*t/2.0)
+        w_fun = (x,y,z,t) -> -(sin(π*z))^2*sin(2π*x)*sin(2π*y)*cos(π*t/2.0)
 
         # Set velocities (including ghost cells)
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
@@ -101,52 +101,6 @@ function test_pressure()
     Boundary conditions for velocity
     """
     function BC!(u,v,w,mesh,par_env)
-        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-        @unpack jmin_,jmax_,xm,ym,imin,imax,jmin,jmax,kmin,kmax = mesh
-        @unpack xper,yper,zper = param
-        
-        # Left 
-        if irankx == 0 && xper == false
-            i = imin-1
-            u[i,:,:] = -u[imin,:,:] # No slip
-            v[i,:,:] = -v[imin,:,:] # No slip
-            w[i,:,:] = -w[imin,:,:] # No slip
-        end
-        # Right
-        if irankx == nprocx-1 && xper == false
-            i = imax+1
-            u[i,:,:] = -u[imax,:,:] # No slip
-            v[i,:,:] = -v[imax,:,:] # No slip
-            w[i,:,:] = -w[imax,:,:] # No slip
-        end
-        # Bottom 
-        if iranky == 0 && yper == false
-            j = jmin-1
-            u[:,j,:] .= -u[:,jmin,:] # No slip
-            v[:,j,:] .= -v[:,jmin,:] # No slip
-            w[:,j,:] .= -w[:,jmin,:] # No slip
-        end
-        # Top
-        if iranky == nprocy-1 && yper == false
-            j = jmax+1
-            u[:,j,:] .= -u[:,jmax,:] # No slip
-            v[:,j,:] .= -v[:,jmax,:] # No slip
-            w[:,j,:] .= -w[:,jmax,:] # No slip
-        end
-        # Back 
-        if irankz == 0 && zper == false
-            k = kmin-1
-            u[:,:,k] = -u[:,:,kmin] # No slip
-            v[:,:,k] = -v[:,:,kmin] # No slip
-            w[:,:,k] = -w[:,:,kmin] # No slip
-        end
-        # Front
-        if irankz == nprocz-1 && zper == false
-            k = kmax+1
-            u[:,:,k] = -u[:,:,kmax] # No slip
-            v[:,:,k] = -v[:,:,kmax] # No slip
-            w[:,:,k] = -w[:,:,kmax] # No slip
-        end
 
         return nothing
     end
@@ -171,8 +125,8 @@ function test_pressure()
     #printArray("VF",VF,par_env)
 
     # Compute band around interface
-    NS.computeBand!(band,VF,param,mesh,par_env)
-    # fill!(band,1.0)
+    # NS.computeBand!(band,VF,param,mesh,par_env)
+    fill!(band,0.0)
     # Compute interface normal 
     NS.computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
@@ -181,7 +135,7 @@ function test_pressure()
 
     # # Check divergence
     dt = NS.compute_dt(u,v,w,param,mesh,par_env)
-
+    
     # Check semi-lagrangian divergence
     NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
 
@@ -207,12 +161,19 @@ function test_pressure()
 
         # Update step counter
         nstep += 1
-
-        # Set velocity for iteration using deformation field
-        NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
-
+        
         # Compute timestep and update time
-        dt = NS.compute_dt(u,v,w,param,mesh,par_env)
+        CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
+        if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
+            dt = param.tFinal-t
+        else
+            dt = NS.compute_dt(u,v,w,param,mesh,par_env)
+        end
+        
+        # Set velocity for iteration using deformation field
+        NS.defineVelocity!(t+dt/2,u,v,w,uf,vf,wf,param,mesh)
+        
+        # Update time 
         t += dt
 
         if param.pressure_scheme == "semi-lagrangian"
@@ -233,10 +194,10 @@ function test_pressure()
         NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
         
         # Update bands with transported VF
-        NS.computeBand!(band,VF,param,mesh,par_env)
+        # NS.computeBand!(band,VF,param,mesh,par_env)
         
         # Update density and viscosity with transported VF
-        NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+        # NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)

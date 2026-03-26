@@ -26,8 +26,8 @@ function test_pressure()
     # Define parameters 
     param = parameters(
         # Constants
-        mu_liq=1.0,            # Dynamic viscosity
-        mu_gas = 1.0,
+        mu_liq=0.0,            # Dynamic viscosity
+        mu_gas = 0.0,
         rho_liq=1.0,           # Density
         rho_gas = 1.0,
         sigma = 0.0, # surface tension coefficient (N/m)
@@ -37,7 +37,7 @@ function test_pressure()
         Lx=1.0,            # Domain size
         Ly=1.0,
         Lz=1/50,
-        tFinal=8.0,      # Simulation time
+        tFinal=40.0,      # Simulation time
         
         # Discretization inputs
         Nx=48,           # Number of grid cells
@@ -48,7 +48,7 @@ function test_pressure()
         CFL=1.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
-        tol = 1e-8,
+        tol = 1e-11,
 
         # Processors 
         nprocx = 1,
@@ -78,7 +78,7 @@ function test_pressure()
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
-        test_case = "Deformation",
+        test_case = "Deformation_40_halftime",
     )
 
     """
@@ -193,12 +193,7 @@ function test_pressure()
 
         # Update step counter
         nstep += 1
-        
-        # Set velocity for iteration using deformation field
-        NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
-        us[:,:,:] = u[:,:,:]
-        vs[:,:,:] = v[:,:,:]
-        ws[:,:,:] = w[:,:,:]
+
         # Compute timestep and update time
         CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
         if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
@@ -206,19 +201,22 @@ function test_pressure()
         else
             dt = NS.compute_dt(u,v,w,param,mesh,par_env)
         end
+        
+        # Set velocity for iteration using deformation field
+        NS.defineVelocity!(t+dt/2,u,v,w,uf,vf,wf,param,mesh)
+        
+        # Update time 
         t += dt
 
         if param.pressure_scheme == "semi-lagrangian"
 
             # Determine pressure correction
             iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;)#pmesh=pmesh)
-                  
+        
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
             # NS.pmesh2VTK(pmesh,"pressure_preimage",param)
 
-            NS.interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
-            
         end
         
         # Calculate divergence
@@ -235,7 +233,7 @@ function test_pressure()
         # NS.computeBand!(band,VF,param,mesh,par_env)
         
         # Update density and viscosity with transported VF
-        NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+        # NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
