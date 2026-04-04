@@ -26,8 +26,8 @@ function test_pressure()
     # Define parameters 
     param = parameters(
         # Constants
-        mu_liq=0.0,            # Dynamic viscosity
-        mu_gas = 0.0,
+        mu_liq=1.0,            # Dynamic viscosity
+        mu_gas = 1.0,
         rho_liq=1.0,           # Density
         rho_gas = 1.0,
         sigma = 0.0, # surface tension coefficient (N/m)
@@ -37,7 +37,7 @@ function test_pressure()
         Lx=1.0,            # Domain size
         Ly=1.0,
         Lz=1/50,
-        tFinal=40.0,      # Simulation time
+        tFinal=2.0,      # Simulation time
         
         # Discretization inputs
         Nx=48,           # Number of grid cells
@@ -45,10 +45,10 @@ function test_pressure()
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
         max_dt = 1e-1,
-        CFL=1.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
-        tol = 1e-11,
+        tol = 1e-8,
 
         # Processors 
         nprocx = 1,
@@ -71,14 +71,14 @@ function test_pressure()
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
-        projection_method = "Euler",
+        # projection_method = "Euler",
         # projection_method = "RK4",
-        # projection_method = "Midpoint",
+        projection_method = "Midpoint",
 
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
-        test_case = "Deformation_40_halftime",
+        test_case = "Deformation_result",
     )
 
     """
@@ -194,6 +194,7 @@ function test_pressure()
         # Update step counter
         nstep += 1
 
+
         # Compute timestep and update time
         CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
         if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
@@ -201,7 +202,7 @@ function test_pressure()
         else
             dt = NS.compute_dt(u,v,w,param,mesh,par_env)
         end
-        
+
         # Set velocity for iteration using deformation field
         NS.defineVelocity!(t+dt/2,u,v,w,uf,vf,wf,param,mesh)
         
