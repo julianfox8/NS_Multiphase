@@ -4,12 +4,29 @@ using MPI
 
 NS = NavierStokes_Parallel
 
+struct PreimageMesh
+    # Pre-image Geometry
+    vertex_pts::Vector{Vector{Float64}} # 3D coordinates of pre-image vertices
+
+    # Flux-correction geometry
+    faces        :: Vector{NTuple{4,Int}}   # Cell faces, ordered such that faces are read x-,x+,y-,y+,z-,z+
+    face_cells   :: Vector{Int}              # owning cell id
+
+    # Cells
+    vertex_cells::Vector{Vector{Int}}
+    cell_id::Vector{Int}
+
+    # Fields for storing pyramids
+    pyramids     :: Vector{Vector{Vector{Float64}}}  # each pyramid = 5 points, ordered such that pyramids are read x-,x+,y-,y+,z-,z+
+    pyramid_faces:: Vector{Int}                       # which face the pyramid belongs to 
+end
+
 function test_pressure()
     # Define parameters 
     param = parameters(
         # Constants
-        mu_liq=0.0,            # Dynamic viscosity
-        mu_gas = 0.0,
+        mu_liq=1.0,            # Dynamic viscosity
+        mu_gas = 1.0,
         rho_liq=1.0,           # Density
         rho_gas = 1.0,
         sigma = 0.0, # surface tension coefficient (N/m)
@@ -22,17 +39,17 @@ function test_pressure()
         tFinal=1.0,      # Simulation time
         
         # Discretization inputs
-        Nx=50,           # Number of grid cells
-        Ny=50,
+        Nx=64,           # Number of grid cells
+        Ny=64,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
-        # max_dt = 1e-2,
-        CFL=2.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        max_dt =1e-1,
+        CFL=0.75,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
-        tol = 1e-11,
+        tol = 1e-8,
 
-        # Processors 
+        # Processors
         nprocx = 1,
         nprocy = 1,
         nprocz = 1,
@@ -48,16 +65,25 @@ function test_pressure()
 
         # pressure_scheme = "finite-difference",
         pressure_scheme = "semi-lagrangian",
-        # pressureSolver = "hypreSecant",
-        pressureSolver = "res_iteration",
+        pressureSolver = "hypreSecant",
+        # pressureSolver = "res_iteration",
+        
 
+        # projection_method = "Euler",
+        projection_method = "Midpoint",
+        # projection_method = "RK4",
+
+        # pressurePrecond = "nl_jacobi",
+
+        # hypreSolver = "LGMRES",
         # hypreSolver = "GMRES-AMG",
         hypreSolver = "BiCGSTAB",
-
+        mg_lvl = 1,
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
-        test_case = "Zalesak_psolve",
+        test_case = "Zalesak_SL",
+
     )
 
     """
@@ -98,55 +124,9 @@ function test_pressure()
     Boundary conditions for velocity
     """
     function BC!(u,v,w,mesh,par_env)
-        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-        @unpack jmin_,jmax_,xm,ym,imin,imax,jmin,jmax,kmin,kmax = mesh
-        @unpack xper,yper,zper = param
-        
-        # Left 
-        if irankx == 0 && xper == false
-            i = imin-1
-            u[i,:,:] = -u[imin,:,:] # No slip
-            v[i,:,:] = -v[imin,:,:] # No slip
-            w[i,:,:] = -w[imin,:,:] # No slip
-        end
-        # Right
-        if irankx == nprocx-1 && xper == false
-            i = imax+1
-            u[i,:,:] = -u[imax,:,:] # No slip
-            v[i,:,:] = -v[imax,:,:] # No slip
-            w[i,:,:] = -w[imax,:,:] # No slip
-        end
-        # Bottom 
-        if iranky == 0 && yper == false
-            j = jmin-1
-            u[:,j,:] .= -u[:,jmin,:] # No slip
-            v[:,j,:] .= -v[:,jmin,:] # No slip
-            w[:,j,:] .= -w[:,jmin,:] # No slip
-        end
-        # Top
-        if iranky == nprocy-1 && yper == false
-            j = jmax+1
-            u[:,j,:] .= -u[:,jmax,:] # No slip
-            v[:,j,:] .= -v[:,jmax,:] # No slip
-            w[:,j,:] .= -w[:,jmax,:] # No slip
-        end
-        # Back 
-        if irankz == 0 && zper == false
-            k = kmin-1
-            u[:,:,k] = -u[:,:,kmin] # No slip
-            v[:,:,k] = -v[:,:,kmin] # No slip
-            w[:,:,k] = -w[:,:,kmin] # No slip
-        end
-        # Front
-        if irankz == nprocz-1 && zper == false
-            k = kmax+1
-            u[:,:,k] = -u[:,:,kmax] # No slip
-            v[:,:,k] = -v[:,:,kmax] # No slip
-            w[:,:,k] = -w[:,:,kmax] # No slip
-        end
-
         return nothing
     end
+
 
     # Setup par_env
     par_env = NS.parallel_init(param)
@@ -154,6 +134,7 @@ function test_pressure()
     # Setup mesh
     mg_mesh = NS.init_mg_mesh(param,par_env)
     mesh = mg_mesh.mesh_lvls[1]
+
     # Initialize arrays
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds = NS.initArrays(mesh)
 
@@ -165,9 +146,11 @@ function test_pressure()
     t = 0.0 :: Float64
     IC!(P,u,v,w,VF,mesh)
 
+    # Set velocity for iteration using deformation field
+    NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
     # Compute band around interface
-    NS.computeBand!(band,VF,param,mesh,par_env)
-    
+    # NS.computeBand!(band,VF,param,mesh,par_env)
+    fill!(band,0.0)
     # Compute interface normal 
     NS.computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
@@ -179,7 +162,7 @@ function test_pressure()
 
     # Check semi-lagrangian divergence
     NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
-
+    
     # compute density and viscosity at intial conditions
     NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
@@ -194,32 +177,56 @@ function test_pressure()
     t_last =[-100.0,]
     h_last =[100]
 
+    # Initialize struct to store vertices of pre-images based on domain size
+    pmesh = PreimageMesh(Vector{Vector{Float64}}(),
+            Vector{NTuple{4,Int}}(),
+            Int[],
+            Vector{Vector{Int}}(),
+            Int[],
+            Vector{Vector{Vector{Float64}}}(),
+            Int[])
+    tpmesh = PreimageMesh(Vector{Vector{Float64}}(),
+            Vector{NTuple{4,Int}}(),
+            Int[],
+            Vector{Vector{Int}}(),
+            Int[],
+            Vector{Vector{Vector{Float64}}}(),
+            Int[])
+
     # Initialize VTK
     pvd,pvd_restart,pvd_PLIC = NS.VTK_init(param,par_env)
     NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
     NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
+    
     while nstep<param.stepMax && t<param.tFinal
 
         # Update step counter
         nstep += 1
 
+        # Compute timestep and update time
+        CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
+        if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
+            dt = param.tFinal-t
+        else
+            dt = NS.compute_dt(u,v,w,param,mesh,par_env)
+        end
+        
         # Set velocity for iteration using deformation field
         NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
-
-        # Compute timestep and update time
-        dt = NS.compute_dt(u,v,w,param,mesh,par_env)
+        
+        # Update time 
         t += dt
-
         if param.pressure_scheme == "semi-lagrangian"
 
             # Determine pressure correction
-            iter = NS.poisson_solve!(P,tmp9,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays)
-            
+            iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)#;pmesh=pmesh)
+
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
+            # NS.pmesh2VTK(pmesh,"SL_zal_pressure_preimage",param)
 
         end
-
+        
         # Calculate divergence
         NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
 
@@ -227,17 +234,19 @@ function test_pressure()
         NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
 
         # Predictor step (including VF transport)
-        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
-        
+        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)#;pmesh=tpmesh)
+        # NS.pmesh2VTK(tpmesh,"SL_zal_transport_preimage",param)
         # Update bands with transported VF
-        NS.computeBand!(band,VF,param,mesh,par_env)
+        # NS.computeBand!(band,VF,param,mesh,par_env)
         
         # Update density and viscosity with transported VF
         NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-    
+        # error("stop")
+        # Update step counter
+
     end
 end
 
