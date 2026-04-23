@@ -26,8 +26,8 @@ function test_pressure()
     # Define parameters 
     param = parameters(
         # Constants
-        mu_liq=1.0,            # Dynamic viscosity
-        mu_gas = 1.0,
+        mu_liq=0.0,            # Dynamic viscosity
+        mu_gas = 0.0,
         rho_liq=1.0,           # Density
         rho_gas = 1.0,
         sigma = 0.0, # surface tension coefficient (N/m)
@@ -40,12 +40,12 @@ function test_pressure()
         tFinal=2.0,      # Simulation time
         
         # Discretization inputs
-        Nx=48,           # Number of grid cells
-        Ny=48,
+        Nx=64,           # Number of grid cells
+        Ny=64,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
         max_dt = 1e-1,
-        CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=1.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -71,14 +71,15 @@ function test_pressure()
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
-        # projection_method = "Euler",
+        projection_method = "Euler",
         # projection_method = "RK4",
-        projection_method = "Midpoint",
+        #projection_method = "Midpoint",
 
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
-        test_case = "Deformation_result",
+        # test_case = "Deformation_result_euler",
+        test_case = "Deformation_test",
     )
 
     """
