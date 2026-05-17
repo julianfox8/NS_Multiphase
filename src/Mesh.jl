@@ -53,7 +53,7 @@ struct mesh_struct
 end
 
 function  create_mesh(param,par_env)
-    @unpack Nx,Ny,Nz,Lx,Ly,Lz = param
+    @unpack Nx,Ny,Nz,Lx,Ly,Lz,CFL = param
     # Index extents 
     imin=1
     imax=Nx
@@ -63,7 +63,7 @@ function  create_mesh(param,par_env)
     kmax=Nz
 
     # Define number of ghost cells
-    nghost = 3
+    nghost = 3 + max(0,Int(ceil(CFL)-2))
 
     # Index extents with ghost cells
     imino=imin-nghost
@@ -202,7 +202,7 @@ struct mg_mesh_struct
 end
 
 function mg_create_mesh(param,par_env,mg_lvl::Int=1)
-    @unpack Nx,Ny,Nz,Lx,Ly,Lz = param
+    @unpack Nx,Ny,Nz,Lx,Ly,Lz,CFL = param
     
     #! determine factor that can be used for mg_lvl = 1 and mg_lvl >1
     mg_factor = 2^(mg_lvl-1)
@@ -218,7 +218,8 @@ function mg_create_mesh(param,par_env,mg_lvl::Int=1)
     kmax=Nz
     
     # Define number of ghost cells
-    nghost = 3
+    nghost = 3 + max(0,Int(ceil(CFL)-2))
+    
 
     # Index extents with ghost cells
     imino=imin-nghost
