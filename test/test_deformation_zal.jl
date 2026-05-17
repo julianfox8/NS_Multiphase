@@ -44,8 +44,8 @@ function test_pressure()
         Ny=64,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
-        max_dt = 2e-1,
-        CFL=2.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        max_dt = 1e-1,
+        CFL=1.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -62,12 +62,12 @@ function test_pressure()
 
         # Turn off NS solver
         solveNS = false,
-        VFVelocity = "Deformation",
-
-        # pressure_scheme = "finite-difference",
-        pressure_scheme = "semi-lagrangian",
+        # VFVelocity = "Deformation",
+        VFVelocity = "airblast",
+        pressure_scheme = "finite-difference",
+        # pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
-        pressureSolver = "res_iteration",
+        # pressureSolver = "res_iteration",
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
@@ -85,14 +85,18 @@ function test_pressure()
     Initial conditions for pressure and velocity
     """
     function IC!(P,u,v,w,VF,mesh)
-        @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+        @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,imax_,imin_,jmin_,jmax_ = mesh
         @unpack x,y,z = mesh
         @unpack xm,ym,zm = mesh
 
         # Velocity
-        t=0.0
-        u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/1.0)
-        v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/1.0)
+        # t=0.0
+        # u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/2.0)
+        # v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/2.0)
+        # w_fun(x,y,z,t) = 0.0
+
+        u_fun(x,y,z,t) = 50*(1 - exp(-100*abs(y-0.5)))
+        v_fun(x,y,z,t) = 0.0
         w_fun(x,y,z,t) = 0.0
         # Set velocities (including ghost cells)
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
@@ -101,17 +105,24 @@ function test_pressure()
             w[i,j,k]  = w_fun(xm[i],ym[j],zm[k],t)
         end
 
-        # Volume Fraction
-        rad=0.15
-        xo=0.5
-        yo=0.75
-        slot_width = 0.05
-        slot_length = 0.24
-        for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-            VF[i,j,k]=VFzalesak2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo,slot_width,slot_length)
+        # # Volume Fraction
+        # rad=0.15
+        # xo=0.5
+        # yo=0.75
+        # slot_width = 0.05
+        # slot_length = 0.24
+        # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+        #     VF[i,j,k]=VFzalesak2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo,slot_width,slot_length)
             
+        # end
+        for k = kmino_:kmaxo_, j = jmin_:jmax_, i = imin_:imax_ 
+            if i < imax_/2
+                VF[i,j,k] = 0.0
+            else
+                VF[i,j,k] = 1.0
+            end
         end
-
+        
 
         return nothing    
     end
@@ -187,8 +198,10 @@ function test_pressure()
     # Create initial condition
     t = 0.0 :: Float64
     IC!(P,u,v,w,VF,mesh)
+    NS.Neumann!(VF,mesh,par_env)
     #printArray("VF",VF,par_env)
-
+    NS.update_VF_borders!(VF,mesh,par_env)
+    
     # Compute band around interface
     # NS.computeBand!(band,VF,param,mesh,par_env)
     fill!(band,0.0)
@@ -266,16 +279,16 @@ function test_pressure()
 
         end
         
-
         # Calculate divergence
         NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
 
         # output before transport with divergence free velocity field    
         NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
-        # println("starting transport")
+        
         # Predictor step (including VF transport)
-        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds;pmesh=tpmesh)
-        # NS.pmesh2VTK(tpmesh,"def_FD_transport_preimage3",param)
+        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)#;pmesh=tpmesh)
+        # NS.pmesh2VTK(tpmesh,"$(param.pressure_scheme)_def_zal_preimage",param)
+
         # Update bands with transported VF
         # NS.computeBand!(band,VF,param,mesh,par_env)
         

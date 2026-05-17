@@ -1,7 +1,7 @@
 
 
 function corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
-    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imin,imax,jmin,jmax,kmin,kmax = mesh
 
     for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
         dp_dx = ( P[i,j,k] - P[i-1,j,k] )/(dx)
@@ -111,7 +111,7 @@ function divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh;pmesh=nothing)
         else
             Fzp = dx*dy*wf[i,j,k+1]
         end
-
+        
         divg = (
             Fxp - Fxm +
             Fyp - Fym +

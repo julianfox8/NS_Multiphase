@@ -62,7 +62,7 @@ function analytic_projection()
         Nz=2,
         stepMax=10000,   # Maximum number of timesteps
         max_dt =6e-2,#2.5e-3,
-        CFL=3.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=2.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,

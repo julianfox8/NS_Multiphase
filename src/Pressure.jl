@@ -324,7 +324,7 @@ function compute_hypre_jacobian!(dynamic_dP,jacobi_iter,matrix,coeff_index,cols_
             delta = 1*10.0^(jacobi_iter/2+1)
         end
     else 
-        delta = 5
+        delta = 1e-2
     end
     nrows = 1
     for k = kmin_:kmax_, j = jmin_:jmax_,i = imin_:imax_
@@ -656,7 +656,7 @@ function Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,d
     
         # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g  \n",iter,res_par,sum_res)
         # error("stop")
-        # if iter % 1000 == 0 ;@printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res); end
+        if iter % 100 == 0 ;@printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g \n",iter,res_par,sum_res); end
 
         if res_par < tol;A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env;pmesh=pmesh) ; return iter; end
         if iter == max_iter
@@ -1133,7 +1133,7 @@ function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
 end
 
 
-function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Nothing, Any} = nothing ,max_iter = 10000,converged::Union{Nothing, Ref{Bool}}=nothing,τ=nothing,tol_lvl = nothing)
+function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Nothing, Any} = nothing ,max_iter = 100000,converged::Union{Nothing, Ref{Bool}}=nothing,τ=nothing,tol_lvl = nothing)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
@@ -1172,7 +1172,7 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
         if iter !== nothing && irank == 0 && i > (max_iter-1)
         # if irank == 0 && i > (max_iter-1)
             # if iter % 50 == 0
-                # println("Iter $iter: max error = $err")
+                println("Iter $iter: max error = $err")
             # end
         end
         if err < tol
@@ -1180,7 +1180,7 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
                 converged[] = true
                 # println("solution converged after $iter iterations")
             end
-            # println("solution converged after $p_iter iterations with res = $err")
+            println("solution converged after $p_iter iterations with res = $err")
             return p_iter
         end
     end

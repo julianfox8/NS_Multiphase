@@ -29,7 +29,7 @@ param = parameters(
     Nz=1,
     stepMax=1000,   # Maximum number of timesteps
     max_dt = 1e-2,
-    CFL=5.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    CFL=1.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
     tol = 1e-7,
@@ -51,17 +51,17 @@ param = parameters(
     solveNS = false,
     VFVelocity = "rotation",
 
-    pressure_scheme = "semi-lagrangian",
+    # pressure_scheme = "semi-lagrangian",
     # pressureSolver = "hypreSecant",
     # pressureSolver = "hypreSecantLS",
-    pressureSolver = "res_iteration",
+    # pressureSolver = "res_iteration",
 
     # pressureSolver = "Ostrowski",
     # pressureSolver = "SOR",
     # pressureSolver = "SecantSOR",
 
-    # pressureSolver = "FC_hypre",
-    # pressure_scheme = "finite-difference",
+    pressureSolver = "FC_hypre",
+    pressure_scheme = "finite-difference",
     # pressureSolver = "gauss-seidel",
     mg_lvl = 1,
 
@@ -70,7 +70,7 @@ param = parameters(
 
     
     iter_type = "standard",
-    test_case = "Zalesak_FD", 
+    test_case = "Zalesak", 
 
 )
 

@@ -6,9 +6,6 @@ using NavierStokes_Parallel
 using Random
 using CairoMakie
 using Statistics
-# using Profile
-# using ProfileView
-# using FlameGraphs
 
 NS = NavierStokes_Parallel
 
@@ -24,7 +21,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         mu_liq=0.0,       # Dynamic viscosity of liquid (N/m)
         mu_gas = 0.0,   # Dynamic viscosity of gas (N/m)
         rho_liq= 1.0,     # Density of liquid (kg/m^3)
-        rho_gas = 10.0,  # Density of gas (kg/m^3)
+        rho_gas = 100000.0,  # Density of gas (kg/m^3)
         sigma = 0.0,    # Surface tension coefficient (N/m)
         grav_x = 0.0,   # Gravity  (m/s^2)
         grav_y = 0.0,   # Gravity (m/s^2)
@@ -159,7 +156,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     t = 0.0 :: Float64
 
     # Create source term/exact solution and apply BC to Pressure
-    IC!(VF,mesh)
+    IC!(VF,mesh) 
+    # fill!(VF,0.0)
     # NS.update_borders!(VF,mesh,par_env)
 
     NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
@@ -210,7 +208,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     # Create x and y coordinates for plotting
     x_plot = x[imin_:imax_]
     y_plot = y[jmin_:jmax_]
-    plt = true
+    plt = false
     if plt 
         denx_cell = similar(P_slice)
         deny_cell = similar(P_slice)
@@ -325,22 +323,25 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     return L2_error,Linf_error
 end
 
-mesh_size = 48
+# mesh_size = 48
 # scheme = "finite-difference"
 # solver = "FC_hypre"
 # solver = "gauss-seidel"
-scheme = "semi-lagrangian"
-solver = "res_iteration"
-lvl = 1
+# scheme = "semi-lagrangian"
+# solver = "res_iteration"
+# lvl = 1
 
-@time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
+# @time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
 # times = time() - t_start
 # println("time taken: $times seconds")
-# mesh_sizes =[16,32,64,128]
-# lvl = [1,1,3]
-# schemes = ["finite-difference","semi-lagrangian","semi-lagrangian"]
-# solvers = ["FC_hypre","res_iteration","res_iteration"]
-# tags = ["FD","SL"]
+mesh_sizes =[32,64,128]
+lvl = [2,1]#,3]
+# schemes = ["finite-difference","semi-lagrangian"]#,"semi-lagrangian"]
+# solvers = ["FC_hypre","res_iteration"]#,"res_iteration"]
+# tags = ["SL-FV","SL-SL"]
+schemes = ["semi-lagrangian"]#,"semi-lagrangian"]
+solvers = ["res_iteration"]#,"res_iteration"]
+tags = ["SL-FV","SL-SL"]
 
 # mesh_sizes =[32,64,128]
 # lvl = [1,1,1,3,1]
@@ -349,17 +350,17 @@ lvl = 1
 # tags = ["FD","SL"]
 # solver_tag = ["gauss-seidel","CG","NL Jacobi","FAS","Secant"]
 
-# markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
-# L2_err   = zeros(length(schemes), length(mesh_sizes))
-# Linf_err = zeros(length(schemes), length(mesh_sizes))
-# times = zeros(length(schemes), length(mesh_sizes))
-# for j in eachindex(schemes)
-#     for i in eachindex(mesh_sizes)
-#         t_start = time()
-#         L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
-#         times[j,i] = time() - t_start
-#     end
-# end
+markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
+L2_err   = zeros(length(schemes), length(mesh_sizes))
+Linf_err = zeros(length(schemes), length(mesh_sizes))
+times = zeros(length(schemes), length(mesh_sizes))
+for j in eachindex(schemes)
+    for i in eachindex(mesh_sizes)
+        t_start = time()
+        L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
+        times[j,i] = time() - t_start
+    end
+end
 conv_plot = false
 timing_plot = false
 
@@ -377,62 +378,83 @@ if conv_plot
     # ------------------------
     # L2 convergence plot
     # ------------------------
-    pL2 = plot(
-        xlabel = "N",
+    Ns = round.(Int, 1 .// mesh_sizes) 
+    f = Figure(size = (900,600))
+    pL2 = Axis(
+        f[1,1],
+        xlabel = "Nₓ",
         ylabel = "L₂ error",
-        xscale = :log10,
-        yscale = :log10,
-        legend = :bottomleft
+        xscale = log10,
+        yscale = log10,
+        title = "MMS pressure solver",
+        xticks = (mesh_sizes),
+        titlesize = 30,
+        xlabelsize = 24,
+        ylabelsize = 24,
+        xticklabelsize = 18,
+        yticklabelsize = 18
     )
 
+
+    # colors = ["blue","orange"]
+    for j in eachindex(schemes)
+
+        
+        vals = L2_err[j, :] .* 10^offsets[j]
+
+        lines!(pL2, mesh_sizes, vals,
+            label = tags[j],
+            # color = colors[j],
+            linewidth = 3
+        )
+
+        scatter!(pL2, mesh_sizes, vals,
+            # marker = markers[j],
+            # color = colors[j],
+            markersize = 12
+        )
+
+    end
     # Reference slopes (plotted as lines)
     ref1_L2 = (L2_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)).*10^0.3  # 1st-order slope
     ref2_L2 = L2_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order slope
 
-    plot!(pL2, mesh_sizes, ref1_L2, linestyle=:dash, label="1st order")
-    plot!(pL2, mesh_sizes, ref2_L2, linestyle=:dash, label="2nd order")
+    lines!(pL2, mesh_sizes, ref1_L2, linestyle=:dashdot, label="O(Δx)")
+    lines!(pL2, mesh_sizes, ref2_L2, linestyle=:dashdot, label="O(Δx²)")
 
-    # Plot scheme results
-    for j in eachindex(schemes)
-        plot!(pL2, mesh_sizes, L2_err[j, :] .* 10^offsets[j],
-            label = "$(tags[j])",
-            linewidth = 3,
-            markershape = markers[j]
-        )
-    end
-
-    savefig(pL2, "L2_convergence.png")
+    axislegend(pL2, position = :rt)
+    save( "L2_convergence.png",f)
     println("Saved L2 plot: L2_convergence.png")
 
     # ------------------------
     # L∞ convergence plot
     # ------------------------
-    pLinf = plot(
-        xlabel = "N",
-        ylabel = "L∞ error",
-        xscale = :log10,
-        yscale = :log10,
-        legend = :bottomleft
-    )
+    # pLinf = plot(
+    #     xlabel = "N",
+    #     ylabel = "L∞ error",
+    #     xscale = :log10,
+    #     yscale = :log10,
+    #     legend = :bottomleft
+    # )
 
-    # Reference slopes
-    ref1_Linf = ( Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)) .*10^0.3 # 1st-order
-    ref2_Linf = Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order
+    # # Reference slopes
+    # ref1_Linf = ( Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)) .*10^0.3 # 1st-order
+    # ref2_Linf = Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order
 
-    plot!(pLinf, mesh_sizes, ref1_Linf, linestyle=:dash, label="1st order")
-    plot!(pLinf, mesh_sizes, ref2_Linf, linestyle=:dash, label="2nd order")
+    # plot!(pLinf, mesh_sizes, ref1_Linf, linestyle=:dash, label="1st order")
+    # plot!(pLinf, mesh_sizes, ref2_Linf, linestyle=:dash, label="2nd order")
 
-    # Plot scheme results
-    for j in eachindex(schemes)
-        plot!(pLinf, mesh_sizes, Linf_err[j, :] .* 10^offsets[j],
-            label = "$(tags[j])",
-            linewidth = 3,
-            markershape = markers[j]
-        )
-    end
+    # # Plot scheme results
+    # for j in eachindex(schemes)
+    #     plot!(pLinf, mesh_sizes, Linf_err[j, :] .* 10^offsets[j],
+    #         label = "$(tags[j])",
+    #         linewidth = 3,
+    #         markershape = markers[j]
+    #     )
+    # end
 
-    savefig(pLinf, "Linf_convergence.png")
-    println("Saved L∞ plot: Linf_convergence.png")
+    # savefig(pLinf, "Linf_convergence.png")
+    # println("Saved L∞ plot: Linf_convergence.png")
 
 end
 

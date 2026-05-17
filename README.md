@@ -57,8 +57,8 @@ mpiexecjl --project=. -np 4 julia --optimize=3 --math-mode=fast --check-bounds=n
 
 ## To-do's / Goals
 
--implement an error metric to quantify the difference between an anlytic pre-image and a flux-corrected (or pressure-corrected) pre-image
--continuously add unit tests and verification of the solver
+    -implement an error metric to quantify the difference between an anlytic pre-image and a flux-corrected (or pressure-corrected) pre-image
+    -continuously add unit tests and verification of the solver
 
 
 >>>>>>> master

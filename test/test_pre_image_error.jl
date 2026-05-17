@@ -1,6 +1,6 @@
 using NavierStokes_Parallel 
-# using CairoMakie
-using GLMakie
+using CairoMakie
+# using GLMakie
 using LinearAlgebra
 NS = NavierStokes_Parallel
 
@@ -131,7 +131,13 @@ function plot_sampled_cell(sample_pts, verts, ns; original_verts = nothing, titl
         zlabel = "Z",
         protrusions = 75,
         title = title_str,
-        #azimuth = π/6,
+        titlesize = 30,
+        xlabelsize = 24,
+        ylabelsize = 24,
+        zlabelsize = 24,
+        xticklabelsize = 18,
+        yticklabelsize = 18,
+        zticklabelsize = 18,
         aspect = :data
     )
     
@@ -144,6 +150,15 @@ function plot_sampled_cell(sample_pts, verts, ns; original_verts = nothing, titl
             markersize = 9,
             color = :red
         )
+        for f in FACES_EVEN
+            i1,i2,i3,i4 = f
+
+            xs = original_verts[1,[i1,i2,i3,i4,i1]]
+            ys = original_verts[2,[i1,i2,i3,i4,i1]]
+            zs = original_verts[3,[i1,i2,i3,i4,i1]]
+
+            lines!(ax, xs, ys, zs, color = :red, linewidth = 2)
+        end
     end
 
     
@@ -456,13 +471,13 @@ function pre_image_err(dts,scheme)
         grav_z = 0.0, # Gravity (m/s^2)
         Lx=1.0,            # Domain size
         Ly=1.0,
-        Lz=1/50,
-        tFinal=3.0,      # Simulation time
+        Lz=1.0,
+        tFinal=2.0,      # Simulation time
         
         # Discretization inputs
-        Nx=48,           # Number of grid cells
-        Ny=48,
-        Nz=1,
+        Nx=32,           # Number of grid cells
+        Ny=32,
+        Nz=32,
         stepMax=1,   # Maximum number of timesteps
         max_dt = 6e-2,
         CFL=3.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -478,12 +493,12 @@ function pre_image_err(dts,scheme)
         # Periodicity
         xper = false,
         yper = false,
-        zper = true,
+        zper = false,
 
         # Turn off NS solver
         solveNS = false,
-        VFVelocity = "Deformation",
-        # VFVelocity = "Deformation3D",
+        # VFVelocity = "Deformation",
+        VFVelocity = "Deformation3D",
         pressure_scheme = scheme,
         # pressure_scheme = "finite-difference",
         # pressure_scheme = "semi-lagrangian",
@@ -516,8 +531,8 @@ function pre_image_err(dts,scheme)
 
         # Velocity
         if VFVelocity == "Deformation"
-            u_fun = (x,y,z,t) -> -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/3.0)
-            v_fun = (x,y,z,t) -> +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/3.0)
+            u_fun = (x,y,z,t) -> -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/2.0)
+            v_fun = (x,y,z,t) -> +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/2.0)
             w_fun = (x,y,z,t) -> 0.0
 
             # Volume Fraction
@@ -529,9 +544,9 @@ function pre_image_err(dts,scheme)
                 VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
             end
         elseif VFVelocity == "Deformation3D"
-            u_fun = (x,y,z,t) -> 2(sin(π*x))^2*sin(2π*y)*sin(2π*z)*cos(π*t/3.0)
-            v_fun = (x,y,z,t) -> -(sin(π*y))^2*sin(2π*x)*sin(2π*z)*cos(π*t/3.0)
-            w_fun = (x,y,z,t) -> -(sin(π*z))^2*sin(2π*x)*sin(2π*y)*cos(π*t/3.0)
+            u_fun = (x,y,z,t) -> 2(sin(π*x))^2*sin(2π*y)*sin(2π*z)*cos(π*t/2.0)
+            v_fun = (x,y,z,t) -> -(sin(π*y))^2*sin(2π*x)*sin(2π*z)*cos(π*t/2.0)
+            w_fun = (x,y,z,t) -> -(sin(π*z))^2*sin(2π*x)*sin(2π*y)*cos(π*t/2.0)
 
             # Volume Fraction 3D
             rad=0.15
@@ -617,7 +632,7 @@ function pre_image_err(dts,scheme)
     pre_tri_verts = Array{eltype(tets)}(undef,3,nverts+6) ;fill!(pre_tri_verts, 0.0)
     tri_verts = Array{eltype(tets)}(undef,3,nverts+6) ;fill!(tri_verts, 0.0)
 
-
+    
     # #initialize error
     # errs = zeros(length(test_dts))
     #! store copies of face velocity field 
@@ -626,22 +641,22 @@ function pre_image_err(dts,scheme)
     for (idx, dt) in enumerate(dts)
         # Set velocity for iteration using deformation field
         NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
-
+        println("starting error calc for dt = $dt")
         uf_old = copy(uf)
         vf_old = copy(vf)
         wf_old = copy(wf)
         if param.pressure_scheme == "semi-lagrangian" #need to determine corrected field
             # Determine pressure correction
             iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;)
-            # println("Pressure solver converged in $iter iterations for dt = $dt")
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
         end
 
-        println("starting error calc for dt = $dt")
+        
         errors = tmp9; fill!(errors,0.0)
         # loop over domain and project vertices to test numerical integration 
         for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+
             
             # Get cell vertices with triangulation ordering
             tetsign = NS.cell2verts!(verts,i,j,k,param,mesh)
@@ -654,16 +669,18 @@ function pre_image_err(dts,scheme)
             sample_cell_faces!(sample_pts, verts, tetsign, ns)
             
             # Visualize sampled points on faces before projection
-            # if k == 1 && j == 11 && i == 11
-            #     plot_sampled_cell(sample_pts, verts, ns;title_str = "cell sampled with $nfp points per face")
+            # if k == 11 && j == 11 && i == 11
+            #     # plot_sampled_cell(sample_pts, verts, ns;title_str = "cell sampled with $nfp points per face")
+            #     plot_sampled_cell(sample_pts, verts, ns;original_verts = original_verts,title_str = "cell sampled with $nfp points per face")
             #     error("stop")
             # end
             # Compute barycentric coordinates 
             compute_barycentric!(tri_verts, sample_pts, tri_ids, lambdas, tetsign, ns)
             
             # Check that barycentric coordinates map back to the correct point on the face
-            # if k == 3 && j == 3 && i == 3
+            # if k == 11 && j == 11 && i == 11
             #     plot_points_on_faces(tri_verts, tri_ids, lambdas, tetsign, ns)
+            #     error("stop")
             # end
 
             # Project sampled points to get analytic pre-image
@@ -674,8 +691,13 @@ function pre_image_err(dts,scheme)
                 richardson_extrapolation_n!(@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
             end
 
-            # if k == 1 && j ==11 && i == 11
-            #     plot_sampled_cell(sample_pts, verts, ns; title_str = "reference projected cell sampled with $nfp points per face")
+            # if k == 11 && j ==11 && i == 11
+            #     for i in 1:8
+            #         nsteps = 10
+            #         richardson_extrapolation_n!(@view(original_verts[:,i]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
+            #     end
+            #     plot_sampled_cell(sample_pts, verts, ns;original_verts = original_verts, title_str = "exact projected cell sampled \n with $nfp points per face")
+            #     error("stop")
             # end
             
 
@@ -705,10 +727,14 @@ function pre_image_err(dts,scheme)
             map_sample_points_to_preimage!(preimage_sample_pts, pre_tri_verts, tri_ids, lambdas, tetsign, ns)
 
             # Check that barycentric coordinates map back to the correct point on the face
-            # if k == 1 && j == 11 && i == 11
-            #     plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "flux-corrected pre-image of sampled points with $nfp points per face")
-            #     error("stop")
-            # end
+            if k == 11 && j == 11 && i == 11
+                for i in 1:8
+                    
+                    NS.project!(@view(original_verts[:,i]), i, j, k, uf, vf, wf, dt, param, mesh)
+                end
+                plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "pressure-corrected pre-image of sampled  \n points with $nfp points per face")
+                error("stop")
+            end
 
             # Compute error in sample points for i,j,k cell
             # errors[i,j,k] = maximum(sqrt.(sum((preimage_sample_pts .- sample_pts).^2)))
@@ -725,14 +751,14 @@ function pre_image_err(dts,scheme)
     
 end
 
-scheme = "finite-difference"
-# scheme = "semi-lagrangian"
-dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
-# dts = [0.005,0.0025,0.001] 
+# scheme = "finite-difference"
+scheme = "semi-lagrangian"
+# dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
+dts = [0.06,0.0025,0.001] 
 # dts = [0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
 errors = pre_image_err(dts,scheme)
 
-open("$(scheme)_errors.csv","w") do io 
+open("$(scheme)_noFC_errors_test.csv","w") do io 
     println(io,"dts,errors") # header
     for (dt,err) in zip(dts,errors)
         println(io,"$dt,$err")

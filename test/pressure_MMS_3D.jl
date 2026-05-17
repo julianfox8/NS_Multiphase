@@ -6,9 +6,9 @@ using NavierStokes_Parallel
 using Random
 using Plots
 using Statistics
-using Profile
-using ProfileView
-using FlameGraphs
+# using Profile
+# using ProfileView
+# using FlameGraphs
 
 NS = NavierStokes_Parallel
 
@@ -21,8 +21,8 @@ function test_psolve(Nx,Ny,Nz,scheme,solver,lvl)
 
     param = parameters(
         # Constants
-        mu_liq=1,       # Dynamic viscosity of liquid (N/m)
-        mu_gas = 0.1,   # Dynamic viscosity of gas (N/m)
+        mu_liq=0.0,       # Dynamic viscosity of liquid (N/m)
+        mu_gas = 0.0,   # Dynamic viscosity of gas (N/m)
         rho_liq= 1.0,     # Density of liquid (kg/m^3)
         rho_gas = 1.0,  # Density of gas (kg/m^3)
         sigma = 0.0,    # Surface tension coefficient (N/m)
@@ -54,7 +54,7 @@ function test_psolve(Nx,Ny,Nz,scheme,solver,lvl)
         # Periodicity
         xper = false,
         yper = false,
-        zper = true,
+        zper = false,
 
         pressure_scheme = scheme,
         pressureSolver = solver,
@@ -69,6 +69,7 @@ function test_psolve(Nx,Ny,Nz,scheme,solver,lvl)
         hypreSolver = "GMRES-AMG",
         mg_lvl = lvl,
         projection_method = "RK4",
+        # projection_method = "Euler",
         tesselation = "5_tets",
         
         iter_type = "standard",
@@ -138,7 +139,7 @@ function test_psolve(Nx,Ny,Nz,scheme,solver,lvl)
         @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
         @unpack jmin_,jmax_,xm,ym,imin_,imax_,jmin_,jmax_,kmin_,kmax_,dy,dx,dz = mesh
         @unpack xper,yper,zper,rho_gas,rho_liq,pressure_scheme = param
-        k = 1
+        
 
         # this for loop is used for MMS applied strictly to RHS
         for k = kmin_-1:kmax_+1,j = jmin_-1:jmax_+1,i = imin_-1:imax_+1 
@@ -321,31 +322,42 @@ function test_psolve(Nx,Ny,Nz,scheme,solver,lvl)
     return L2_error,Linf_error
 end
 
+mesh_size = 48
+# scheme = "finite-difference"
+# solver = "FC_hypre"
+# solver = "gauss-seidel"
+scheme = "semi-lagrangian"
+solver = "res_iteration"
+lvl = 1
+t_start = time()
+@time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,mesh_size,scheme,solver,lvl)    
+times = time() - t_start
+println("time taken: $times seconds")
 # mesh_sizes =[24,32,48,64]
 # lvl = [1,3,1,1]
 # schemes = ["semi-lagrangian","semi-lagrangian","semi-lagrangian","finite-difference"]
 # solvers = ["hypreSecant","res_iteration","res_iteration","FC_hypre"]
 # solver_tag = ["Secant","FAS","NLW Jacobi","GMRES"]
 
-mesh_sizes =[24,32,48,64]
-lvl = [1,3,1,1]
-schemes = ["semi-lagrangian","semi-lagrangian","finite-difference"]#,"finite-difference"]
-solvers = ["res_iteration","res_iteration","FC_hypre"]#,"gauss-seidel"]
-solver_tag = ["NLW Jacobi","FAS","GMRES","GS"]
+# mesh_sizes =[24,32,48,64]
+# lvl = [1,3,1,1]
+# schemes = ["semi-lagrangian","semi-lagrangian","finite-difference"]#,"finite-difference"]
+# solvers = ["res_iteration","res_iteration","FC_hypre"]#,"gauss-seidel"]
+# solver_tag = ["NLW Jacobi","FAS","GMRES","GS"]
 
-markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
-L2_err   = zeros(length(schemes), length(mesh_sizes))
-Linf_err = zeros(length(schemes), length(mesh_sizes))
-times = zeros(length(schemes), length(mesh_sizes))
-for j in eachindex(schemes)
-    for i in eachindex(mesh_sizes)
-        t_start = time()
-        L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
-        times[j,i] = time() - t_start
-    end
-end
+# markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
+# L2_err   = zeros(length(schemes), length(mesh_sizes))
+# Linf_err = zeros(length(schemes), length(mesh_sizes))
+# times = zeros(length(schemes), length(mesh_sizes))
+# for j in eachindex(schemes)
+#     for i in eachindex(mesh_sizes)
+#         t_start = time()
+#         L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
+#         times[j,i] = time() - t_start
+#     end
+# end
 conv_plot = false
-timing_plot = true
+timing_plot = false
 
 if conv_plot
     # ---------------------------------------------

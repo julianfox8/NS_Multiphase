@@ -26,7 +26,7 @@ function test_pressure()
         Ny=64,
         Nz=64,
         stepMax=10000,   # Maximum number of timesteps
-        max_dt = 7.5e-2,
+        max_dt = 6e-2,
         CFL=1.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
@@ -48,11 +48,12 @@ function test_pressure()
 
         # pressure_scheme = "finite-difference",
         pressure_scheme = "semi-lagrangian",
-        pressureSolver = "hypreSecant",
-        # pressureSolver = "res_iteration",
+        # pressureSolver = "hypreSecant",
+        pressureSolver = "res_iteration",
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
+        projection_method = "Euler",
 
         mg_lvl = 1,
 
@@ -126,18 +127,18 @@ function test_pressure()
 
     # Compute band around interface
     # NS.computeBand!(band,VF,param,mesh,par_env)
-    fill!(band,0.0)
+    # fill!(band,0.0)
     # Compute interface normal 
-    NS.computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
+    # NS.computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
 
-    # Compute PLIC reconstruction 
-    NS.computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
+    # # Compute PLIC reconstruction 
+    # NS.computePLIC!(D,nx,ny,nz,VF,param,mesh,par_env)
 
-    # # Check divergence
-    dt = NS.compute_dt(u,v,w,param,mesh,par_env)
+    # # # Check divergence
+    # dt = NS.compute_dt(u,v,w,param,mesh,par_env)
     
-    # Check semi-lagrangian divergence
-    NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
+    # # Check semi-lagrangian divergence
+    # NS.divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
 
     # compute density and viscosity at intial conditions
     NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
@@ -162,17 +163,20 @@ function test_pressure()
         # Update step counter
         nstep += 1
         
-        # Compute timestep and update time
-        CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
-        if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
-            dt = param.tFinal-t
-        else
-            dt = NS.compute_dt(u,v,w,param,mesh,par_env)
-        end
-        
         # Set velocity for iteration using deformation field
-        NS.defineVelocity!(t+dt/2,u,v,w,uf,vf,wf,param,mesh)
+        NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
+
+        # Compute timestep and update time
+        # CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
+        # if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
+        #     dt = param.tFinal-t
+        # else
+        #     dt = NS.compute_dt(u,v,w,param,mesh,par_env)
+        # end
         
+        # # Set velocity for iteration using deformation field
+        # NS.defineVelocity!(t+(dt/2),u,v,w,uf,vf,wf,param,mesh)
+        dt = 0.1
         # Update time 
         t += dt
 

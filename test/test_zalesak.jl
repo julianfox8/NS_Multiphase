@@ -39,8 +39,8 @@ function test_pressure()
         tFinal=1.0,      # Simulation time
         
         # Discretization inputs
-        Nx=64,           # Number of grid cells
-        Ny=64,
+        Nx=96,           # Number of grid cells
+        Ny=96,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
         max_dt =1e-1,
@@ -82,7 +82,7 @@ function test_pressure()
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
-        test_case = "Zalesak_SL",
+        test_case = "Zalesak_result2",
 
     )
 
@@ -212,7 +212,7 @@ function test_pressure()
         end
         
         # Set velocity for iteration using deformation field
-        NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
+        NS.defineVelocity!(t+dt/2,u,v,w,uf,vf,wf,param,mesh)
         
         # Update time 
         t += dt

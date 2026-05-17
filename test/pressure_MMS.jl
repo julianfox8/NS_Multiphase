@@ -4,11 +4,11 @@ Method of manufactured solutions for pressure test script
 
 using NavierStokes_Parallel
 using Random
-using Plots
+using CairoMakie
 using Statistics
-using Profile
-using ProfileView
-using FlameGraphs
+# using Profile
+# using ProfileView
+# using FlameGraphs
 
 NS = NavierStokes_Parallel
 
@@ -21,8 +21,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 
     param = parameters(
         # Constants
-        mu_liq=1,       # Dynamic viscosity of liquid (N/m)
-        mu_gas = 0.1,   # Dynamic viscosity of gas (N/m)
+        mu_liq=0.0,       # Dynamic viscosity of liquid (N/m)
+        mu_gas = 0.0,   # Dynamic viscosity of gas (N/m)
         rho_liq= 1.0,     # Density of liquid (kg/m^3)
         rho_gas = 1.0,  # Density of gas (kg/m^3)
         sigma = 0.0,    # Surface tension coefficient (N/m)
@@ -40,8 +40,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         Ny=Ny,
         Nz=1,
         stepMax=50,   # Maximum number of timesteps
-        max_dt = 1e-3,
-        CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        max_dt = 2.5e-2,
+        CFL=2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -68,138 +68,14 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 
         hypreSolver = "GMRES-AMG",
         mg_lvl = lvl,
-        projection_method = "RK4",
+        # projection_method = "RK4",
+        projection_method = "Euler",
         tesselation = "5_tets",
         
         iter_type = "standard",
         test_case = "psolve_test", 
 
     )
-
-    """
-    Check homogeneous Neumann (zero normal derivative) on a 2D face-centered velocity field.
-    Assumes face-centered arrays with ghost faces: uf indexed in x-faces, vf in y-faces.
-    Returns a Dict of stats and a Bool per boundary indicating pass/fail.
-    """
-    function check_neumann!(uf, vf, mesh; tol=1e-12, verbose=true)
-        @unpack imin_, imax_, jmin_, jmax_, dx, dy = mesh
-        k = 1
-
-        stats = Dict{String,Any}()
-
-        # LEFT boundary (x = xmin)
-        # One-sided normal derivative using ghost face at imin_-1 and interior face at imin_
-        left_one_sided = [ (uf[imin_, j, k] - uf[imin_-1, j, k]) / dx for j in jmin_:jmax_ ]
-        # Centered derivative just inside boundary (using faces imin_-1 and imin_+1 if available)
-        left_centered = [ (uf[imin_+1, j, k] - uf[imin_-1, j, k]) / (2dx) for j in jmin_:jmax_ ]
-
-        # RIGHT boundary (x = xmax)
-        right_one_sided = [ (uf[imax_+1, j, k] - uf[imax_, j, k]) / dx for j in jmin_:jmax_ ]
-        right_centered  = [ (uf[imax_+1, j, k] - uf[imax_-1, j, k]) / (2dx) for j in jmin_:jmax_ ]
-
-        # BOTTOM boundary (y = ymin) — normal is y, check vf
-        bottom_one_sided = [ (vf[i, jmin_, k] - vf[i, jmin_-1, k]) / dy for i in imin_:imax_ ]
-        bottom_centered  = [ (vf[i, jmin_+1, k] - vf[i, jmin_-1, k]) / (2dy) for i in imin_:imax_ ]
-
-        # TOP boundary (y = ymax)
-        top_one_sided = [ (vf[i, jmax_+1, k] - vf[i, jmax_, k]) / dy for i in imin_:imax_ ]
-        top_centered  = [ (vf[i, jmax_+1, k] - vf[i, jmax_-1, k]) / (2dy) for i in imin_:imax_ ]
-
-        # Helper to produce summary
-        function summarize(arr)
-            a = abs.(collect(arr))
-            return (max = maximum(a), mean = mean(a), rms = sqrt(mean(a.^2)))
-        end
-
-        stats["left_one_sided"]   = summarize(left_one_sided)
-        stats["left_centered"]    = summarize(left_centered)
-        stats["right_one_sided"]  = summarize(right_one_sided)
-        stats["right_centered"]   = summarize(right_centered)
-        stats["bottom_one_sided"] = summarize(bottom_one_sided)
-        stats["bottom_centered"]  = summarize(bottom_centered)
-        stats["top_one_sided"]    = summarize(top_one_sided)
-        stats["top_centered"]     = summarize(top_centered)
-
-        # Determine pass/fail for each physical boundary using one-sided derivative (typical)
-        pass_left   = stats["left_one_sided"][:max]   <= tol
-        pass_right  = stats["right_one_sided"][:max]  <= tol
-        pass_bottom = stats["bottom_one_sided"][:max] <= tol
-        pass_top    = stats["top_one_sided"][:max]    <= tol
-
-        stats["pass"] = Dict(
-            "left" => pass_left,
-            "right" => pass_right,
-            "bottom" => pass_bottom,
-            "top" => pass_top,
-            "tol" => tol
-        )
-
-        if verbose
-            println("Neumann check (tol = $(tol))")
-            for b in ("left","right","bottom","top")
-                p = stats["pass"][b]
-                s = stats["$(b)_one_sided"]
-                c = stats["$(b)_centered"]
-                println(" $b: pass = $(p). one-sided max = $(round(s[:max], sigdigits=6)), mean = $(round(s[:mean], sigdigits=4)), rms = $(round(s[:rms], sigdigits=4))")
-                println("      centered (near boundary) max = $(round(c[:max], sigdigits=6))")
-            end
-        end
-
-        return stats
-    end
-
-
-    """
-    Compute manufactured solution and source term
-    """
-    function compute_MMS!(uf,vf,wf,RHS,VF,dt,exact,mesh,par_env)
-        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-        @unpack jmin_,jmax_,xm,ym,imin_,imax_,jmin_,jmax_,kmin_,kmax_,dy,dx,dz = mesh
-        @unpack xper,yper,zper,rho_gas,rho_liq,pressure_scheme = param
-        k = 1
-
-        # this for loop is used for MMS applied strictly to RHS
-        for i = imin_:imax_, j = jmin_:jmax_+1
-            rho = (VF[i,j,1] == 1.0) ? rho_liq : rho_gas
-            exact[i,j,1] = cos(2π*ym[j])
-            if pressure_scheme == "semi-lagrangian"
-                vf[i,j,k] = -2π*sin(2π*y[j])/rho*dt
-            elseif pressure_scheme == "finite-difference"
-                vf[i,j,k] = -2π*sin(2π*y[j])/rho
-            end
-            # vf[i,j,k] = -2π*sin(2π*y[j])/rho
-        #     RHS[i,j,1] = -(4*π^2/rho)*cos(2π*ym[j])*dt
-        #     # RHS[i,j,1] = -(8*π^2/rho)*cos(2π*ym[j])*cos(2π*xm[i])
-            
-        end
-        for i = imin_:imax_, j = jmin_:jmax_
-            RHS[i,j,k] = (vf[i,j+1,k]-vf[i,j,k])/dy
-        end
-        # for  j = jmin_-1:jmax_+2,i = imin_-1:imax_+1
-        #     rho = (VF[i,j,1] == 1.0) ? rho_liq : rho_gas
-        #     if pressure_scheme == "semi-lagrangian"
-        #         vf[i,j,1] = -2*π*sin(2π*y[j])cos(2π*x[i])/rho*dt
-        #     elseif pressure_scheme == "finite-difference"
-        #         vf[i,j,1] = -2*π*sin(2π*y[j])cos(2π*x[i])/rho
-        #     end
-        # end
-
-        # for j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
-        #     rho = (VF[i,j,1] == 1.0) ? rho_liq : rho_gas
-        #     if pressure_scheme == "semi-lagrangian"
-        #         uf[i,j,1] = 0.0#-2*π*sin(2π*x[i])cos(2π*y[j])/rho*dt
-        #     elseif pressure_scheme == "finite-difference"
-        #         uf[i,j,1] = 0.0 #-2*π*sin(2π*x[i])cos(2π*y[j])/rho
-        #     end
-        # end
-
-        # for i = imin_:imax_, j = jmin_:jmax_
-        #     exact[i,j,1] = cos(2π*ym[j])*cos(2π*xm[i])
-        #     RHS[i,j,k] = (vf[i,j+1,k]-vf[i,j,k])/dy # + (uf[i+1,j,k]-uf[i,j,k])/dx
-        # end
-
-        return nothing
-    end
 
 
     """
@@ -214,11 +90,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         # this for loop is used for MMS applied strictly to RHS
         for i = imin_-1:imax_+1, j = jmin_-1:jmax_+1
             exact[i,j,1] = cos(2π*ym[j])
-            if pressure_scheme == "semi-lagrangian"
-                v[i,j,k] = -2π*sin(2π*ym[j])*dt*(2/(deny[i,j,k]+deny[i,j+1,k]))
-            elseif pressure_scheme == "finite-difference"
-                v[i,j,k] = -2π*sin(2π*ym[j])*(2/(deny[i,j,k]+deny[i,j+1,k]))
-            end
+            v[i,j,k] = -2π*sin(2π*ym[j])*dt*(2/(deny[i,j,k]+deny[i,j+1,k]))
         end
 
         # apply periodic BC
@@ -230,32 +102,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         NS.interpolateFace!(u,v,w,uf,vf,wf,mesh)
 
         for i = imin_:imax_, j = jmin_:jmax_
-            # RHS[i,j,k] = 2/(deny[i,j,k]+deny[i,j+1,k])*(vf[i,j+1,k]-vf[i,j,k])/dy
-            RHS[i,j,k] = (vf[i,j+1,k]-vf[i,j,k])/dy
+            RHS[i,j,k] = 2/(deny[i,j,k]+deny[i,j+1,k])*(vf[i,j+1,k]-vf[i,j,k])/dy
         end
-
-        # for  j = jmin_-1:jmax_+2,i = imin_-1:imax_+1
-        #     rho = (VF[i,j,1] == 1.0) ? rho_liq : rho_gas
-        #     if pressure_scheme == "semi-lagrangian"
-        #         vf[i,j,1] = -2*π*sin(2π*y[j])cos(2π*x[i])/rho*dt
-        #     elseif pressure_scheme == "finite-difference"
-        #         vf[i,j,1] = -2*π*sin(2π*y[j])cos(2π*x[i])/rho
-        #     end
-        # end
-
-        # for j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
-        #     rho = (VF[i,j,1] == 1.0) ? rho_liq : rho_gas
-        #     if pressure_scheme == "semi-lagrangian"
-        #         uf[i,j,1] = 0.0#-2*π*sin(2π*x[i])cos(2π*y[j])/rho*dt
-        #     elseif pressure_scheme == "finite-difference"
-        #         uf[i,j,1] = 0.0 #-2*π*sin(2π*x[i])cos(2π*y[j])/rho
-        #     end
-        # end
-
-        # for i = imin_:imax_, j = jmin_:jmax_
-        #     exact[i,j,1] = cos(2π*ym[j])*cos(2π*xm[i])
-        #     RHS[i,j,k] = (vf[i,j+1,k]-vf[i,j,k])/dy # + (uf[i+1,j,k]-uf[i,j,k])/dx
-        # end
 
         return nothing
     end
@@ -316,8 +164,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     # stats = check_neumann!(uf, vf, mesh; tol=1e-10)
 
     # Compute band around interface
-    NS.computeBand!(band,VF,param,mesh,par_env)
-    # fill!(band,1.0)
+    # NS.computeBand!(band,VF,param,mesh,par_env)
+    fill!(band,1.0)
 
     # Loop over time
     nstep = 0
@@ -359,53 +207,111 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     plt = true
     if plt 
         # Create subplots
-        p1 = heatmap(x_plot, y_plot, P_slice', 
-                    xlabel="x", ylabel="y", title="Computed P",
-                    aspect_ratio=:equal, color=:viridis)
-        
-        p2 = heatmap(x_plot, y_plot, exact_slice', 
-                    xlabel="x", ylabel="y", title="Exact Solution",
-                    aspect_ratio=:equal, color=:viridis)
-        
-        p3 = heatmap(x_plot, y_plot, error_slice', 
-                    xlabel="x", ylabel="y", title="Source",
-                    aspect_ratio=:equal, color=:hot)
-        
-        p4 = plot(x_plot, P_slice[div(Nx,2),:], label="Computed P", 
-                xlabel="y", ylabel="P", title="Centerline (x=0.5)",
-                linewidth=2, legend=:bottomright)
-        plot!(p4, x_plot, exact_slice[div(Nx,2),:], label="Exact", 
-            linewidth=2, linestyle=:dash)
+        fig = Figure(size = (1000, 800))
 
-        # p4 = plot(x_plot, P_slice[:,div(Ny,2)], label="Computed P", 
-        #         xlabel="y", ylabel="P", title="Centerline (y=0.5)",
-        #         linewidth=2, legend=:bottomright)
-        # plot!(p4, x_plot, exact_slice[:,div(Ny,2)], label="Exact", 
-        #     linewidth=2, linestyle=:dash)
+        # -----------------------------
+        # Heatmap 1: Computed P
+        # -----------------------------
+        ax1 = Axis(fig[1, 1],
+            xlabel = "x",
+            ylabel = "y",
+            title = "Computed P",
+            aspect = DataAspect()
+        )
 
-        plot(p1, p2, p3, p4, layout=(2,2), size=(1000,800),
-            plot_title="Mesh: $(Nx)x$(Ny), L2 error: $(round(L2_error, sigdigits=4))")
-        
-        savefig("MMS_comparison_$(Nx)x$(Ny).png")
-        println("Saved plot: MMS_comparison_$(Nx)x$(Ny).png")
+        hm1 = heatmap!(ax1, x_plot, y_plot, P_slice')
+        Colorbar(fig[1, 1, Right()], hm1)
+
+        # -----------------------------
+        # Heatmap 2: Exact Solution
+        # -----------------------------
+        ax2 = Axis(fig[1, 2],
+            xlabel = "x",
+            ylabel = "y",
+            title = "Exact Solution",
+            aspect = DataAspect()
+        )
+
+        hm2 = heatmap!(ax2, x_plot, y_plot, exact_slice')
+        Colorbar(fig[1, 2, Right()], hm2)
+
+        # -----------------------------
+        # Heatmap 3: Source / Error
+        # -----------------------------
+        ax3 = Axis(fig[2, 1],
+            xlabel = "x",
+            ylabel = "y",
+            title = "Source",
+            aspect = DataAspect()
+        )
+
+        hm3 = heatmap!(ax3, x_plot, y_plot, error_slice', colormap = :hot)
+        Colorbar(fig[2, 1, Right()], hm3)
+
+        # -----------------------------
+        # Line plot: Centerline
+        # -----------------------------
+        ax4 = Axis(fig[2, 2],
+            xlabel = "y",
+            ylabel = "P",
+            title = "Centerline (x=0.5)"
+        )
+
+        mid = div(Nx, 2)
+
+        lines!(ax4, x_plot, P_slice[mid, :],
+            label = "Computed P",
+            linewidth = 2
+        )
+
+        lines!(ax4, x_plot, exact_slice[mid, :],
+            label = "Exact",
+            linewidth = 2,
+            linestyle = :dash
+        )
+
+        axislegend(ax4, position = :rb)
+
+        # -----------------------------
+        # Global title
+        # -----------------------------
+        Label(fig[0, :],
+            "Mesh: $(Nx)x$(Ny), L2 error: $(round(L2_error, sigdigits=4))",
+            fontsize = 18
+        )
+
+        display(fig)
+        # savefig("MMS_comparison_$(Nx)x$(Ny).png")
+        # println("Saved plot: MMS_comparison_$(Nx)x$(Ny).png")
     end
     return L2_error,Linf_error
 end
 
+mesh_size = 48
+# scheme = "finite-difference"
+# solver = "FC_hypre"
+# solver = "gauss-seidel"
+scheme = "semi-lagrangian"
+solver = "res_iteration"
+lvl = 1
+
+# @time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
+# times = time() - t_start
+# println("time taken: $times seconds")
 # mesh_sizes =[16,32,64,128]
 # lvl = [1,1,3]
 # schemes = ["finite-difference","semi-lagrangian","semi-lagrangian"]
 # solvers = ["FC_hypre","res_iteration","res_iteration"]
 # tags = ["FD","SL"]
 
-mesh_sizes =[32,64,128]
-lvl = [1,1,1,3,1]
-schemes = ["finite-difference","finite-difference","semi-lagrangian","semi-lagrangian","semi-lagrangian"]
-solvers = ["gauss-seidel","congugateGradient","res_iteration","res_iteration","hypreSecant"]
-tags = ["FD","SL"]
-solver_tag = ["gauss-seidel","CG","NL Jacobi","FAS","Secant"]
+# mesh_sizes =[32,64,128]
+# lvl = [1,1,1,3,1]
+# schemes = ["finite-difference","finite-difference","semi-lagrangian","semi-lagrangian","semi-lagrangian"]
+# solvers = ["gauss-seidel","congugateGradient","res_iteration","res_iteration","hypreSecant"]
+# tags = ["FD","SL"]
+# solver_tag = ["gauss-seidel","CG","NL Jacobi","FAS","Secant"]
 
-markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
+# markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
 L2_err   = zeros(length(schemes), length(mesh_sizes))
 Linf_err = zeros(length(schemes), length(mesh_sizes))
 times = zeros(length(schemes), length(mesh_sizes))
@@ -417,7 +323,7 @@ for j in eachindex(schemes)
     end
 end
 conv_plot = false
-timing_plot = true
+timing_plot = false
 
 if conv_plot
     # ---------------------------------------------

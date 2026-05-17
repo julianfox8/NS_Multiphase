@@ -348,8 +348,8 @@ function mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays
         iter += 1
         pvtk_iter += 1
         if pressure_scheme == "finite-difference"
-            # converged = mg_vc_lin!(1,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter)
-            converged = mg_fas_lin!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter)
+            converged = mg_vc_lin!(1,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter)
+            # converged = mg_fas_lin!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter)
         elseif pressure_scheme == "semi-lagrangian"
             converged = mg_fas!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter)
         end
@@ -385,12 +385,12 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     # println("starting on level $lvl")
 
     # number of pre and post smooths
-    v1 = 20
-    v2 = 20
+    v1 = 10
+    v2 = 10
 
     if lvl == mg_lvl
         # relax on coarsest level ( residual now is stored tmp1)
-        poisson_solve!(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays,lvl,mg_mesh,dt,param,par_env,10000;tol_lvl=1e-10,verts,tets)
+        poisson_solve!(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays,lvl,mg_mesh,dt,param,par_env,50000;tol_lvl=1e-10,verts,tets)
         return
     end
 
@@ -406,8 +406,8 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     restrict!(mg_arrays.tmplrg[lvl+1],VF_lvl,mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
     update_borders!(mg_arrays.tmplrg[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     Neumann!(mg_arrays.tmplrg[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
-    # computeBand!(mg_arrays.band[lvl+1],mg_arrays.tmplrg[lvl+1],param,mg_mesh.mesh_lvls[lvl+1],par_env)
-    fill!(mg_arrays.band[lvl+1],2.0)
+    computeBand!(mg_arrays.band[lvl+1],mg_arrays.tmplrg[lvl+1],param,mg_mesh.mesh_lvls[lvl+1],par_env)
+    # fill!(mg_arrays.band[lvl+1],2.0)
 
     # Restrict approximate solution for initial guess on coarse grid for initial guess
     restrict!(mg_arrays.P_h[lvl+1],mg_arrays.P_h[lvl],mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
@@ -685,11 +685,11 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter=noth
         VF_lvl = mg_arrays.tmplrg[lvl]
     end
     
-    v1 = 20
-    v2 = 20
+    v1 = 10
+    v2 = 10
     
     if lvl == mg_lvl 
-        poisson_solve!(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays,lvl,mg_mesh,dt,param,par_env,10000;tol_lvl=1e-10)
+        poisson_solve!(mg_arrays.P_h[lvl],mg_arrays.RHS[lvl],mg_arrays.res[lvl],mg_arrays,lvl,mg_mesh,dt,param,par_env,100000;iter,tol_lvl=1e-10)
         return
     end
     
@@ -773,8 +773,8 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
         VF_lvl = mg_arrays.tmplrg[lvl]
     end
     
-    v1 = 20
-    v2 = 20
+    v1 = 5
+    v2 = 5
     # compute RHS at finest level
     #! test difference between recomputing RHS and restricting RHS 
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl]

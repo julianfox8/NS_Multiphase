@@ -326,7 +326,7 @@ function compute_dt(u,v,w,param,mesh,par_env)
 
     # Viscous Δt 
     viscous_dt = minimum([dx,dy,dz])/max(mu_liq,mu_gas)
-
+    
     # Capillary Δt
     capillary_dt = sqrt((mu_liq+mu_gas)*0.5*dx^3/(2*pi*sigma))
     
@@ -390,28 +390,30 @@ Semi-Lagrangian projection of point back in time
 - pt is updated by function
 """ 
 function project!(pt,i,j,k,uf,vf,wf,dt,param,mesh;t=nothing)
-    @unpack projection_method,test_case,pressure_scheme = param
+    @unpack projection_method,test_case,pressure_scheme,interpolation_method = param
+
 
     if test_case == "Zalesak"# && pressure_scheme == "semi-lagrangian"
         pt_init = copy(pt)
         pt[1] = 0.5 + cos(2*π*dt)*(pt_init[1]-0.5) + sin(2*π*dt)*(pt_init[2]-0.5)
         pt[2] = 0.5 - sin(2*π*dt)*(pt_init[1]-0.5) + cos(2*π*dt)*(pt_init[2]-0.5)
     elseif projection_method == "RK4"
-        v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
-        v2=get_velocity_face(pt-0.5dt*v1,i,j,k,uf,vf,wf,mesh)
-        v3=get_velocity_face(pt-0.5dt*v2,i,j,k,uf,vf,wf,mesh)
-        v4=get_velocity_face(pt-   dt*v3,i,j,k,uf,vf,wf,mesh)
-        pt[:]+=(-dt)/6.0*(v1+2.0v2+2.0v3+v4)
+        v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
+        v2=get_velocity_face(pt-0.5dt*v1,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
+        v3=get_velocity_face(pt-0.5dt*v2,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
+        v4=get_velocity_face(pt-   dt*v3,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
+        pt[:]+=(-dt)/6.0*(v1+2.0*v2+2.0*v3+v4)
     elseif projection_method == "Euler"
-        v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
+        v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
         pt[:]+=(-dt)*v1
     elseif projection_method == "Midpoint"
-        v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)
-        v2=get_velocity_face(pt-0.5dt*v1,i,j,k,uf,vf,wf,mesh)
+        v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
+        v2=get_velocity_face(pt-0.5*dt*v1,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
         pt[:]+=(-dt)*(v2)
     else
         error("Unknown projection_method in project!")
     end
+
     return nothing 
 end
 
@@ -495,10 +497,16 @@ end
 """ 
 Interpolate velocities defined on faces to location of pt 
 """
-function get_velocity_face(pt,i,j,k,uf,vf,wf,mesh)
-    u_pt = get_velocity_uface(pt,i,j,k,uf,mesh)
-    v_pt = get_velocity_vface(pt,i,j,k,vf,mesh)
-    w_pt = get_velocity_wface(pt,i,j,k,wf,mesh)
+function get_velocity_face(pt,i,j,k,uf,vf,wf,mesh;method="trilinear")
+    if method == "trilinear"
+        u_pt = get_velocity_uface(pt,i,j,k,uf,mesh)
+        v_pt = get_velocity_vface(pt,i,j,k,vf,mesh)
+        w_pt = get_velocity_wface(pt,i,j,k,wf,mesh)
+    elseif method == "least_squares"
+        u_pt = get_velocity_uface_WLS!(pt,i,j,k,vf,mesh)
+        v_pt = get_velocity_vface_WLS!(pt,i,j,k,vf,mesh)
+        w_pt = get_velocity_wface_WLS!(pt,i,j,k,vf,mesh;)
+    end
     return [u_pt,v_pt,w_pt]
 end
 
@@ -663,6 +671,10 @@ function defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
     elseif VFVelocity == "rotation"
         u_fun = (x,y,z,t) -> 2π*(0.5 - y)
         v_fun = (x,y,z,t) -> 2π*(x - 0.5)
+        w_fun = (x,y,z,t) -> 0.0
+    elseif VFVelocity == "airblast"
+        u_fun = (x,y,z,t) -> 50*(1 - exp(-100*abs(y-0.5)))
+        v_fun = (x,y,z,t) -> 0.0
         w_fun = (x,y,z,t) -> 0.0
     else
         error("Unknown VFVelocity = $VFVelocity")
@@ -1142,7 +1154,7 @@ function VFdroplet3d(xmin,xmax,ymin,ymax,zmin,zmax,rad,xo,yo,zo)
 end
 
 """
-VF values for 2D Bubble
+VF values for zalesak
 """
 function VFzalesak2d(xmin,xmax,ymin,ymax,rad,xo,yo,slot_w,slot_l)
     nF = 20
@@ -1401,40 +1413,23 @@ end
 
 function copy_to_mg!(mg_arrays, fields, lvl)
 
-       mg_arrays.P_h[lvl]   .= fields.P     
-       mg_arrays.uf[lvl]  .= fields.uf     
-       mg_arrays.vf[lvl]  .= fields.vf     
-       mg_arrays.wf[lvl]  .= fields.wf     
-     mg_arrays.denx[lvl]  .= fields.denx 
-     mg_arrays.deny[lvl]  .= fields.deny 
-     mg_arrays.denz[lvl]  .= fields.denz 
-     mg_arrays.gradx[lvl] .= fields.gradx 
-     mg_arrays.grady[lvl] .= fields.grady 
-     mg_arrays.gradz[lvl] .= fields.gradz 
-     mg_arrays.band[lvl]  .= fields.band  
-    # mg_arrays.tmp1_mg[lvl]  .= fields.tmp1
-    # mg_arrays.tmp2_mg[lvl]  .= fields.tmp2
-    # mg_arrays.tmp3_mg[lvl]  .= fields.tmp3
-    # mg_arrays.tmp4_mg[lvl]  .= fields.tmp4
+    mg_arrays.P_h[lvl]   .= fields.P     
+    mg_arrays.uf[lvl]  .= fields.uf     
+    mg_arrays.vf[lvl]  .= fields.vf     
+    mg_arrays.wf[lvl]  .= fields.wf     
+    mg_arrays.denx[lvl]  .= fields.denx 
+    mg_arrays.deny[lvl]  .= fields.deny 
+    mg_arrays.denz[lvl]  .= fields.denz 
+    mg_arrays.gradx[lvl] .= fields.gradx 
+    mg_arrays.grady[lvl] .= fields.grady 
+    mg_arrays.gradz[lvl] .= fields.gradz 
+    mg_arrays.band[lvl]  .= fields.band  
+     
 end
 
 function copy_to_main!(mg_arrays, fields, lvl)
 
     fields.P  .=   mg_arrays.P_h[lvl]    
-    # fields.uf .=   mg_arrays.uf_mg[lvl]    
-    # fields.vf .=   mg_arrays.vf_mg[lvl]    
-    # fields.wf .=   mg_arrays.wf_mg[lvl]    
-    # fields.denx  .= mg_arrays.denx_mg[lvl]  
-    # fields.deny  .= mg_arrays.deny_mg[lvl]  
-    # fields.denz  .= mg_arrays.denz_mg[lvl]  
-    # fields.gradx .= mg_arrays.gradx_mg[lvl]  
-    # fields.grady .= mg_arrays.grady_mg[lvl]  
-    # fields.gradz .= mg_arrays.gradz_mg[lvl]  
-    # fields.band  .= mg_arrays.band_mg[lvl]   
-    # mg_arrays.tmp1_mg[lvl]  .= fields.tmp1
-    # mg_arrays.tmp2_mg[lvl]  .= fields.tmp2
-    # mg_arrays.tmp3_mg[lvl]  .= fields.tmp3
-    # mg_arrays.tmp4_mg[lvl]  .= fields.tmp4
 end
 
 """
@@ -1495,10 +1490,8 @@ function term_vel(grav_cl,xo,yo,VF,D,param,mesh,par_env)
                 d = sqrt((x_star-xo)^2+(y[i[2]]-yo)^2)
                 dh_y = dy_p/sin(rads) + d
                 dh_x =dx_p/cos(rads) + d
-                # println("x intercept value of $x_star with term vel height of  $((dh_y+dh_x)/2)")
             elseif x[i[1]]*m+b == y[i[2]]
                 # then cell vertex is intercept
-                # println("single gravity term")
                 d_star = 0
                 dy_p = dx*(1-VF[i[1],i[2],k_ind]) 
                 dx_p = dy*(1-VF[i[1],i[2],k_ind])
@@ -1549,7 +1542,6 @@ function bub_height(grav_cl,VF,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
     for (i,j) in grav_cl
         # determine points on plane given D and 2 coordinates of that point
         if abs(D[i,j,k_ind]) < Lx+Ly+Lz
-            # println("potential at $i,$j with VF of $(VF[i,j,k_ind])")
             if nx[i,j,k_ind] > ny[i,j,k_ind] && nx[i,j,k_ind] > nz[i,j,k_ind]
                 y_mid = ym[j]
                 z_mid = zm[k_ind]
@@ -1574,24 +1566,16 @@ function bub_height(grav_cl,VF,xo,yo,zo,nx,ny,nz,D,mesh,param,par_env)
                 new_height = sqrt((l[1]*d)^2+(l[2]*d)^2)
                 # new_height = sqrt((x_int-xo)^2+(y_int-yo)^2)
                 
-                # println("old height = $(bubble_height[irank+1])")
-                # println("new height = $new_height occurs at $i,$j")
                 # determine intersection point
                 p = [xo+l[1]*d,yo+l[2]*d,zo]
                 δ = 1.5*dx
                 if x[i]-δ < p[1] < x[i+1]+δ && y[j]-δ < p[2] < y[j+1]+δ && bubble_height[irank+1] < new_height
                     bubble_height[irank+1] = new_height
                     return bubble_height
-                # else
-                #     println("new bubb intersection not within cell at $i, $j")
-                #     println("intersection happens at $(p[1]) and $(p[2])")
-                #     println("with x cell locs at $(x[i]) and $(x[i+1])")
-                #     println("with y cell locs at $(y[j]) and $(y[j+1])")
                 end
             end
         end
     end
-    # error("stop")
     return bubble_height
 end
 
@@ -1641,7 +1625,6 @@ function hypreMat2JSON(jacob,cell1,cell2)
         JSON.print(file,jacobians)
     end
 end
-
 
 
 function compute_kinEnergy(u,v,w,denx,deny,denz,mesh,param,par_env)
@@ -1787,3 +1770,23 @@ function get_VF_heights(VF,mesh,param,par_env)
     # return A, ϕ
 
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

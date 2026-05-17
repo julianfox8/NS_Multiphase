@@ -213,7 +213,7 @@ function test_pressure()
         if param.pressure_scheme == "semi-lagrangian"
 
             # Determine pressure correction
-            iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;)#pmesh=pmesh)
+            iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)#;pmesh=pmesh)
         
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
@@ -229,7 +229,7 @@ function test_pressure()
         
         # Predictor step (including VF transport)
         NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)#;pmesh=tpmesh)
-        # NS.pmesh2VTK(tpmesh,"def_FD_transport_preimage3",param)
+        # NS.pmesh2VTK(tpmesh,"dFD_transport_preimage",param)
 
         # Update bands with transported VF
         # NS.computeBand!(band,VF,param,mesh,par_env)
@@ -239,7 +239,7 @@ function test_pressure()
 
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-        
+        # error("stop")
     end
 end
 

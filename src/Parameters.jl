@@ -73,6 +73,7 @@ using Parameters
     # Velocity used for Vf transport when solveNS = false
     VFVelocity :: String  = "Nothing" 
     projection_method :: String = "RK4"
+    interpolation_method :: String = "trilinear"
     tesselation :: String = "5_tets"
 
     # Iterator type 
