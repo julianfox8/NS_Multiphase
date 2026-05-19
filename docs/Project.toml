@@ -1,0 +1,3 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+NavierStokes_Parallel = "58fb019b-dfe5-4e9a-9999-96f48d80e751"
