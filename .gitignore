@@ -8,3 +8,6 @@
 
 # VTK
 VTK*
+
+# Ignore build files within docs
+/docs/build/
