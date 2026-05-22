@@ -898,3 +898,129 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,para
 
     return vol, vLiq, vrhoU, vrhoV, vrhoW, vrho, maxlvl
 end
+
+
+""" 
+Cut tet by mesh and return VF without cutting by PLIC (for scalars)
+"""
+function cutTet_scal(tet, ind, VF, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl,vert,vert_ind,d,newtet)
+    @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
+    @unpack x, y, z = mesh
+    @unpack rho_liq,rho_gas = param
+
+    id = Threads.threadid()
+
+    # Cut by x-planes
+    if !xdone
+        if (maxi = maximum(ind[1, :])) > minimum(ind[1, :])
+            dir = 1
+            cut_ind = maxi
+            for n = 1:4
+                d[n,id] = tet[1, n] - x[cut_ind]
+            end
+        else
+            xdone = true
+            return tetVol, tetvScal, maxlvl = cutTet_scal(tet, ind, VF, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl,vert,vert_ind,d,newtet)
+        end
+        # Cut by y-planes
+    elseif !ydone
+        if (maxj = maximum(ind[2, :])) > minimum(ind[2, :])
+            dir = 2
+            cut_ind = maxj
+            for n = 1:4
+                d[n,id] = tet[2, n] - y[cut_ind]
+            end
+        else
+            ydone = true
+            return tetVol, tetvScal,maxlvl = cutTet_scal(tet, ind, VF, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl,vert,vert_ind,d,newtet)
+        end
+        # Cut by z-planes and compute output
+    elseif !zdone
+
+        if (maxk = maximum(ind[3, :])) > minimum(ind[3, :])
+            dir = 3
+            cut_ind = maxk
+            for n = 1:4
+                d[n,id] = tet[3, n] - z[cut_ind]
+            end
+        else
+            zdone = true
+            return tetVol, tetvScal, maxlvl = cutTet_scal(tet, ind, VF, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl,vert,vert_ind,d,newtet)
+        end
+        # Update cell quantity after cutting by all planes
+    else
+        vol = 0.0
+        vScal = 0.0
+        # Get index
+        i = ind[1, 1]
+        j = ind[2, 1]
+        k = ind[3, 1]
+        newtet[:,:,id] = tet[:,:]
+        # Compute volume
+        tetVol = tet_vol(newtet[:,:,id])
+        # Update scalar quantity in cell
+        vol += tetVol
+        vScal += tetVol*VF[i,j,k]
+        return vol, vScal, lvl
+    end
+
+    # Cut by plane
+    # -------------
+    case = d2case(d[:,id])
+    # Get vertices and indices of tet
+    for n = 1:4
+        for p = 1:3
+            vert[p, n,lvl,id] = tet[p, n]
+            vert_ind[p, n, 1,lvl,id] = ind[p, n]
+            vert_ind[p, n, 2,lvl,id] = ind[p, n]
+        end
+        vert_ind[dir, n, 1,lvl,id] = min(vert_ind[dir, n, 1,lvl,id], cut_ind - 1)
+        vert_ind[dir, n, 2,lvl,id] = max(vert_ind[dir, n, 1,lvl,id], cut_ind)
+    end
+    # Create interpolated vertices on cut plane
+    for n = 1:cut_nvert[case]
+        v1 = cut_v1[n, case]
+        v2 = cut_v2[n, case]
+        mu = min(1.0, max(0.0, -d[v1,id] / (d[v2,id] - d[v1,id])))
+        for p = 1:3
+            vert[p, 4+n,lvl,id] = (1.0 - mu) * vert[p, v1,lvl,id] + mu * vert[p, v2,lvl,id]
+        end
+        # Get index for interpolated vertex
+        i = vert_ind[1, n, 1,lvl,id]
+        j = vert_ind[2, n, 1,lvl,id]
+        k = vert_ind[3, n, 1,lvl,id]
+        pt2index!(@view(vert_ind[:, 4+n, 1,lvl,id]), @view(vert[:, 4+n,lvl,id]), i, j, k, mesh)
+        # Enforce boundedness
+        for p=1:3
+            vert_ind[p, 4+n, 1,lvl,id] = max(vert_ind[p, 4+n, 1,lvl,id], min(vert_ind[p, v1, 1,lvl,id], vert_ind[p, v2, 1,lvl,id]))
+            vert_ind[p, 4+n, 1,lvl,id] = min(vert_ind[p, 4+n, 1,lvl,id], max(vert_ind[p, v1, 1,lvl,id], vert_ind[p, v2, 1,lvl,id]))
+        end
+        # Set +/- indices in cut direction
+        for p=1:3
+            vert_ind[p, 4+n, 2,lvl,id] = vert_ind[p, 4+n, 1,lvl,id]
+        end
+        vert_ind[dir, 4+n, 1,lvl,id] = cut_ind - 1
+        vert_ind[dir, 4+n, 2,lvl,id] = cut_ind
+    end
+    # Create new tets
+    vol = 0.0
+    vScal = 0.0
+
+    for n = 1:cut_ntets[case]
+        # Form new tet
+        for nn = 1:4
+            for p = 1:3
+                tet[p, nn] = vert[p, cut_vtet[nn, n, case],lvl,id]
+                ind[p, nn] = vert_ind[p, cut_vtet[nn, n, case], cut_side[n, case],lvl,id]
+            end
+        end
+        # Cut new tet by next plane
+        tetVol, tetvScal, maxlvl = cutTet_scal(tet, ind, VF, xdone, ydone, zdone, nx, ny, nz, D, mesh,param,lvl+1,vert,vert_ind,d,newtet)
+
+        # Accumulate quantities
+        vol += tetVol
+        vScal += tetvScal
+
+    end
+    return vol, vScal, maxlvl
+end
