@@ -410,7 +410,11 @@ function project!(pt,i,j,k,uf,vf,wf,dt,param,mesh;t=nothing)
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
         v2=get_velocity_face(pt-0.5*dt*v1,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
         pt[:]+=(-dt)*(v2)
-    else
+    elseif projection_method == "Heun"
+        v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
+        v2=get_velocity_face(pt-dt*v1,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
+        pt[:]+=(-dt)*0.5*(v1+v2)
+     else
         error("Unknown projection_method in project!")
     end
 
