@@ -981,7 +981,7 @@ function res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
                (1/deny[i,j+1,k]*(P[i,j+1,k] - P[i,j,k]) - 1/deny[i,j,k]*(P[i,j,k] - P[i,j-1,k])) / dy^2 +
                (1/denz[i,j,k+1]*(P[i,j,k+1] - P[i,j,k]) - 1/denz[i,j,k]*(P[i,j,k] - P[i,j,k-1])) / dz^2)
 
-        res[i,j,k] = RHS[i,j,k] - lapP
+        res[i,j,k] = RHS[i,j,k] - dt*lapP
     end
 end
 
@@ -1256,8 +1256,8 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
         # Convergence check (L∞ norm)
         err = parallel_max_all(residual,par_env)
 
-        # if iter % 50 == 0
-            # println("Iter $iter: max error = $err")
+        # if i % 500 == 0
+        #     println("Iter $iter: max error = $err")
         # end
         if iter !== nothing && irank == 0 && i > (max_iter-1)
         # if irank == 0 && i > (max_iter-1)
@@ -1305,9 +1305,9 @@ function jacobi_update!(P, P_new, RHS, denx, deny, denz, mesh, dt;τ=nothing)
                         (dt / (denz[i,j,k+1]   * dz^2)) * Pz_p
         # Update pressure
         if isnothing(τ)
-            P_new[i,j,k] = (RHS[i,j,k]/dt - sum_neighbors) / diag
+            P_new[i,j,k] = (RHS[i,j,k] - sum_neighbors) / diag
         else
-            P_new[i,j,k] = ((RHS[i,j,k] + τ[i,j,k])/dt - sum_neighbors) / diag
+            P_new[i,j,k] = ((RHS[i,j,k] + τ[i,j,k]) - sum_neighbors) / diag
         end
     end
 end
@@ -1349,7 +1349,7 @@ function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::
         # Convergence check (L∞ norm)
         err = parallel_max_all(residual,par_env)
 
-        if iter !== nothing && p_iter < 10 #irank == 0 #&& i > (max_iter-1)
+        if i % 500 == 0 #irank == 0 #&& i > (max_iter-1)
         # if irank == 0 && i > (max_iter-1)
             # if iter % 50 == 0
                 println("Iter $iter: max error = $err")
@@ -1367,7 +1367,7 @@ function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::
     return p_iter
 end
 
-function apply_A!(AP, P, denx, deny, denz, mesh, par_env, param)
+function apply_A!(AP, P, dt, denx, deny, denz, mesh, par_env, param)
     @unpack dx, dy, dz, imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
     @unpack xper, yper, zper = param
 
@@ -1447,7 +1447,7 @@ function apply_A!(AP, P, denx, deny, denz, mesh, par_env, param)
     end
 end
 
-function cg!(P, RHS, denx, deny, denz,res,dt, param, mesh, par_env;max_iter=20000,iter = nothing,converged=nothing)
+function cg!(P, RHS, denx, deny, denz, res, dt, param, mesh, par_env;max_iter=20000,iter = nothing,converged=nothing)
     @unpack dx, dy, dz,imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
     @unpack tol = param
 
@@ -1457,7 +1457,7 @@ function cg!(P, RHS, denx, deny, denz,res,dt, param, mesh, par_env;max_iter=2000
     p = similar(P); fill!(p,0.0)
     z = similar(P); fill!(z,0.0)
 
-    apply_A!(Ap, P, denx, deny, denz, mesh, par_env,param) # Ap = A*P
+    apply_A!(Ap, P, dt, denx, deny, denz, mesh, par_env,param) # Ap = A*P
     r[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .-= Ap[imin_:imax_, jmin_:jmax_, kmin_:kmax_]  # r = b - A*x
 
     p[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= r[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
@@ -1465,7 +1465,7 @@ function cg!(P, RHS, denx, deny, denz,res,dt, param, mesh, par_env;max_iter=2000
     p_iter = 0
     for it = 1:max_iter
         p_iter += 1
-        apply_A!(Ap, p, denx, deny, denz, mesh, par_env,param)
+        apply_A!(Ap, p, dt, denx, deny, denz, mesh, par_env,param)
         
         alpha = rs_old / sum(p .* Ap)
 
@@ -1480,9 +1480,9 @@ function cg!(P, RHS, denx, deny, denz,res,dt, param, mesh, par_env;max_iter=2000
         update_borders!(P,mesh,par_env)
         res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
 
-        if iter !== nothing && p_iter > (max_iter-1) #&& iter % 100 == 0
-        
-            println("residual is now $(sqrt(rs_new)) at iter $iter")
+        if it % 500 == 0 #&& iter % 100 == 0
+            println("residual is now $(sqrt(rs_new)) at iter $it")
+            println(parallel_max_all(res,par_env))
         end
         
         if (parallel_max_all(res,par_env)) < tol
