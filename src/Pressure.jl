@@ -883,6 +883,96 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
     return p_iter
 end
 
+# function res_iteration(
+#     P, uf, vf, wf,
+#     gradx, grady, gradz,
+#     band, dt,
+#     denx, deny, denz,
+#     AP, AP2, Gn, jacob,
+#     verts, tets,
+#     param, mesh, par_env;
+#     max_iter = 50000,
+#     τ::Union{Nothing, Any} = nothing,
+#     converged = nothing,
+#     tol_lvl = nothing,
+#     pmesh = nothing,
+#     t = nothing
+# )
+
+#     @unpack imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
+#     @unpack tol = param
+#     @unpack isroot = par_env
+
+#     if tol_lvl !== nothing
+#         tol = tol_lvl
+#     end
+
+#     fill!(Gn, 0.0)
+#     fill!(jacob, 0.0)
+
+#     ω = 0.8
+#     p_iter = 0
+
+#     # initial residual
+#     A!(AP, uf, vf, wf, P,
+#        dt, gradx, grady, gradz,
+#        band, denx, deny, denz,
+#        verts, tets, param, mesh, par_env; t=t)
+
+#     jacob_single(jacob, AP, AP2,
+#                  uf, vf, wf, P,
+#                  dt, gradx, grady, gradz,
+#                  band, denx, deny, denz,
+#                  verts, tets, param, mesh, par_env; t=t)
+
+#     while p_iter < max_iter
+#         p_iter += 1
+
+#         # residual evaluation
+#         A!(AP, uf, vf, wf, P,
+#            dt, gradx, grady, gradz,
+#            band, denx, deny, denz,
+#            verts, tets, param, mesh, par_env; t=t)
+
+#         if τ !== nothing
+#             AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .+=
+#                 τ[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+#         end
+
+#         res_norm = parallel_max_all(abs.(AP), par_env)
+
+#         if res_norm < tol
+#             if converged !== nothing
+#                 converged[] = true
+#             end
+#             return p_iter
+#         end
+
+#         # ---- fixed-point update ----
+#         @views begin
+#             P_loc   = P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+#             AP_loc  = AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+#             J_loc   = jacob[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+
+#             Gn_loc = P_loc .- ω .* (AP_loc ./ J_loc)
+#         end
+
+#         # overwrite solution (simple relaxation step)
+#         @views begin
+#             P[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= Gn_loc
+#         end
+
+#         # optional mean removal (pressure gauge fixing)
+#         P .-= parallel_mean_all(P[imin_:imax_, jmin_:jmax_, kmin_:kmax_], par_env)
+
+#         if p_iter % 10 == 0 && isroot
+#             println("residual at iter $p_iter = $res_norm")
+#         end
+#     end
+
+#     return p_iter
+# end
+
 function res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     fill!(res,0.0)
