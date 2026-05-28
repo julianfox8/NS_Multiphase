@@ -899,6 +899,10 @@ function cutTet(tet, ind, u, v, w, xdone, ydone, zdone, nx, ny, nz, D, mesh,para
     return vol, vLiq, vrhoU, vrhoV, vrhoW, vrho, maxlvl
 end
 
+function tet_centroid(tet)
+    v0, v1, v2, v3 = tet[:, 1], tet[:, 2], tet[:, 3], tet[:, 4]
+    return (v0 .+ v1 .+ v2 .+ v3) ./ 4
+end
 
 """ 
 Cut tet by mesh and return VF without cutting by PLIC (for scalars)
@@ -958,9 +962,17 @@ function cutTet_scal(tet, ind, VF, xdone, ydone, zdone, nx, ny, nz, D, mesh,para
         newtet[:,:,id] = tet[:,:]
         # Compute volume
         tetVol = tet_vol(newtet[:,:,id])
+
+        #! need to compute center of mass of tet
+        com = tet_centroid(newtet[:,:,id])
+
+        #! reconstruct scalar field at center of mass
+        rVF = get_scalar(com, i, j, k, VF, mesh)
+
         # Update scalar quantity in cell
         vol += tetVol
-        vScal += tetVol*VF[i,j,k]
+        # vScal += tetVol*VF[i,j,k]
+        vScal += tetVol*rVF
         return vol, vScal, lvl
     end
 
