@@ -384,6 +384,54 @@ function *̂(a, b)
     end
 end
 
+
+"""
+Interpolate cell-centered scalar to location of pt
+"""
+function get_scalar(pt, i, j, k, phi, mesh)
+    @unpack xm, ym, zm = mesh
+    @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
+
+    # Find right i index
+    while pt[1] - xm[i  ] <  0.0 && i   > imino_
+        i = i - 1
+    end
+    while pt[1] - xm[i+1] >= 0.0 && i+1 < imaxo_
+        i = i + 1
+    end
+    # Find right j index
+    while pt[2] - ym[j  ] <  0.0 && j   > jmino_
+        j = j - 1
+    end
+    while pt[2] - ym[j+1] >= 0.0 && j+1 < jmaxo_
+        j = j + 1
+    end
+    # Find right k index
+    while pt[3] - zm[k  ] <  0.0 && k   > kmino_
+        k = k - 1
+    end
+    while pt[3] - zm[k+1] >= 0.0 && k+1 < kmaxo_
+        k = k + 1
+    end
+
+    # Prepare tri-linear interpolation coefficients
+    wx1 = (pt[1] - xm[i]) /̂ (xm[i+1] - xm[i]); wx2 = 1.0 - wx1
+    wy1 = (pt[2] - ym[j]) /̂ (ym[j+1] - ym[j]); wy2 = 1.0 - wy1
+    wz1 = (pt[3] - zm[k]) /̂ (zm[k+1] - zm[k]); wz2 = 1.0 - wz1
+
+    # Tri-linear interpolation
+    phi_pt = (wz1 * (wy1 * (wx1 * phi[i+1, j+1, k+1] +
+                             wx2 * phi[i  , j+1, k+1]) +
+                     wy2 * (wx1 * phi[i+1, j  , k+1] +
+                             wx2 * phi[i  , j  , k+1])) +
+              wz2 * (wy1 * (wx1 * phi[i+1, j+1, k  ] +
+                             wx2 * phi[i  , j+1, k  ]) +
+                     wy2 * (wx1 * phi[i+1, j  , k  ] +
+                             wx2 * phi[i  , j  , k  ])))
+    return phi_pt
+end
+
+
 """ 
 Semi-Lagrangian projection of point back in time
 - assumes face velocities
