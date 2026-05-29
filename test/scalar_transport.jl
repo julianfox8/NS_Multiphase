@@ -96,15 +96,15 @@ function test_scalar_transport()
         Lx=1.0,            # Domain size
         Ly=1.0,
         Lz=1/50,
-        tFinal=2.0,      # Simulation time
+        tFinal=0.5,      # Simulation time
         
         # Discretization inputs
-        Nx=64,           # Number of grid cells
-        Ny=64,
+        Nx=128,           # Number of grid cells
+        Ny=128,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
         max_dt = 5e-2,
-        CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=1.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -130,10 +130,10 @@ function test_scalar_transport()
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
-        projection_method = "Euler",
+        # projection_method = "Euler",
         # projection_method = "RK4",
         # projection_method = "Midpoint",
-        # projection_method = "Trapezoidal",
+        projection_method = "Heun",
 
         # interpolation_method = "inv_dist_weighting",
         interpolation_method = "trilinear",
@@ -158,8 +158,8 @@ function test_scalar_transport()
 
         # Velocity
         t=0.0
-        u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/2.0)
-        v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/2.0)
+        u_fun(x,y,z,t) = -2(sin(π*x))^2*sin(π*y)*cos(π*y)*cos(π*t/0.25)
+        v_fun(x,y,z,t) = +2(sin(π*y))^2*sin(π*x)*cos(π*x)*cos(π*t/0.25)
         w_fun(x,y,z,t) = 0.0
         # Set velocities (including ghost cells)
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
