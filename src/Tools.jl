@@ -592,9 +592,9 @@ function get_velocity_uface(pt,i,j,k,uf,mesh)
     end
 
     # Prepare tri-linear interpolation coefficients
-    wx1=(pt[1]- x[i])/̂( x[i+1]- x[i]); wx2=1.0-wx1
-    wy1=(pt[2]-ym[j])/̂(ym[j+1]-ym[j]); wy2=1.0-wy1
-    wz1=(pt[3]-zm[k])/̂(zm[k+1]-zm[k]); wz2=1.0-wz1
+    wx1=(pt[1]- x[i])/( x[i+1]- x[i]); wx2=1.0-wx1
+    wy1=(pt[2]-ym[j])/(ym[j+1]-ym[j]); wy2=1.0-wy1
+    wz1=(pt[3]-zm[k])/(zm[k+1]-zm[k]); wz2=1.0-wz1
 
     # Tri-linear interpolation
     u_pt=( wz1*(wy1*(wx1*uf[i+1,j+1,k+1]  +
@@ -635,9 +635,9 @@ function get_velocity_vface(pt,i,j,k,vf,mesh)
        k=k+1
     end
     # Prepare tri-linear interpolation coefficients
-    wx1=(pt[1]-xm[i])/̂(xm[i+1]-xm[i]); wx2=1.0-wx1
-    wy1=(pt[2]- y[j])/̂( y[j+1]- y[j]); wy2=1.0-wy1
-    wz1=(pt[3]-zm[k])/̂(zm[k+1]-zm[k]); wz2=1.0-wz1
+    wx1=(pt[1]-xm[i])/(xm[i+1]-xm[i]); wx2=1.0-wx1
+    wy1=(pt[2]- y[j])/( y[j+1]- y[j]); wy2=1.0-wy1
+    wz1=(pt[3]-zm[k])/(zm[k+1]-zm[k]); wz2=1.0-wz1
     # Tri-linear interpolation
     v_pt=( wz1*(wy1*(wx1*vf[i+1,j+1,k+1]  +
                      wx2*vf[i  ,j+1,k+1]) +
@@ -677,9 +677,9 @@ function get_velocity_wface(pt,i,j,k,wf,mesh)
        k=k+1
     end
     # Prepare tri-linear interpolation coefficients
-    wx1=(pt[1]-xm[i])/̂(xm[i+1]-xm[i]); wx2=1.0-wx1
-    wy1=(pt[2]-ym[j])/̂(ym[j+1]-ym[j]); wy2=1.0-wy1
-    wz1=(pt[3]- z[k])/̂( z[k+1]- z[k]); wz2=1.0-wz1
+    wx1=(pt[1]-xm[i])/(xm[i+1]-xm[i]); wx2=1.0-wx1
+    wy1=(pt[2]-ym[j])/(ym[j+1]-ym[j]); wy2=1.0-wy1
+    wz1=(pt[3]- z[k])/( z[k+1]- z[k]); wz2=1.0-wz1
     # Tri-linear interpolation
     w_pt=( wz1*(wy1*(wx1*wf[i+1,j+1,k+1]  +
                      wx2*wf[i  ,j+1,k+1]) +
