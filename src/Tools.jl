@@ -431,6 +431,60 @@ function get_scalar(pt, i, j, k, phi, mesh)
     return phi_pt
 end
 
+"""
+Interpolate cell-centered scalar to pt using linear (P1) MLS.
+Conservative: P1 polynomials are integrated exactly by the centroid rule.
+"""
+function get_scalar_mls(pt, i, j, k, phi, mesh)
+    @unpack xm, ym, zm = mesh
+    @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
+
+    # Find bracket indices (identical to trilinear)
+    while pt[1] - xm[i  ] <  0.0 && i   > imino_; i = i - 1; end
+    while pt[1] - xm[i+1] >= 0.0 && i+1 < imaxo_; i = i + 1; end
+    while pt[2] - ym[j  ] <  0.0 && j   > jmino_; j = j - 1; end
+    while pt[2] - ym[j+1] >= 0.0 && j+1 < jmaxo_; j = j + 1; end
+    while pt[3] - zm[k  ] <  0.0 && k   > kmino_; k = k - 1; end
+    while pt[3] - zm[k+1] >= 0.0 && k+1 < kmaxo_; k = k + 1; end
+
+    # Characteristic length scale for Gaussian weight
+    h2 = (xm[i+1] - xm[i])^2 + (ym[j+1] - ym[j])^2 + (zm[k+1] - zm[k])^2
+
+    # Normal equations: (B'WB) a = B'W phi
+    # P1 basis: b = [1, x, y, z] → 4 coefficients
+    A   = zeros(4, 4)
+    rhs = zeros(4)
+
+    for dk in 0:1
+        kk = clamp(k + dk, kmino_, kmaxo_)
+        for dj in 0:1
+            jj = clamp(j + dj, jmino_, jmaxo_)
+            for di in 0:1
+                ii = clamp(i + di, imino_, imaxo_)
+
+                # Gaussian weight based on distance from pt
+                d2 = (xm[ii] - pt[1])^2 + (ym[jj] - pt[2])^2 + (zm[kk] - pt[3])^2
+                w  = exp(-6.0 * d2 / h2)
+
+                b = (1.0, xm[ii], ym[jj], zm[kk])
+
+                for p in 1:4, q in 1:4
+                    A[p,q] += w * b[p] * b[q]
+                end
+                for p in 1:4
+                    rhs[p] += w * b[p] * phi[ii, jj, kk]
+                end
+            end
+        end
+    end
+
+    # Solve 4×4 system for polynomial coefficients
+    a = A \ rhs
+
+    # Evaluate P1 polynomial at pt
+    return a[1] + a[2]*pt[1] + a[3]*pt[2] + a[4]*pt[3]
+end
+
 
 """ 
 Semi-Lagrangian projection of point back in time
