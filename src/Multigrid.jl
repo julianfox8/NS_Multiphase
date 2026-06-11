@@ -417,8 +417,10 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     # Restrict residual for nonlinear defecit correction
     restrict!(mg_arrays.AP_f[lvl+1],mg_arrays.AP_f[lvl],mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
     
-    # Compute densities on coarse grid from restricted VF
-    compute_dens!(mg_arrays.denx[lvl+1],mg_arrays.deny[lvl+1],mg_arrays.denz[lvl+1],mg_arrays.tmplrg[lvl+1],param,mg_mesh.mesh_lvls[lvl+1])
+    # Restrict densities
+    restrict_x_face!(mg_arrays.denx[lvl+1],mg_arrays.denx[lvl],mg_mesh.mesh_lvls[lvl+1])
+    restrict_y_face!(mg_arrays.deny[lvl+1],mg_arrays.deny[lvl],mg_mesh.mesh_lvls[lvl+1])
+    restrict_z_face!(mg_arrays.denz[lvl+1],mg_arrays.denz[lvl],mg_mesh.mesh_lvls[lvl+1])
     update_borders_x!(mg_arrays.denx[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_y!(mg_arrays.deny[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_z!(mg_arrays.denz[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
@@ -729,9 +731,18 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter=noth
     update_borders!(mg_arrays.RHS[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
 
     # recompute densities and band using restricted volume fraction
-    compute_dens!(mg_arrays.denx[lvl+1],mg_arrays.deny[lvl+1],mg_arrays.denz[lvl+1],mg_arrays.tmplrg[lvl+1],param,mg_mesh.mesh_lvls[lvl+1])
+    # compute_dens!(mg_arrays.denx[lvl+1],mg_arrays.deny[lvl+1],mg_arrays.denz[lvl+1],mg_arrays.tmplrg[lvl+1],param,mg_mesh.mesh_lvls[lvl+1])
     computeBand!(mg_arrays.band[lvl+1],mg_arrays.tmplrg[lvl+1],param,mg_mesh.mesh_lvls[lvl+1],par_env)
 
+    # update_borders_x!(mg_arrays.denx[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+    # update_borders_y!(mg_arrays.deny[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+    # update_borders_z!(mg_arrays.denz[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+
+
+    # Restrict densities
+    restrict_x_face!(mg_arrays.denx[lvl+1],mg_arrays.denx[lvl],mg_mesh.mesh_lvls[lvl+1])
+    restrict_y_face!(mg_arrays.deny[lvl+1],mg_arrays.deny[lvl],mg_mesh.mesh_lvls[lvl+1])
+    restrict_z_face!(mg_arrays.denz[lvl+1],mg_arrays.denz[lvl],mg_mesh.mesh_lvls[lvl+1])
     update_borders_x!(mg_arrays.denx[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_y!(mg_arrays.deny[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_z!(mg_arrays.denz[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
@@ -822,10 +833,19 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
     update_borders!(mg_arrays.P_h[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
 
     # purely restricted densities
-    compute_dens!(mg_arrays.denx[lvl+1],mg_arrays.deny[lvl+1],mg_arrays.denz[lvl+1],mg_arrays.tmplrg[lvl+1],param,mg_mesh.mesh_lvls[lvl+1])
+    # compute_dens!(mg_arrays.denx[lvl+1],mg_arrays.deny[lvl+1],mg_arrays.denz[lvl+1],mg_arrays.tmplrg[lvl+1],param,mg_mesh.mesh_lvls[lvl+1])
+    # update_borders_x!(mg_arrays.denx[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+    # update_borders_y!(mg_arrays.deny[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+    # update_borders_z!(mg_arrays.denz[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+
+    # Restrict densities
+    restrict_x_face!(mg_arrays.denx[lvl+1],mg_arrays.denx[lvl],mg_mesh.mesh_lvls[lvl+1])
+    restrict_y_face!(mg_arrays.deny[lvl+1],mg_arrays.deny[lvl],mg_mesh.mesh_lvls[lvl+1])
+    restrict_z_face!(mg_arrays.denz[lvl+1],mg_arrays.denz[lvl],mg_mesh.mesh_lvls[lvl+1])
     update_borders_x!(mg_arrays.denx[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_y!(mg_arrays.deny[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders_z!(mg_arrays.denz[lvl+1],mg_mesh.mesh_lvls[lvl+1],par_env)
+
     
     # copmpute A(P^2h) (A operator applied to restricted approximate solution on finer level)
     fill!(mg_arrays.AP_c[lvl+1],0.0)
