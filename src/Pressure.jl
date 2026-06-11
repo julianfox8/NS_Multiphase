@@ -53,6 +53,8 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,p
         iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,jacob,b_vec,x_vec,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "hypreSecantLS"
         iter = Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mg_mesh.mesh_lvls[1],par_env,jacob,b_vec,x_vec)
+    elseif pressureSolver == "res_iteration_AA"
+        iter = res_iteration_AA(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "res_iteration"
         iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     else
@@ -70,6 +72,8 @@ function poisson_solve!(P,RHS,res,mg_arrays,lvl,mg_mesh,dt,param,par_env,max_ite
         iter = gs(P,RHS,res,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,iter,tol_lvl,converged=converged_flag)
     elseif pressureSolver == "res_iteration"
         res_iteration(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp2[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter,τ=mg_arrays.tmp1[lvl],converged=converged_flag,tol_lvl = tol_lvl)
+    elseif pressureSolver == "res_iteration_AA"
+        res_iteration_AA(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp2[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter,τ=mg_arrays.tmp1[lvl],converged=converged_flag,tol_lvl = tol_lvl)
     elseif pressureSolver == "nl_gs"
         nonlin_gs(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.tmp2[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,τ=mg_arrays.tmp1[lvl],iter,converged = converged_flag,tol_lvl = tol_lvl) 
     else
@@ -774,7 +778,7 @@ function par_anderson_accel(Fhist,par_env)
     return α
 end
 
-function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
+function res_iteration_AA(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
     @unpack Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
     @unpack tol = param
     @unpack isroot = par_env
@@ -791,7 +795,7 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
     #     #initialize PVTK for pressure
     #     pvd_pressure,dir  = pVTK_init(param,par_env)
     # end
-    ω = 0.8
+    ω = 2/3
     m=10
     Fhist = [zeros(length(imin_:imax_),length(jmin_:jmax_),length(kmin_:kmax_)) for _ in 1:m]
     Phist = [zeros(length(imin_:imax_),length(jmin_:jmax_),length(kmin_:kmax_)) for _ in 1:m]
@@ -869,12 +873,12 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
         
         # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g  \n",p_iter,res_norm,sum_norm)
         # println("residual at iter $p_iter = $(maximum(abs.(AP)))")
-        if p_iter % 1000 == 0 && isroot 
-            println("residual at iter $p_iter = $(res_norm)")
-        end
-        # if iter !== nothing && p_iter > (max_iter-1)
-        #     println("residual at iter $iter = $(maximum(abs.(AP)))")
+        # if p_iter % 1000 == 0 && isroot 
+        #     println("residual at iter $p_iter = $(res_norm)")
         # end
+        if iter !== nothing && p_iter > (max_iter-1)
+            println("residual at iter $iter = $(maximum(abs.(AP)))")
+        end
 
         # account for drift
         P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
@@ -883,95 +887,75 @@ function res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP
     return p_iter
 end
 
-# function res_iteration(
-#     P, uf, vf, wf,
-#     gradx, grady, gradz,
-#     band, dt,
-#     denx, deny, denz,
-#     AP, AP2, Gn, jacob,
-#     verts, tets,
-#     param, mesh, par_env;
-#     max_iter = 50000,
-#     τ::Union{Nothing, Any} = nothing,
-#     converged = nothing,
-#     tol_lvl = nothing,
-#     pmesh = nothing,
-#     t = nothing
-# )
+function res_iteration(P, uf, vf, wf,gradx, grady, gradz,band, dt,denx, deny, denz,AP, AP2, Gn, jacob,verts, tets,param, mesh, par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh = nothing,t = nothing)
 
-#     @unpack imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
-#     @unpack tol = param
-#     @unpack isroot = par_env
+    @unpack imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
+    @unpack tol = param
+    @unpack isroot = par_env
 
-#     if tol_lvl !== nothing
-#         tol = tol_lvl
-#     end
+    if tol_lvl !== nothing
+        tol = tol_lvl
+    end
 
-#     fill!(Gn, 0.0)
-#     fill!(jacob, 0.0)
+    fill!(Gn, 0.0)
+    fill!(jacob, 0.0)
 
-#     ω = 0.8
-#     p_iter = 0
+    ω = 2/3
+    p_iter = 0
 
-#     # initial residual
-#     A!(AP, uf, vf, wf, P,
-#        dt, gradx, grady, gradz,
-#        band, denx, deny, denz,
-#        verts, tets, param, mesh, par_env; t=t)
+    # initial residual
+    A!(AP, uf, vf, wf, P,dt, gradx, grady, gradz,band, denx, deny, denz,verts, tets, param, mesh, par_env)
 
-#     jacob_single(jacob, AP, AP2,
-#                  uf, vf, wf, P,
-#                  dt, gradx, grady, gradz,
-#                  band, denx, deny, denz,
-#                  verts, tets, param, mesh, par_env; t=t)
+    jacob_single(jacob, AP, AP2,uf, vf, wf, P,dt, gradx, grady, gradz,band, denx, deny, denz,verts, tets, param, mesh, par_env)
 
-#     while p_iter < max_iter
-#         p_iter += 1
+    while p_iter < max_iter
+        p_iter += 1
 
-#         # residual evaluation
-#         A!(AP, uf, vf, wf, P,
-#            dt, gradx, grady, gradz,
-#            band, denx, deny, denz,
-#            verts, tets, param, mesh, par_env; t=t)
+        # residual evaluation
+        A!(AP, uf, vf, wf, P,dt, gradx, grady, gradz,band, denx, deny, denz,verts, tets, param, mesh, par_env)
 
-#         if τ !== nothing
-#             AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .+=
-#                 τ[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
-#         end
+        if τ !== nothing
+            AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .+= τ[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+        end
 
-#         res_norm = parallel_max_all(abs.(AP), par_env)
+        res_norm = parallel_max_all(abs.(AP), par_env)
 
-#         if res_norm < tol
-#             if converged !== nothing
-#                 converged[] = true
-#             end
-#             return p_iter
-#         end
+        if res_norm < tol
+            if converged !== nothing
+                converged[] = true
+            end
+            return p_iter
+        end
 
-#         # ---- fixed-point update ----
-#         @views begin
-#             P_loc   = P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
-#             AP_loc  = AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
-#             J_loc   = jacob[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+        # ---- fixed-point update ----
+        @views begin
+            P_loc   = P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+            AP_loc  = AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+            J_loc   = jacob[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
 
-#             Gn_loc = P_loc .- ω .* (AP_loc ./ J_loc)
-#         end
+            J_safe = max.(abs.(J_loc), 1e-12)
+            Gn_loc = P_loc .- ω * AP_loc ./ J_safe
+            # Gn_loc = P_loc .- ω .* (AP_loc ./ J_loc)
+        end
 
-#         # overwrite solution (simple relaxation step)
-#         @views begin
-#             P[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= Gn_loc
-#         end
+        # overwrite solution (simple relaxation step)
+        @views begin
+            P[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= Gn_loc
+        end
 
-#         # optional mean removal (pressure gauge fixing)
-#         P .-= parallel_mean_all(P[imin_:imax_, jmin_:jmax_, kmin_:kmax_], par_env)
+        # optional mean removal (pressure gauge fixing)
+        P .-= parallel_mean_all(P[imin_:imax_, jmin_:jmax_, kmin_:kmax_], par_env)
 
-#         if p_iter % 10 == 0 && isroot
-#             println("residual at iter $p_iter = $res_norm")
-#         end
-#     end
+        # if p_iter % 100 == 0 && isroot
+            # println("residual at iter $p_iter = $res_norm")
+        # end
+        if iter !== nothing && p_iter > (max_iter-1)
+            println("residual at iter $iter = $(maximum(abs.(AP)))")
+        end
+    end
 
-#     return p_iter
-# end
+    return p_iter
+end
 
 function res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
