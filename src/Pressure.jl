@@ -972,7 +972,7 @@ end
 function lap!(lapP,P,denx,deny,denz,dt,param,mesh,par_env)
     @unpack x,y,z,dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        lapP[i,j,k] = ( (1/denx[i+1,j,k]*(P[i+1,j,k] - P[i,j,k]) - 1/denx[i,j,k]*(P[i,j,k] - P[i-1,j,k])) / dx^2 +
+        lapP[i,j,k] = dt*( (1/denx[i+1,j,k]*(P[i+1,j,k] - P[i,j,k]) - 1/denx[i,j,k]*(P[i,j,k] - P[i-1,j,k])) / dx^2 +
                       (1/deny[i,j+1,k]*(P[i,j+1,k] - P[i,j,k]) - 1/deny[i,j,k]*(P[i,j,k] - P[i,j-1,k])) / dy^2 +
                       (1/denz[i,j,k+1]*(P[i,j,k+1] - P[i,j,k]) - 1/denz[i,j,k]*(P[i,j,k] - P[i,j,k-1])) / dz^2)
     end
@@ -1254,7 +1254,7 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
                 converged[] = true
                 # println("solution converged after $iter iterations")
             end
-            println("solution converged after $p_iter iterations with res = $err")
+            # println("solution converged after $p_iter iterations with res = $err")
             return p_iter
         end
     end
@@ -1342,9 +1342,9 @@ function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::
         if err < tol
             if converged !== nothing
                 converged[] = true
-                println("solution converged after $iter iterations")
+                # println("solution converged after $iter iterations")
             end
-            println("solution converged after $p_iter iterations with res = $err")
+            # println("solution converged after $p_iter iterations with res = $err")
             return p_iter
         end
     end
