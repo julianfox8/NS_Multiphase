@@ -705,7 +705,7 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter=noth
         update_borders!(mg_arrays.wf[lvl],mg_mesh.mesh_lvls[lvl],par_env)
         @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
             # RHS
-            mg_arrays.RHS[lvl][i,j,k]= 1/dt*( 
+            mg_arrays.RHS[lvl][i,j,k]= ( 
                 ( mg_arrays.uf[lvl][i+1,j,k] - mg_arrays.uf[lvl][i,j,k] )/(dx) +
                 ( mg_arrays.vf[lvl][i,j+1,k] - mg_arrays.vf[lvl][i,j,k] )/(dy) +
                 ( mg_arrays.wf[lvl][i,j,k+1] - mg_arrays.wf[lvl][i,j,k] )/(dz) )
@@ -796,17 +796,17 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
         update_borders!(mg_arrays.wf[lvl],mg_mesh.mesh_lvls[lvl],par_env)
         @loop param for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
             # RHS
-            mg_arrays.RHS[lvl][i,j,k]= 1/dt*( 
+            mg_arrays.RHS[lvl][i,j,k] = ( 
                 ( mg_arrays.uf[lvl][i+1,j,k] - mg_arrays.uf[lvl][i,j,k] )/(dx) +
                 ( mg_arrays.vf[lvl][i,j+1,k] - mg_arrays.vf[lvl][i,j,k] )/(dy) +
                 ( mg_arrays.wf[lvl][i,j,k+1] - mg_arrays.wf[lvl][i,j,k] )/(dz) )
         end
         update_borders!(mg_arrays.RHS[lvl],mg_mesh.mesh_lvls[lvl],par_env)
     end
-
+    
     if lvl == mg_lvl 
         # relax on coarsest level ( residual now is stored tmp1)
-        poisson_solve!(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.res[lvl],mg_arrays,lvl,mg_mesh,dt,param,par_env,10000;tol_lvl=1e-10)
+        poisson_solve!(mg_arrays.P_h[lvl],mg_arrays.tmp1[lvl],mg_arrays.res[lvl],mg_arrays,lvl,mg_mesh,dt,param,par_env,50000;iter,tol_lvl=1e-10)
         return
     end
 
