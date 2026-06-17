@@ -7,8 +7,11 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mg_mesh.mesh_lvls[1]
     
     # RHS = nothing
-    if mg_lvl > 1 
+    if mg_lvl > 1
         iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env)
+
+        Neumann!(fields.P,mg_mesh.mesh_lvls[1],par_env)
+        update_borders!(P,mg_mesh.mesh_lvls[1],par_env)
     else    
         if pressure_scheme == "finite-difference"
             # RHS = @view tmp4[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
@@ -35,9 +38,9 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,p
 
 
     # Point to hypre objects
-    jacob = mg_arrays.jacob[1]
-    b_vec = mg_arrays.b_vec[1]
-    x_vec = mg_arrays.x_vec[1]
+    jacob = mg_arrays[1].jacob
+    b_vec = mg_arrays[1].b_vec
+    x_vec = mg_arrays[1].x_vec
 
     if pressurePrecond == "nl_jacobi"
         iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;max_iter = 50)
@@ -67,13 +70,13 @@ end
 # Poisson solver for Multigrid.jl
 function poisson_solve!(P,RHS,res,mg_arrays,lvl,mg_mesh,dt,param,par_env,max_iter;verts=nothing,tets=nothing,iter=nothing,tol_lvl=nothing,converged_flag=nothing)
     @unpack mg_lvl,pressureSolver = param
-    
+    current_lvl = mg_arrays[lvl]
     if pressureSolver == "gauss-seidel"
-        iter = gs(P,RHS,res,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,iter,tol_lvl,converged=converged_flag)
+        iter = gs(P,RHS,res,current_lvl.denx,current_lvl.deny,current_lvl.denz,dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,iter,tol_lvl,converged=converged_flag)
     elseif pressureSolver == "res_iteration"
-        res_iteration(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp2[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter,τ=mg_arrays.tmp1[lvl],converged=converged_flag,tol_lvl = tol_lvl)
+        res_iteration(P,current_lvl.uf,current_lvl.vf,current_lvl.wf,current_lvl.gradx,current_lvl.grady,current_lvl.gradz,current_lvl.band,dt,current_lvl.denx,current_lvl.deny,current_lvl.denz,current_lvl.AP_f,current_lvl.AP_c,current_lvl.tmp2,current_lvl.tmp3,verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter,τ=current_lvl.tmp1,converged=converged_flag,tol_lvl = tol_lvl)
     elseif pressureSolver == "res_iteration_AA"
-        res_iteration_AA(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp2[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter,τ=mg_arrays.tmp1[lvl],converged=converged_flag,tol_lvl = tol_lvl)
+        res_iteration_AA(P,current_lvl.uf[lvl],current_lvl.vf[lvl],current_lvl.wf[lvl],current_lvl.gradx[lvl],current_lvl.grady[lvl],current_lvl.gradz[lvl],current_lvl.band[lvl],dt,current_lvl.denx[lvl],current_lvl.deny[lvl],current_lvl.denz[lvl],current_lvl.AP_f[lvl],current_lvl.AP_c[lvl],current_lvl.tmp2[lvl],current_lvl.tmp3[lVL],verts,tets,param,mg_mesh.mesh_lvls[lVL],par_env;iter,max_iter,τ=current_LVL.tmp1[lVL],converged=converged_flag,tol_lvl = tol_LVL)
     elseif pressureSolver == "nl_gs"
         nonlin_gs(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.tmp2[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,τ=mg_arrays.tmp1[lvl],iter,converged = converged_flag,tol_lvl = tol_lvl) 
     else
