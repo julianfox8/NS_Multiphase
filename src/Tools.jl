@@ -1,3 +1,35 @@
+const FField = OffsetArray{Float64,3,Array{Float64,3}}
+const IField = OffsetArray{Int16,3,Array{Int16,3}} 
+
+struct MG_level
+    P_h     :: FField
+    gradx   :: FField
+    grady   :: FField
+    gradz   :: FField
+    uf      :: FField
+    vf      :: FField
+    wf      :: FField
+    denx    :: FField
+    deny    :: FField
+    denz    :: FField
+    AP_f    :: FField
+    AP_c    :: FField
+    RHS     :: FField
+    res     :: FField
+    P_bar_H :: FField
+    P_H     :: FField
+    tmp1    :: FField
+    tmp2    :: FField
+    tmp3    :: FField
+    tmplrg  :: FField
+    band    :: IField
+    jacob   :: HYPRE_IJMatrix
+    b_vec   :: HYPRE_IJVector
+    x_vec   :: HYPRE_IJVector
+end    
+
+
+
 """ 
 Apply BC's on pressure
 """
@@ -191,123 +223,90 @@ function initArrays(mesh)
 end
 
 
-function mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
+function mg_initArrays(mg_mesh,param,par_env)
     @unpack mg_lvl = param
     
-    # Per-level storage of OffsetArrays 
-    P_h_arr   = Vector{OffsetArray{Float64,3}}(undef, mg_lvl)
-    gradx_arr = similar(P_h_arr)
-    grady_arr = similar(P_h_arr)
-    gradz_arr = similar(P_h_arr)
-    uf_arr = similar(P_h_arr)
-    vf_arr = similar(P_h_arr)
-    wf_arr = similar(P_h_arr)
-    denx_arr = similar(P_h_arr)
-    deny_arr = similar(P_h_arr)
-    denz_arr = similar(P_h_arr)
-    AP_f_arr = similar(P_h_arr)
-    AP_c_arr = similar(P_h_arr)
-    RHS_arr = similar(P_h_arr)
-    res_arr = similar(P_h_arr)
-    P_bar_H_arr = similar(P_h_arr)
-    P_H_arr = similar(P_h_arr)
-    tmp1_arr = similar(P_h_arr)
-    tmp2_arr = similar(P_h_arr)
-    tmp3_arr = similar(P_h_arr)
-    Pdx_arr = similar(P_h_arr)
-    Pdy_arr = similar(P_h_arr)
-    Pdz_arr = similar(P_h_arr)
-    tmplrg_arr = similar(P_h_arr)
-    band_arr = Vector{OffsetArray{Int16,3}}(undef, mg_lvl)
+    mg_arrays = Vector{MG_level}(undef, mg_lvl)
     
-    # Per-level storage of HYPRE arrays
-    jacob_arr = Vector{HYPRE_IJMatrix}(undef, mg_lvl)
-    b_vec_arr = Vector{HYPRE_IJVector}(undef, mg_lvl)
-    x_vec_arr = Vector{HYPRE_IJVector}(undef, mg_lvl)
-
     for l in 1:mg_lvl
         mesh = mg_mesh.mesh_lvls[l]
         @unpack imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
         size3D = (imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_)
 
         # Initialize OffsetArrays 
-        P_h_arr[l]     = OffsetArray(zeros(size3D), size3D)
-        gradx_arr[l] = OffsetArray(zeros(size3D), size3D)
-        grady_arr[l] = OffsetArray(zeros(size3D), size3D)
-        gradz_arr[l] = OffsetArray(zeros(size3D), size3D)
-        uf_arr[l]    = OffsetArray(zeros(size3D), size3D)
-        vf_arr[l]    = OffsetArray(zeros(size3D), size3D)
-        wf_arr[l]    = OffsetArray(zeros(size3D), size3D)
-        denx_arr[l]  = OffsetArray(zeros(imino_:imaxo_+1, jmino_:jmaxo_, kmino_:kmaxo_), (imino_:imaxo_+1, jmino_:jmaxo_, kmino_:kmaxo_))
-        deny_arr[l]  = OffsetArray(zeros(imino_:imaxo_, jmino_:jmaxo_+1, kmino_:kmaxo_), (imino_:imaxo_, jmino_:jmaxo_+1, kmino_:kmaxo_))
-        denz_arr[l]  = OffsetArray(zeros(imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_+1), (imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_+1))
-        AP_f_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        AP_c_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        RHS_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        res_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        P_bar_H_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        P_H_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        tmp1_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        tmp2_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        tmp3_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        Pdx_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        Pdy_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        Pdz_arr[l]  = OffsetArray(zeros(size3D), size3D)
-        tmplrg_arr[l]  = OffsetArray(zeros(imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3), (imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3))
-        band_arr[l]  = OffsetArray(zeros(size3D),size3D)
+        P_h      = OffsetArray{Float64}(undef,size3D); fill!(P_h,0.0)
+        gradx    = OffsetArray{Float64}(undef,size3D); fill!(gradx,0.0)
+        grady    = OffsetArray{Float64}(undef,size3D); fill!(grady,0.0)
+        gradz    = OffsetArray{Float64}(undef,size3D); fill!(gradz,0.0)
+        uf       = OffsetArray{Float64}(undef,size3D); fill!(uf,0.0)
+        vf       = OffsetArray{Float64}(undef,size3D); fill!(vf,0.0)   
+        wf       = OffsetArray{Float64}(undef,size3D); fill!(wf,0.0)
+        denx     = OffsetArray{Float64}(undef, imino_:imaxo_+1, jmino_:jmaxo_, kmino_:kmaxo_); fill!(denx,0.0)
+        deny     = OffsetArray{Float64}(undef, imino_:imaxo_, jmino_:jmaxo_+1, kmino_:kmaxo_); fill!(deny,0.0)
+        denz     = OffsetArray{Float64}(undef, imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_+1); fill!(denz,0.0)
+        AP_f     = OffsetArray{Float64}(undef, size3D); fill!(AP_f,0.0)
+        AP_c     = OffsetArray{Float64}(undef, size3D); fill!(AP_c,0.0)
+        RHS      = OffsetArray{Float64}(undef, size3D); fill!(RHS,0.0)
+        res      = OffsetArray{Float64}(undef, size3D); fill!(res,0.0)
+        P_bar_H  = OffsetArray{Float64}(undef, size3D); fill!(P_bar_H,0.0)
+        P_H      = OffsetArray{Float64}(undef, size3D); fill!(P_H,0.0)
+        tmp1     = OffsetArray{Float64}(undef, size3D); fill!(tmp1,0.0)
+        tmp2     = OffsetArray{Float64}(undef, size3D);fill!(tmp2,0.0)
+        tmp3     = OffsetArray{Float64}(undef, size3D); fill!(tmp3,0.0)
+        tmplrg   = OffsetArray{Float64}(undef, imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3); fill!(tmplrg,0.0)
+        band     = OffsetArray{Int16}(undef, size3D); fill!(band,0.0)
 
         # Initialize HYPRE objects 
-        p_min,p_max = prepare_indices(tmp3_arr[l],par_env,mesh);fill!(tmp3_arr[l],0.0)
+        p_min,p_max = prepare_indices(tmp3,par_env,mesh);fill!(tmp3,0.0)
         
         jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
         HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
-        jacob_arr[l] = jacob_ref[]
-        HYPRE_IJMatrixSetObjectType(jacob_arr[l],HYPRE_PARCSR)    
-        HYPRE_IJMatrixInitialize(jacob_arr[l])
+        jacob = jacob_ref[]
+        HYPRE_IJMatrixSetObjectType(jacob,HYPRE_PARCSR)    
+        HYPRE_IJMatrixInitialize(jacob)
     
         b_ref = Ref{HYPRE_IJVector}(C_NULL)
         HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,b_ref)
-        b_vec_arr[l] = b_ref[]
-        HYPRE_IJVectorSetObjectType(b_vec_arr[l],HYPRE_PARCSR)
-        HYPRE_IJVectorInitialize(b_vec_arr[l])
+        b_vec = b_ref[]
+        HYPRE_IJVectorSetObjectType(b_vec,HYPRE_PARCSR)
+        HYPRE_IJVectorInitialize(b_vec)
     
         x_ref = Ref{HYPRE_IJVector}(C_NULL)
         HYPRE_IJVectorCreate(par_env.comm,p_min,p_max,x_ref)
-        x_vec_arr[l] = x_ref[]
-        HYPRE_IJVectorSetObjectType(x_vec_arr[l],HYPRE_PARCSR)
-        HYPRE_IJVectorInitialize(x_vec_arr[l])
+        x_vec = x_ref[]
+        HYPRE_IJVectorSetObjectType(x_vec,HYPRE_PARCSR)
+        HYPRE_IJVectorInitialize(x_vec)
         
+        mg_arrays[l] = MG_level(
+            P_h,
+            gradx,
+            grady,
+            gradz,
+            uf,
+            vf,
+            wf,
+            denx,
+            deny,
+            denz,
+            AP_f,
+            AP_c,
+            RHS,
+            res,
+            P_bar_H,
+            P_H,
+            tmp1,
+            tmp2,
+            tmp3,
+            tmplrg,
+            band,
+            jacob,
+            b_vec,
+            x_vec
+        )
+
     end
 
-    return (
-        P_h = P_h_arr,
-        gradx = gradx_arr,
-        grady = grady_arr,
-        gradz = gradz_arr,
-        uf = uf_arr,
-        vf = vf_arr,
-        wf = wf_arr,
-        denx = denx_arr,
-        deny = deny_arr,
-        denz = denz_arr,
-        AP_f = AP_f_arr,
-        AP_c = AP_c_arr,
-        RHS = RHS_arr,
-        res = res_arr,
-        P_bar_H = P_bar_H_arr,
-        P_H = P_H_arr,
-        tmp1 = tmp1_arr,
-        tmp2 = tmp2_arr,
-        tmp3 = tmp3_arr,
-        Pdx = Pdx_arr,
-        Pdy = Pdy_arr,
-        Pdz = Pdz_arr,
-        tmplrg = tmplrg_arr,
-        band = band_arr,
-        jacob = jacob_arr,
-        b_vec = b_vec_arr,
-        x_vec = x_vec_arr
-    )
+    return mg_arrays
 end
 
 
@@ -745,8 +744,6 @@ function get_velocity_wface(pt,i,j,k,wf,mesh)
                      wx2*wf[i  ,j  ,k  ])))
     return w_pt
 end
-
-
 
 """
 Define velocity field (usually for VF testing)
@@ -1518,25 +1515,19 @@ function remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
 end
 
 function copy_to_mg!(mg_arrays, fields, lvl)
-
-    mg_arrays.P_h[lvl]   .= fields.P     
-    mg_arrays.uf[lvl]  .= fields.uf     
-    mg_arrays.vf[lvl]  .= fields.vf     
-    mg_arrays.wf[lvl]  .= fields.wf     
-    mg_arrays.denx[lvl]  .= fields.denx 
-    mg_arrays.deny[lvl]  .= fields.deny 
-    mg_arrays.denz[lvl]  .= fields.denz 
-    mg_arrays.gradx[lvl] .= fields.gradx 
-    mg_arrays.grady[lvl] .= fields.grady 
-    mg_arrays.gradz[lvl] .= fields.gradz 
-    mg_arrays.band[lvl]  .= fields.band  
-     
+    mg_arrays[lvl].P_h   .= fields.P     
+    mg_arrays[lvl].uf    .= fields.uf     
+    mg_arrays[lvl].vf    .= fields.vf     
+    mg_arrays[lvl].wf    .= fields.wf     
+    mg_arrays[lvl].denx  .= fields.denx 
+    mg_arrays[lvl].deny  .= fields.deny 
+    mg_arrays[lvl].denz  .= fields.denz 
+    mg_arrays[lvl].gradx .= fields.gradx 
+    mg_arrays[lvl].grady .= fields.grady 
+    mg_arrays[lvl].gradz .= fields.gradz 
+    mg_arrays[lvl].band  .= fields.band  
 end
 
-function copy_to_main!(mg_arrays, fields, lvl)
-
-    fields.P  .=   mg_arrays.P_h[lvl]    
-end
 
 """
 code to grab the terminal velocity along centerline
