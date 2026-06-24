@@ -427,7 +427,7 @@ function richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param,
     end
     
     # Determine the base order of the method
-    p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
+    p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" || projection_method == "Heun" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
     
     # Build Richardson table
     R = [copy(I[n]) for n in 1:nsteps]  # first column = base solutions
@@ -457,7 +457,7 @@ end
 
 
 
-function pre_image_err(dts,scheme)
+function pre_image_err(dts,scheme,interpolation_method)
     # Define parameters 
     param = parameters(
         # Constants
@@ -480,7 +480,7 @@ function pre_image_err(dts,scheme)
         Nz=32,
         stepMax=1,   # Maximum number of timesteps
         max_dt = 6e-2,
-        CFL=3.0,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=1.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-7,
@@ -503,13 +503,14 @@ function pre_image_err(dts,scheme)
         # pressure_scheme = "finite-difference",
         # pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
-        pressureSolver = "res_iteration",
+        pressureSolver = "res_iteration_AA",
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
-        projection_method = "Euler",
+        # projection_method = "Euler",
         # projection_method = "RK4",
         # projection_method = "Midpoint",
+        projection_method = interpolation_method,
 
         # Iteration method used in @loop macro
         iter_type = "standard",
@@ -589,7 +590,7 @@ function pre_image_err(dts,scheme)
 
     @unpack x,y,z,dx,dy,dz,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
-    mg_arrays = NS.mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
+    mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
 
 
     if param.pressure_scheme == "finite-difference"
@@ -610,7 +611,6 @@ function pre_image_err(dts,scheme)
     # # Check divergence
     # dt = NS.compute_dt(u,v,w,param,mesh,par_env)
     @unpack dx,dy,Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-
 
     # compute density and viscosity at intial conditions
     NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
@@ -641,7 +641,8 @@ function pre_image_err(dts,scheme)
     for (idx, dt) in enumerate(dts)
         # Set velocity for iteration using deformation field
         NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
-        println("starting error calc for dt = $dt")
+        maxvel = max(maximum(u),maximum(v),maximum(w))
+        println("starting error calc for CFL = $(dt*maxvel/dx)")
         uf_old = copy(uf)
         vf_old = copy(vf)
         wf_old = copy(wf)
@@ -651,7 +652,6 @@ function pre_image_err(dts,scheme)
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
         end
-
         
         errors = tmp9; fill!(errors,0.0)
         # loop over domain and project vertices to test numerical integration 
@@ -684,6 +684,7 @@ function pre_image_err(dts,scheme)
             # end
 
             # Project sampled points to get analytic pre-image
+            # println("exact projection starting")
             for pt_id in axes(sample_pts, 2)
                 nsteps = 10
                 # pt = sample_pts[:, pt_id]
@@ -703,8 +704,9 @@ function pre_image_err(dts,scheme)
 
             #! need to store a copy of the velocity field for use with the pressure corrected field
             #! will just use corrected field and cell to tets 
-
+            
             # Compute numerical pre-image (either flux-corrected or pressure-corrected)
+            # println("computing numerical pre-image")
             tetsign = NS.cell2tets!(verts,tets,i,j,k,param,mesh; 
             project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,
             compute_indices=true,inds=inds,vInds=vInds,)
@@ -727,14 +729,14 @@ function pre_image_err(dts,scheme)
             map_sample_points_to_preimage!(preimage_sample_pts, pre_tri_verts, tri_ids, lambdas, tetsign, ns)
 
             # Check that barycentric coordinates map back to the correct point on the face
-            if k == 11 && j == 11 && i == 11
-                for i in 1:8
+            # if k == 11 && j == 11 && i == 11
+            #     for i in 1:8
                     
-                    NS.project!(@view(original_verts[:,i]), i, j, k, uf, vf, wf, dt, param, mesh)
-                end
-                plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "pressure-corrected pre-image of sampled  \n points with $nfp points per face")
-                error("stop")
-            end
+            #         NS.project!(@view(original_verts[:,i]), i, j, k, uf, vf, wf, dt, param, mesh)
+            #     end
+            #     plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "pressure-corrected pre-image of sampled  \n points with $nfp points per face")
+            #     error("stop")
+            # end
 
             # Compute error in sample points for i,j,k cell
             # errors[i,j,k] = maximum(sqrt.(sum((preimage_sample_pts .- sample_pts).^2)))
@@ -753,12 +755,14 @@ end
 
 # scheme = "finite-difference"
 scheme = "semi-lagrangian"
+# interpolation_method = "Heun"
+interpolation_method = "Euler"
 # dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
-dts = [0.06,0.0025,0.001] 
-# dts = [0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
-errors = pre_image_err(dts,scheme)
+# dts = [0.01,0.0025,0.001] 
+dts = [0.015,0.0125,0.01,0.005,0.0033,0.0025,0.00125]
+errors = pre_image_err(dts,scheme,interpolation_method)
 
-open("$(scheme)_noFC_errors_test.csv","w") do io 
+open("$(scheme)_$(interpolation_method)_noFC_errors_test.csv","w") do io 
     println(io,"dts,errors") # header
     for (dt,err) in zip(dts,errors)
         println(io,"$dt,$err")
