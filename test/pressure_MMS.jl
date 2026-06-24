@@ -40,8 +40,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         Ny=Ny,
         Nz=1,
         stepMax=50,   # Maximum number of timesteps
-        max_dt = 2.5e-2,
-        CFL=2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        max_dt = 2.5e-3,
+        CFL=1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -145,7 +145,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 
     @unpack x,y,z,dx,dy,dz,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
-    mg_arrays = NS.mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
+    mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
 
     # Compute dt
     dt = NS.compute_dt(u,v,w,param,mesh,par_env)

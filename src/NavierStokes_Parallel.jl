@@ -53,7 +53,7 @@ function run_solver(param, IC!, BC!)
     @unpack dx,dy,dz,x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds = initArrays(mesh)
     p_min,p_max = prepare_indices(tmp5,par_env,mesh)
-    mg_arrays = mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
+    mg_arrays = mg_initArrays(mg_mesh,param,par_env)
 
     # Check simulation param for restart
     if restart == true

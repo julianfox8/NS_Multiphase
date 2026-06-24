@@ -149,7 +149,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 
     @unpack x,y,z,dx,dy,dz,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
-    mg_arrays = NS.mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
+    mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
 
     # Compute dt
     dt = NS.compute_dt(u,v,w,param,mesh,par_env)
