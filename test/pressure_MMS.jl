@@ -180,11 +180,17 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         elseif param.pressureSolver == "gauss-seidel"
             iter = NS.gs(P,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
         elseif param.pressureSolver == "congugateGradient"
-            iter = NS.cg!(P, RHS, denx, deny, denz,tmp6,dt, param, mg_mesh.mesh_lvls[1], par_env)  
+            iter = NS.cg!(P, RHS, denx, deny, denz,tmp6,dt, param, mg_mesh.mesh_lvls[1], par_env)
+        elseif param.pressureSolver == "geometric_mg"
+            iter = NS.mg_geometric!(P, RHS, denx, deny, denz, dt, param, mg_mesh.mesh_lvls[1], par_env)
         end
     elseif param.pressure_scheme == "semi-lagrangian"
         if param.pressureSolver == "res_iteration"
             iter = NS.res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
+        elseif param.pressureSolver == "res_iteration_AA_con"
+            iter = NS.res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
+        elseif param.pressureSolver == "res_iteration_AA_uncon"
+            iter = NS.res_iteration_AA_uncon(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
         elseif param.pressureSolver == "hypreSecant"
             iter = NS.Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,mg_arrays.jacob[1],mg_arrays.x_vec[1],mg_arrays.b_vec[1],param,mg_mesh.mesh_lvls[1],par_env)
         end
