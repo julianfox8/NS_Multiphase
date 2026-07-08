@@ -1489,7 +1489,142 @@ function cg!(P, RHS, denx, deny, denz, res, dt, param, mesh, par_env;max_iter=20
 
         rs_old = rs_new
     end
-    
+
     return p_iter
+end
+
+"""
+    mg_geometric!(P, RHS, denx, deny, denz, dt, param, mesh, par_env; max_iter=50, verbose=true)
+
+Reference multigrid solver using GeometricMultigrid.jl, for diagnostic comparison against
+the native mg_vc_lin! solver. Solves the variable-coefficient Poisson equation
+
+    ∇·(dt/ρ ∇P) = RHS
+
+using the same finite-difference face coefficients (denx/deny/denz) as apply_A!, with
+Neumann BCs on all domain faces. Prints per-cycle residual and factor to stdout.
+
+Use pressureSolver = "geometric_mg" with pressure_scheme = "finite-difference" in the MMS
+test to invoke this solver.
+"""
+function mg_geometric!(P, RHS, denx, deny, denz, dt, param, mesh, par_env; max_iter=50, verbose=true)
+    @unpack dx, dy, dz, imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
+    @unpack tol = param
+
+    Nx = imax_ - imin_ + 1
+    Ny = jmax_ - jmin_ + 1
+    Nz = kmax_ - kmin_ + 1
+
+    # GeometricMultigrid's isdivisible check requires every dimension to satisfy
+    # mod(N,2)==0 && N>2.  For Nz=1 this fails, so a 3D L array would prevent
+    # any coarse-grid recursion — the solver would degrade to a plain GS smoother.
+    # Detect this and build a genuinely 2D operator instead.
+    use_2d = (Nz == 1)
+
+    if use_2d
+        # 2D operator: L is (Nx+2, Ny+2, 2), solution/RHS arrays are (Nx+2, Ny+2).
+        # Index mapping: NS interior index i ↔ i_gm = i - imin_ + 2  (range 2:Nx+1)
+        # Boundary faces stay 0 → Neumann BC on all sides.
+        L = zeros(Nx+2, Ny+2, 2)
+        k = kmin_   # only z-layer
+
+        for j in jmin_:jmax_, i in imin_+1:imax_          # x internal faces
+            L[i-imin_+2, j-jmin_+2, 1] = dt / (denx[i, j, k] * dx^2)
+        end
+        for j in jmin_+1:jmax_, i in imin_:imax_          # y internal faces
+            L[i-imin_+2, j-jmin_+2, 2] = dt / (deny[i, j, k] * dy^2)
+        end
+
+        A = GeometricMultigrid.Poisson(L)
+
+        p_data = zeros(Nx+2, Ny+2)
+        b_data = zeros(Nx+2, Ny+2)
+        p_data[2:Nx+1, 2:Ny+1] .= P[imin_:imax_, jmin_:jmax_, k]
+        b_data[2:Nx+1, 2:Ny+1] .= RHS[imin_:imax_, jmin_:jmax_, k]
+
+        x = GeometricMultigrid.FieldVector(p_data)
+        b = GeometricMultigrid.FieldVector(b_data)
+        st = GeometricMultigrid.mg_state(A, x, b)
+
+        if verbose
+            println("mg_geometric! reference solver  Nx=$Nx Ny=$Ny (2D)")
+            println("  levels built: ", _count_levels(st))
+            println("  cycle | residual      | factor")
+        end
+
+        res0 = norm(st.r)
+        iter = 0
+        for cyc in 1:max_iter
+            GeometricMultigrid.Vcycle!(st)
+            res = norm(st.r)
+            factor = res0 > 0 ? res / res0 : NaN
+            verbose && @printf("  %5d | %13.6e | %.4f\n", cyc, res, factor)
+            iter = cyc
+            res0 = res
+            res < tol && break
+        end
+
+        P[imin_:imax_, jmin_:jmax_, k] .= st.x.data[2:Nx+1, 2:Ny+1]
+        P[imin_:imax_, jmin_:jmax_, k] .-= parallel_mean_all(P[imin_:imax_, jmin_:jmax_, k], par_env)
+
+    else
+        # 3D operator: L is (Nx+2, Ny+2, Nz+2, 3).
+        # L[i_gm, j_gm, k_gm, d] = positive face coefficient between cell i_gm and i_gm-1
+        # in direction d.  Boundary faces stay 0 → Neumann BC.
+        L = zeros(Nx+2, Ny+2, Nz+2, 3)
+
+        for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_+1:imax_    # x internal faces
+            L[i-imin_+2, j-jmin_+2, k-kmin_+2, 1] = dt / (denx[i, j, k] * dx^2)
+        end
+        for k in kmin_:kmax_, j in jmin_+1:jmax_, i in imin_:imax_    # y internal faces
+            L[i-imin_+2, j-jmin_+2, k-kmin_+2, 2] = dt / (deny[i, j, k] * dy^2)
+        end
+        for k in kmin_+1:kmax_, j in jmin_:jmax_, i in imin_:imax_    # z internal faces
+            L[i-imin_+2, j-jmin_+2, k-kmin_+2, 3] = dt / (denz[i, j, k] * dz^2)
+        end
+
+        A = GeometricMultigrid.Poisson(L)
+
+        p_data = zeros(Nx+2, Ny+2, Nz+2)
+        b_data = zeros(Nx+2, Ny+2, Nz+2)
+        p_data[2:Nx+1, 2:Ny+1, 2:Nz+1] .= P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+        b_data[2:Nx+1, 2:Ny+1, 2:Nz+1] .= RHS[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+
+        x = GeometricMultigrid.FieldVector(p_data)
+        b = GeometricMultigrid.FieldVector(b_data)
+        st = GeometricMultigrid.mg_state(A, x, b)
+
+        if verbose
+            println("mg_geometric! reference solver  Nx=$Nx Ny=$Ny Nz=$Nz (3D)")
+            println("  levels built: ", _count_levels(st))
+            println("  cycle | residual      | factor")
+        end
+
+        res0 = norm(st.r)
+        iter = 0
+        for cyc in 1:max_iter
+            GeometricMultigrid.Vcycle!(st)
+            res = norm(st.r)
+            factor = res0 > 0 ? res / res0 : NaN
+            verbose && @printf("  %5d | %13.6e | %.4f\n", cyc, res, factor)
+            iter = cyc
+            res0 = res
+            res < tol && break
+        end
+
+        P[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= st.x.data[2:Nx+1, 2:Ny+1, 2:Nz+1]
+        P[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .-= parallel_mean_all(P[imin_:imax_, jmin_:jmax_, kmin_:kmax_], par_env)
+
+    end
+
+    Neumann!(P, mesh, par_env)
+    update_borders!(P, mesh, par_env)
+
+    return iter
+end
+
+# Helper to count levels in a SolveState chain (SolveState exported from GeometricMultigrid)
+function _count_levels(st::SolveState, n=1)
+    isnothing(st.child) ? n : _count_levels(st.child, n+1)
 end
 
