@@ -294,14 +294,15 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 end
 
 mesh_size = 48
-# scheme = "finite-difference"
+scheme = "finite-difference"
+# solver = "geometric_mg"
 # solver = "FC_hypre"
-# solver = "gauss-seidel"
-scheme = "semi-lagrangian"
-solver = "res_iteration"
-lvl = 1
+solver = "gauss-seidel"
+# scheme = "semi-lagrangian"
+# solver = "res_iteration_AA"
+lvl = 2
 
-# @time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
+@time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
 # times = time() - t_start
 # println("time taken: $times seconds")
 # mesh_sizes =[16,32,64,128]
@@ -318,16 +319,16 @@ lvl = 1
 # solver_tag = ["gauss-seidel","CG","NL Jacobi","FAS","Secant"]
 
 # markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
-L2_err   = zeros(length(schemes), length(mesh_sizes))
-Linf_err = zeros(length(schemes), length(mesh_sizes))
-times = zeros(length(schemes), length(mesh_sizes))
-for j in eachindex(schemes)
-    for i in eachindex(mesh_sizes)
-        t_start = time()
-        L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
-        times[j,i] = time() - t_start
-    end
-end
+# L2_err   = zeros(length(schemes), length(mesh_sizes))
+# Linf_err = zeros(length(schemes), length(mesh_sizes))
+# times = zeros(length(schemes), length(mesh_sizes))
+# for j in eachindex(schemes)
+#     for i in eachindex(mesh_sizes)
+#         t_start = time()
+#         L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
+#         times[j,i] = time() - t_start
+#     end
+# end
 conv_plot = false
 timing_plot = false
 

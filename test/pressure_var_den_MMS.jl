@@ -38,7 +38,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         Nz=1,
         stepMax=50,   # Maximum number of timesteps
         max_dt = 2.5e-2,
-        CFL=2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -66,7 +66,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         hypreSolver = "GMRES-AMG",
         mg_lvl = lvl,
         # projection_method = "RK4",
-        projection_method = "Euler",
+        projection_method = "Heun",
         tesselation = "5_tets",
         
         iter_type = "standard",
@@ -125,7 +125,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         # end
 
 
-                # Volume Fraction
+        # Volume Fraction
         rad=0.25
         xo=0.5
         yo=0.5
@@ -133,6 +133,14 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
             VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
         end
+        # rad=0.25
+        # xo=0.5
+        # yo=0.5
+        # zo=0.5
+        # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+        #     VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+        #     # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+        # end
         return nothing
     end
     # Setup par_env
@@ -186,10 +194,12 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
             iter = NS.cg!(P, RHS, denx, deny, denz,tmp6,dt, param, mg_mesh.mesh_lvls[1], par_env)  
         end
     elseif param.pressure_scheme == "semi-lagrangian"
-        if param.pressureSolver == "res_iteration"
-            iter = NS.res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
+        if param.pressureSolver == "res_iteration_AA_con"
+            iter = NS.res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
+        elseif param.pressureSolver == "res_iteration_AA_uncon"
+            iter = NS.res_iteration_AA_uncon(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
         elseif param.pressureSolver == "hypreSecant"
-            iter = NS.Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,mg_arrays.jacob[1],mg_arrays.x_vec[1],mg_arrays.b_vec[1],param,mg_mesh.mesh_lvls[1],par_env)
+            iter = NS.Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,param,mg_mesh.mesh_lvls[1],par_env)
         end
     end
     println("solver: $(param.pressureSolver) converged in $iter iterations")
@@ -323,25 +333,25 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     return L2_error,Linf_error
 end
 
-# mesh_size = 48
+mesh_size = 48
 # scheme = "finite-difference"
 # solver = "FC_hypre"
 # solver = "gauss-seidel"
-# scheme = "semi-lagrangian"
-# solver = "res_iteration"
-# lvl = 1
+scheme = "semi-lagrangian"
+# solver = "res_iteration_AA2"
+lvl = 1
 
-# @time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
+@time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
 # times = time() - t_start
 # println("time taken: $times seconds")
-mesh_sizes =[32,64,128]
-lvl = [2,1]#,3]
+# mesh_sizes =[16,32,64,128]
+# lvl = [1,1]#,3]
 # schemes = ["finite-difference","semi-lagrangian"]#,"semi-lagrangian"]
-# solvers = ["FC_hypre","res_iteration"]#,"res_iteration"]
+# solvers = ["FC_hypre","res_iteration_AA"]#,"res_iteration"]
+# # tags = ["SL-FV","SL-SL"]
+# # schemes = ["semi-lagrangian"]#,"semi-lagrangian"]
+# # solvers = ["res_iteration"]#,"res_iteration"]
 # tags = ["SL-FV","SL-SL"]
-schemes = ["semi-lagrangian"]#,"semi-lagrangian"]
-solvers = ["res_iteration"]#,"res_iteration"]
-tags = ["SL-FV","SL-SL"]
 
 # mesh_sizes =[32,64,128]
 # lvl = [1,1,1,3,1]
@@ -350,17 +360,18 @@ tags = ["SL-FV","SL-SL"]
 # tags = ["FD","SL"]
 # solver_tag = ["gauss-seidel","CG","NL Jacobi","FAS","Secant"]
 
-markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
-L2_err   = zeros(length(schemes), length(mesh_sizes))
-Linf_err = zeros(length(schemes), length(mesh_sizes))
-times = zeros(length(schemes), length(mesh_sizes))
-for j in eachindex(schemes)
-    for i in eachindex(mesh_sizes)
-        t_start = time()
-        L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
-        times[j,i] = time() - t_start
-    end
-end
+# markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
+# linestyle = [:solid,:dash,:dot,:dashdot,:dashdotdot]
+# L2_err   = zeros(length(schemes), length(mesh_sizes))
+# Linf_err = zeros(length(schemes), length(mesh_sizes))
+# times = zeros(length(schemes), length(mesh_sizes))
+# for j in eachindex(schemes)
+#     for i in eachindex(mesh_sizes)
+#         t_start = time()
+#         L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
+#         times[j,i] = time() - t_start
+#     end
+# end
 conv_plot = false
 timing_plot = false
 
@@ -373,20 +384,20 @@ if conv_plot
     println("L∞ errors  = ", Linf_err)
 
     # Vertical offsets for separating overlapping curves
-    offsets = [0.15, 0.1]   # apply only to the first scheme
+    offsets = [0.15, 0.145]   # apply only to the first scheme
 
     # ------------------------
     # L2 convergence plot
     # ------------------------
     Ns = round.(Int, 1 .// mesh_sizes) 
-    f = Figure(size = (900,600))
+    f = Figure(size = (700,500))
     pL2 = Axis(
         f[1,1],
-        xlabel = "Nₓ",
+        xlabel = "Mesh Size",
         ylabel = "L₂ error",
         xscale = log10,
         yscale = log10,
-        title = "MMS pressure solver",
+        # title = "MMS pressure solver",
         xticks = (mesh_sizes),
         titlesize = 30,
         xlabelsize = 24,
@@ -402,14 +413,23 @@ if conv_plot
         
         vals = L2_err[j, :] .* 10^offsets[j]
 
-        lines!(pL2, mesh_sizes, vals,
-            label = tags[j],
-            # color = colors[j],
-            linewidth = 3
-        )
+        # lines!(pL2, mesh_sizes, vals,
+        #     linestyle = linestyle[j],
+        #     label = tags[j],
+        #     # color = colors[j],
+        #     # linewidth = 3
+        # )
 
-        scatter!(pL2, mesh_sizes, vals,
-            # marker = markers[j],
+        # scatter!(pL2, mesh_sizes, vals,
+        #     marker = markers[j],
+        #     # color = colors[j],
+        #     markersize = 12
+        # )
+        scatterlines!(pL2, mesh_sizes, vals,
+            linestyle = linestyle[j],
+            label = tags[j],
+            marker = markers[j],
+            linewidth = 2,
             # color = colors[j],
             markersize = 12
         )
@@ -419,10 +439,10 @@ if conv_plot
     ref1_L2 = (L2_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)).*10^0.3  # 1st-order slope
     ref2_L2 = L2_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order slope
 
-    lines!(pL2, mesh_sizes, ref1_L2, linestyle=:dashdot, label="O(Δx)")
-    lines!(pL2, mesh_sizes, ref2_L2, linestyle=:dashdot, label="O(Δx²)")
+    lines!(pL2, mesh_sizes, ref1_L2, linestyle=:dashdot, label="O(Δx)",linewidth=2)
+    lines!(pL2, mesh_sizes, ref2_L2, linestyle=:dashdot, label="O(Δx²)",linewidth=2)
 
-    axislegend(pL2, position = :rt)
+    axislegend(pL2, position = :rt,labelsize = 16)
     save( "L2_convergence.png",f)
     println("Saved L2 plot: L2_convergence.png")
 

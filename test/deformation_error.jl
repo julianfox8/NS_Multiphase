@@ -34,43 +34,43 @@ plot_all_periods = true
 # -------------------------
 # Zalesak Data
 # -------------------------
-# SL_pvd_48 = "/Users/julia/repo/NS_Multiphase/results/VTK_Zalesak_result_semi-lagrangian_48_48_1/Solver.pvd"
-# SL_pvd_64 = "/Users/julia/repo/NS_Multiphase/results/VTK_Zalesak_result_semi-lagrangian_64_64_1/Solver.pvd"
-# SL_pvd_96 = "/Users/julia/repo/NS_Multiphase/results/VTK_Zalesak_result_semi-lagrangian_96_96_1/Solver.pvd"
-# SL_pvd_128 = "/Users/julia/repo/NS_Multiphase/results/VTK_Zalesak_result_semi-lagrangian_128_128_1/Solver.pvd"
-# FD_pvd_48 = "/Users/julia/repo/NS_Multiphase/results/VTK_Zalesak_result_finite-difference_48_48_1/Solver.pvd"
-# FD_pvd_64 = "/Users/julia/repo/NS_Multiphase/results/VTK_Zalesak_result_finite-difference_64_64_1/Solver.pvd"
-# FD_pvd_96 = "/Users/julia/repo/NS_Multiphase/results/VTK_Zalesak_result_finite-difference_96_96_1/Solver.pvd"
-# FD_pvd_128 = "/Users/julia/repo/NS_Multiphase/results/VTK_Zalesak_result_finite-difference_128_128_1/Solver.pvd"
+# SL_pvd_48  = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_semi-lagrangian_48_48_1/Solver.pvd"
+# SL_pvd_64  = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_semi-lagrangian_64_64_1/Solver.pvd"
+# SL_pvd_96  = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_semi-lagrangian_96_96_1/Solver.pvd"
+# SL_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_semi-lagrangian_128_128_1/Solver.pvd"
+# FD_pvd_48  = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_finite-difference_48_48_1/Solver.pvd"
+# FD_pvd_64  = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_finite-difference_64_64_1/Solver.pvd"
+# FD_pvd_96  = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_finite-difference_96_96_1/Solver.pvd"
+# FD_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_finite-difference_128_128_1/Solver.pvd"
 # -------------------------
 # Deformation Data
 # -------------------------
-# SL_pvd_48 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_semi-lagrangian_48_48_1/Solver.pvd"
-# SL_pvd_64 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_64_64_1/Solver.pvd"
-# SL_pvd_96 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_96_96_1/Solver.pvd"
-# SL_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_128_128_1/Solver.pvd"
+SL_pvd_48 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_semi-lagrangian_48_48_1/Solver.pvd"
+SL_pvd_64 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_64_64_1/Solver.pvd"
+SL_pvd_96 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_96_96_1/Solver.pvd"
+SL_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_128_128_1/Solver.pvd"
 # # FD_pvd_48 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_result_euler_finite-difference_48_48_1/Solver.pvd"
 # # FD_pvd_64 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_result_euler_finite-difference_64_64_1/Solver.pvd"
-# FD_pvd_48 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_48_48_1/Solver.pvd"
-# FD_pvd_64 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_64_64_1/Solver.pvd"
-# FD_pvd_96 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_96_96_1/Solver.pvd"
-# FD_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_128_128_1/Solver.pvd"
+FD_pvd_48 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_48_48_1/Solver.pvd"
+FD_pvd_64 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_64_64_1/Solver.pvd"
+FD_pvd_96 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_96_96_1/Solver.pvd"
+FD_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_128_128_1/Solver.pvd"
 
-# data = Dict(
-#     "FD" => Dict(
-#         48  => FD_pvd_48,
-#         64  => FD_pvd_64,
-#         # 32  => pvd_32,
-#         96  => FD_pvd_96,
-#         128 => FD_pvd_128
-#     ),
-#     "SL" => Dict(
-#         48  => SL_pvd_48,
-#         64  => SL_pvd_64,
-#         96  => SL_pvd_96,
-#         128 => SL_pvd_128
-#     )
-# )
+data = Dict(
+    "FD" => Dict(
+        48  => FD_pvd_48,
+        64  => FD_pvd_64,
+        # 32  => pvd_32,
+        96  => FD_pvd_96,
+        128 => FD_pvd_128
+    ),
+    "SL" => Dict(
+        48  => SL_pvd_48,
+        64  => SL_pvd_64,
+        96  => SL_pvd_96,
+        128 => SL_pvd_128
+    )
+)
 
 
 
@@ -79,33 +79,37 @@ plot_all_periods = true
 # SL_pvd_3_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_3_4_semi-lagrangian_64_64_1/Solver.pvd"
 # SL_pvd_1   = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_semi-lagrangian_64_64_1/Solver.pvd"
 # SL_pvd_1_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_1_2_semi-lagrangian_64_64_1/Solver.pvd"
-FD_pvd_1_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_4_finite-difference_64_64_1/Solver.pvd"
-FD_pvd_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_2_finite-difference_64_64_1/Solver.pvd"
-FD_pvd_3_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_3_4_finite-difference_64_64_1/Solver.pvd"
-FD_pvd_1   = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_finite-difference_64_64_1/Solver.pvd"
-FD_pvd_1_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_1_2_finite-difference_64_64_1/Solver.pvd"
+# FD_pvd_1_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_4_finite-difference_64_64_1/Solver.pvd"
+# FD_pvd_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_2_finite-difference_64_64_1/Solver.pvd"
+# FD_pvd_3_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_3_4_finite-difference_64_64_1/Solver.pvd"
+# FD_pvd_1   = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_finite-difference_64_64_1/Solver.pvd"
+# FD_pvd_1_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_1_2_finite-difference_64_64_1/Solver.pvd"
 
 
-data = Dict(
-    "FD" => Dict(
-        0.25  => FD_pvd_1_4,
-        0.5   => FD_pvd_1_2,
-        0.75  => FD_pvd_3_4,
-        1.0   => FD_pvd_1,
-        1.5   => FD_pvd_1_1_2
-    ),
-    # "SL" => Dict(
-    #     0.25  => SL_pvd_1_4,
-    #     0.5   => SL_pvd_1_2,
-    #     0.75  => SL_pvd_3_4,
-    #     1.0   => SL_pvd_1,
-    #     1.5   => SL_pvd_1_1_2
-    # )
-)
+# data = Dict(
+#     "FD" => Dict(
+#         0.25  => FD_pvd_1_4,
+#         0.5   => FD_pvd_1_2,
+#         0.75  => FD_pvd_3_4,
+#         1.0   => FD_pvd_1,
+#         1.5   => FD_pvd_1_1_2
+#     ),
+#     "SL" => Dict(
+#         0.25  => SL_pvd_1_4,
+#         0.5   => SL_pvd_1_2,
+#         0.75  => SL_pvd_3_4,
+#         1.0   => SL_pvd_1,
+#         1.5   => SL_pvd_1_1_2
+#     )
+# )
 
 marker_map = Dict(
     "FD" => :diamond,
     "SL" => :circle
+)
+linestyle_map = Dict(
+    "FD" => :solid,
+    "SL" => :dash
 )
 # data = Dict(
 #     "FD" => Dict(
@@ -153,12 +157,12 @@ function plot_convergence(results;
     save_path = "test_convergence.png"
 )
 
-    f = Figure(size = (800,600))
+    f = Figure(size = (700,500))
     ax = Axis(f[1,1],
-        title = "2D deformation test case Eₛ",
+        # title = "2D deformation test case Eₛ",
         ylabel = "L₁ error",
-        # xlabel = "Nₓ",
-        xlabel = "CFL",
+        xlabel = "Mesh Size",
+        # xlabel = "CFL",
         xscale = log10,
         yscale = log10,
         xticks = (mesh_sizes),
@@ -186,11 +190,13 @@ function plot_convergence(results;
         # -------------------------
         if mode == :periods || mode == :both
             for p in 1:n_periods
-                lines!(ax, Nx, err[p, :],
-                    label = "$scheme_label",
-                    linewidth = 3
-                )
-                scatter!(ax, Nx, err[p,:],marker = get(marker_map, scheme, :utriangle))
+                # lines!(ax, Nx, err[p, :],
+                #     linestyle = get(linestyle_map, scheme, :solid),
+                #     label = "$scheme_label",
+                #     linewidth = 2
+                # )
+                # scatter!(ax, Nx, err[p,:],marker = get(marker_map, scheme, :utriangle))
+                scatterlines!(ax, Nx, err[p,:],linestyle = get(linestyle_map, scheme, :solid),marker = get(marker_map, scheme, :utriangle),label = "$scheme_label")
             end
         end
 
@@ -221,12 +227,12 @@ function plot_convergence(results;
             ref1 = (y_ref+1e-4) .* (Nx ./ x_ref).^(-1) 
             ref2 = (y_ref-1e-4) .* (Nx ./ x_ref).^(-2) 
 
-            lines!(ax, Nx, ref1, linestyle=:dash, label = "O(Δx)")
-            lines!(ax, Nx, ref2, linestyle=:dot,  label = "O(Δx²)")
+            lines!(ax, Nx, ref1, linestyle=:dash, label = "O(Δx)",linewidth = 2)
+            lines!(ax, Nx, ref2, linestyle=:dot,  label = "O(Δx²)",linewidth = 2)
         end
     end
 
-    axislegend(ax, position = :lb,labelsize = 24)
+    axislegend(ax, position = :lb,labelsize = 16)
 
     # -------------------------
     # SAVE FIGURE
@@ -247,7 +253,7 @@ results = compute_all_errors(data, t_start, t_len)
 f = plot_convergence(results;
     mode = :periods,
     save_fig = true,
-    save_path = "def_cfl_convergence.png"
+    save_path = "def_convergence.png"
 )
 
 f

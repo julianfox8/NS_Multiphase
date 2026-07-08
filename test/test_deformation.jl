@@ -71,9 +71,9 @@ function test_pressure()
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
-        projection_method = "Euler",
+        # projection_method = "Euler",
         # projection_method = "RK4",
-        #projection_method = "Midpoint",
+        projection_method = "Heun",
 
         # Iteration method used in @loop macro
         iter_type = "standard",
@@ -195,7 +195,6 @@ function test_pressure()
         # Update step counter
         nstep += 1
 
-
         # Compute timestep and update time
         CFL_dt = param.CFL*max(dx/maximum(abs.(u)),dy/maximum(abs.(v)))
         if (param.tFinal-t) < param.max_dt && (param.tFinal-t) < CFL_dt
@@ -228,8 +227,9 @@ function test_pressure()
         NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
         
         # Predictor step (including VF transport)
-        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)#;pmesh=tpmesh)
-        # NS.pmesh2VTK(tpmesh,"dFD_transport_preimage",param)
+        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds;pmesh=tpmesh)
+        # NS.pmesh2VTK(tpmesh,"FD_transport_preimage",param)
+        NS.pmesh2VTK(tpmesh,"SL_transport_preimage_15",param)
 
         # Update bands with transported VF
         # NS.computeBand!(band,VF,param,mesh,par_env)
