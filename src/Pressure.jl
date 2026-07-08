@@ -56,8 +56,12 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,p
         iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,jacob,b_vec,x_vec,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "hypreSecantLS"
         iter = Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mg_mesh.mesh_lvls[1],par_env,jacob,b_vec,x_vec)
-    elseif pressureSolver == "res_iteration_AA"
-        iter = res_iteration_AA(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
+    elseif pressureSolver == "res_iteration_AA_con"
+        iter = res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
+    elseif pressureSolver == "res_iteration_AA_uncon"
+        iter = res_iteration_AA_uncon(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
+    elseif pressureSolver == "nlsolve_AA"
+        iter = nlsolve_pressure_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "res_iteration"
         iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     else
@@ -751,7 +755,7 @@ function anderson_accel(Fhist)
     return α
 end
 
-function par_anderson_accel(Fhist,par_env)
+function par_anderson_accel_con(Fhist,par_env)
     m = length(Fhist)
     G = zeros(m,m)
     
@@ -763,7 +767,8 @@ function par_anderson_accel(Fhist,par_env)
             G[j,i] = global_dot 
         end
     end
-    ϵ = 1e-10 * maximum(diag(G))
+    # ϵ = (1e-2)^2* maximum(diag(G))
+    ϵ = 1e-10* maximum(diag(G))
     for i in 1:m
         G[i,i] += ϵ
     end
@@ -781,7 +786,7 @@ function par_anderson_accel(Fhist,par_env)
     return α
 end
 
-function res_iteration_AA(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
+function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
     @unpack Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
     @unpack tol = param
     @unpack isroot = par_env
@@ -814,7 +819,11 @@ function res_iteration_AA(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP
 
     while p_iter < max_iter
         p_iter += 1
-        
+
+        # if p_iter % 100 == 0
+        #     jacob_single(jacob,AP,AP2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        # end
+
         # evaluate objective function
         A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
 
@@ -864,7 +873,7 @@ function res_iteration_AA(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP
         if n_hist > 1
         
             # α = anderson_accel(Fhist[1:n_hist])
-            α = par_anderson_accel(Fhist[1:n_hist],par_env)
+            α = par_anderson_accel_con(Fhist[1:n_hist],par_env)
         
             # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = weighted_sum(Phist,α)
             Pnew = weighted_sum(Phist[1:n_hist],α)
@@ -959,6 +968,203 @@ function res_iteration(P, uf, vf, wf,gradx, grady, gradz,band, dt,denx, deny, de
 
     return p_iter
 end
+
+
+
+function anderson_accel_uncon(ΔF, f_k, par_env; w0 = 1e-2)
+    p   = size(ΔF, 2)
+    if w0 > 0 
+        λ = w0^2 * (sum(abs2, ΔF)/p)
+        ΔF = [ΔF; sqrt(λ) * I(p)]
+        f_k = [f_k; zeros(p)]
+    end
+    qrF = qr(ΔF)
+    γ   = qrF.R \ (qrF.Q' * f_k)[1:p]       # equivalent to ΔF \ f_k
+    return γ
+end
+
+function res_iteration_AA_uncon(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
+    @unpack Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
+    @unpack tol = param
+    @unpack isroot = par_env
+
+    if tol_lvl !== nothing
+        tol = tol_lvl
+    else
+        nothing
+    end
+
+    fill!(Gn,0.0)
+    fill!(jacob,0.0)
+    # if iter !== nothing
+    #     #initialize PVTK for pressure
+    #     pvd_pressure,dir  = pVTK_init(param,par_env)
+    # end
+    ω = 2/3
+    m = 10               # history depth
+    β = 0.5         # damping on the AA step
+
+    # Local interior shape, for reshaping flattened history back to 3D
+    nloc = (length(imin_:imax_), length(jmin_:jmax_), length(kmin_:kmax_))
+
+    # Chronologically-ordered history (oldest first) of *raw* flattened quantities:
+    #   Fhist : residual   F_i = G(P_i) - P_i
+    #   Ghist : fixed-point G_i = G(P_i)
+    # The difference matrices ΔF, ΔG (Walker & Ni eq. 3.1) are formed on the fly.
+    Fhist = Vector{Vector{Float64}}()
+    Ghist = Vector{Vector{Float64}}()
+
+    # evaluate objective function
+    A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+
+    jacob_single(jacob,AP,AP2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+
+    p_iter = 0
+
+    while p_iter < max_iter
+        p_iter += 1
+
+        # evaluate objective function
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+
+        # apply τ correction to A(P)
+        if τ !== nothing
+            AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+= τ[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        end
+
+        res_norm = parallel_max_all(abs.(AP),par_env)
+        
+        if res_norm < tol
+            # reevaluate objective function for pmesh
+            # A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env;pmesh=pmesh)
+            if converged !== nothing
+                # println("solution converged after $iter iterations")    
+                converged[] = true
+            end
+            # println("solution converged after $p_iter iterations")
+            return p_iter
+        end
+
+        # Fixed-point map  G(P) = P - ω A(P)/J   and raw residual  F = G(P) - P
+        @views begin
+            P_loc  = P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+            AP_loc = AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+            J_loc  = jacob[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+        end
+        J_safe = max.(abs.(J_loc), 1e-12)
+        Gn_loc = P_loc .- ω .* AP_loc ./ J_safe     # raw fixed-point value G(P) (fresh Array)
+        Fn_loc = Gn_loc .- P_loc                    # raw residual F = G(P) - P
+
+        # Append to chronological history (flattened); drop oldest beyond depth m
+        push!(Fhist, vec(copy(Fn_loc)))
+        push!(Ghist, vec(copy(Gn_loc)))
+        if length(Fhist) > m
+            popfirst!(Fhist); popfirst!(Ghist)
+        end
+        
+        n = length(Fhist)
+        if n == 1
+            # No differences yet -> plain fixed-point step (fixes old P .= Gn bug)
+            P_loc .= Gn_loc
+        else
+            # Difference matrices: columns are consecutive (chronological) differences.
+            # hcat(gen...) (not reduce) so a single column still yields an N×1 matrix.
+            ΔF = hcat((Fhist[i+1] .- Fhist[i] for i in 1:n-1)...)   # N_loc × (n-1)
+            ΔG = hcat((Ghist[i+1] .- Ghist[i] for i in 1:n-1)...)
+            f_k = Fhist[end]                                            # current raw residual
+
+            γ = anderson_accel_uncon(ΔF, f_k, par_env;)
+
+            # Unconstrained AA update:  P_{k+1} = G(P_k) - ΔG·γ   (β-damped)
+            Pnew = reshape(Ghist[end] .- ΔG * γ, nloc)
+            P_loc .= β .* Pnew .+ (1 - β) .* P_loc
+        end
+        
+        if p_iter % 100 == 0 && isroot 
+            println("residual at iter $p_iter = $(res_norm)")
+        end
+        if iter !== nothing && p_iter > (max_iter-1)
+            println("residual at iter $iter = $(maximum(abs.(AP)))")
+        end
+
+        # account for drift
+        P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
+
+    end
+    return p_iter
+end
+
+# Pressure solver using NLsolve.jl's own package Anderson acceleration,
+# applied directly to the production pressure operator A! (unmodified,
+# untouched). This is a third, independently-implemented reference point
+# alongside the hand-rolled constrained (res_iteration_AA / par_anderson_accel)
+# and unconstrained (res_iteration_AA2 / anderson_accel2) Anderson solvers
+# already in this file — same operator, someone else's validated Anderson
+# implementation, useful for sanity-checking the custom ones.
+#
+# F(P) = A!(P) directly (the raw divergence residual, no Jacobi/diagonal
+# rescaling) — NLsolve.jl does its own fixed-point mixing P <- P + beta*F(P)
+# internally, so `beta` here plays the same role as `β` in the local testbed
+# (local_tests/anderson_testing.jl): it needs to be much smaller than the 0.5
+# used by res_iteration_AA/AA2's Jacobi-scaled residual, since A!'s raw
+# output scales like 1/dx^2 and gets stiffer with the density ratio (the
+# testbed's Problem 3 isolates exactly this). At a 10000x density ratio
+# (rho_gas/rho_liq, as in test/pressure_var_den_MMS.jl) an undamped beta
+# (NLsolve's own default is 1.0) plus the loose default droptol=1e10 (i.e.
+# effectively no hard safeguard) let Anderson's extrapolation coefficients
+# swing large enough on early steps to produce an unphysical P and blow up
+# A! to NaN/Inf — same failure mode as the unsafeguarded QR case in the
+# testbed, just landing on a real division instead of merely slow
+# convergence. `β`/`droptol` default to conservative starting points here;
+# tune per problem, and raise `β` once a run is stable to speed convergence.
+#
+# NOTE (parallel): NLsolve's internal Anderson least-squares uses plain
+# (non-MPI) inner products, so — exactly like anderson_accel2 — this is only
+# correct in serial/rank-local use. Left rank-local here for validation.
+function nlsolve_pressure_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing,m = 10,β = 1e-3,droptol = 1e8)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack tol = param
+    @unpack isroot = par_env
+
+    if tol_lvl !== nothing
+        tol = tol_lvl
+    end
+   nloc = (length(imin_:imax_), length(jmin_:jmax_), length(kmin_:kmax_))
+
+    # F(P) = A!(P): the pressure-Poisson residual (divergence of the
+    # velocity field corrected by P), exactly the operator res_iteration_AA
+    # and res_iteration_AA2 already drive to zero.
+    function f!(Fvec, xvec)
+        @views P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= reshape(xvec, nloc)
+        # gauge-fix (same drift-removal every other solver in this file does)
+        P .-= parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_], par_env)
+
+        A!(AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+        if τ !== nothing
+            AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+= τ[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        end
+
+        @views Fvec .= vec(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+        return nothing
+    end
+
+    x0 = vec(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_])
+
+    sol = NLsolve.nlsolve(f!, x0; method = :anderson, m = m, beta = β, ftol = tol, iterations = max_iter, droptol = droptol)
+
+    @views P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= reshape(sol.zero, nloc)
+    P .-= parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_], par_env)
+    Neumann!(P,mesh,par_env)
+    update_borders!(P,mesh,par_env)
+
+    if iter !== nothing && isroot
+        println("nlsolve_pressure_solve!: converged=$(sol.x_converged || sol.f_converged), iters=$(sol.iterations), residual=$(sol.residual_norm)")
+    end
+
+    return sol.iterations
+end
+
+
 
 function res_comp!(res,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
