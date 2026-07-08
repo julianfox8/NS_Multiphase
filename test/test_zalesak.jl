@@ -65,12 +65,12 @@ function test_pressure()
 
         # pressure_scheme = "finite-difference",
         pressure_scheme = "semi-lagrangian",
-        pressureSolver = "hypreSecant",
-        # pressureSolver = "res_iteration",
+        # pressureSolver = "hypreSecant",
+        pressureSolver = "res_iteration",
         
 
-        # projection_method = "Euler",
-        projection_method = "Midpoint",
+        projection_method = "Euler",
+        # projection_method = "Midpoint",
         # projection_method = "RK4",
 
         # pressurePrecond = "nl_jacobi",

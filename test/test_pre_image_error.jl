@@ -425,36 +425,92 @@ function richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param,
             NS.project!(I[n], i, j, k, uf, vf, wf, dt_step, param, mesh)
         end
     end
-    
+    # if i == 3 && j == 3 && k == 1
+    #     println(I)
+    #     # error("stop")
+    # end
+    # println(I)
+    # error("stop")
     # Determine the base order of the method
     p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" || projection_method == "Heun" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
     
     # Build Richardson table
     R = [copy(I[n]) for n in 1:nsteps]  # first column = base solutions
-    
+
     # Extrapolate: Romberg-style triangular table
-    for k in 1:nsteps-1
-        for i in nsteps:-1:k+1
+    for m in 1:nsteps-1
+        for l in nsteps:-1:m+1
             # multiplier for error reduction: 2^p for first level, 2^(2p) for second, etc.
-            R[i] .= (2^(p+(k-1)) * R[i] .- R[i-1]) / (2^(p+(k-1)) - 1)
+            R[l] .= (2^(p+(m-1)) * R[l] .- R[l-1]) / (2^(p+(m-1)) - 1)
         end
 
         # Check convergence: compare last two refined levels
         # diff =  norm(R[end] .- R[end-1])
         diff = maximum(abs.(R[end] .- R[end-1]))
         if diff < tol
+            # if i == 3 && j == 3 && k == 1
+            #     println(R)
+            #     error("stop")
+            # end
             # println("Converged at level $k with error = $diff")
             pt .= R[end]
             return true  # early exit, converged
         end
     end
-    
+
     # Return the most refined extrapolation
     pt .= R[end]
 
     return nothing
 end
 
+function richardson_extrapolation_n!(I,pt, i, j, k, uf, vf, wf, dt, nsteps, param, mesh; tol = 1e-14)
+    @unpack projection_method = param
+
+    for idx in eachindex(I)
+        I[idx] .= 0.0
+    end
+    for n in 1:nsteps
+        I[n,1] .= pt
+    end
+ 
+    # Determine the base order of the method
+    p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" || projection_method == "Heun" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
+    # Step 1: compute the time-integrated solutions
+    for n in 1:nsteps
+        dt_step = dt / 2^(n-1)
+       
+        # Apply the base integrator 2^(n-1) times
+        for _ in 1:2^(n-1)
+            NS.project!(I[n,1], i, j, k, uf, vf, wf, dt_step, param, mesh)
+        end
+
+        # move to next step if n == 1, since we need at least two levels to extrapolate
+        if n == 1
+            continue
+        else
+            for m in 1:n-1
+                for l in m+1:n
+                    I[n,l] .= (2^(p+(m-1)) * I[n,l-1] .- I[n-1,l-1]) / (2^(p+(m-1)) - 1)
+
+                    if n > 2 && l == n
+                        # Check convergence: compare last two refined levels
+                        diff = maximum(abs.(I[n,l] .- I[n-1,l-1]))
+                        if diff < tol
+                            pt .= I[n,l]
+                            return true  # early exit, converged
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    # Return the most refined extrapolation
+    pt .= I[end,end]
+
+    return nothing
+end
 
 
 function pre_image_err(dts,scheme,interpolation_method)
