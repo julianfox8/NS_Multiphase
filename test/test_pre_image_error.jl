@@ -416,21 +416,18 @@ function richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param,
     @unpack projection_method = param
     # Base solutions at different step refinements
     I = [copy(pt) for _ in 1:nsteps]
-    
+
+
     # Step 1: compute the time-integrated solutions
     for n in 1:nsteps
         dt_step = dt / 2^(n-1)
+       
         # Apply the base integrator 2^(n-1) times
         for _ in 1:2^(n-1)
             NS.project!(I[n], i, j, k, uf, vf, wf, dt_step, param, mesh)
         end
     end
-    # if i == 3 && j == 3 && k == 1
-    #     println(I)
-    #     # error("stop")
-    # end
-    # println(I)
-    # error("stop")
+
     # Determine the base order of the method
     p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" || projection_method == "Heun" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
     
@@ -448,11 +445,7 @@ function richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param,
         # diff =  norm(R[end] .- R[end-1])
         diff = maximum(abs.(R[end] .- R[end-1]))
         if diff < tol
-            # if i == 3 && j == 3 && k == 1
-            #     println(R)
-            #     error("stop")
-            # end
-            # println("Converged at level $k with error = $diff")
+
             pt .= R[end]
             return true  # early exit, converged
         end
@@ -688,7 +681,10 @@ function pre_image_err(dts,scheme,interpolation_method)
     pre_tri_verts = Array{eltype(tets)}(undef,3,nverts+6) ;fill!(pre_tri_verts, 0.0)
     tri_verts = Array{eltype(tets)}(undef,3,nverts+6) ;fill!(tri_verts, 0.0)
 
-    
+    # preallocate arrays for richardson extrapolation
+    nsteps = 5
+    I = [zeros(3) for _ in 1:nsteps, _ in 1:nsteps]
+
     # #initialize error
     # errs = zeros(length(test_dts))
     #! store copies of face velocity field 
@@ -746,6 +742,8 @@ function pre_image_err(dts,scheme,interpolation_method)
                 # pt = sample_pts[:, pt_id]
                 # richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param, mesh; tol = 1e-12)
                 richardson_extrapolation_n!(@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
+                
+                # richardson_extrapolation_n!(I,@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
             end
 
             # if k == 11 && j ==11 && i == 11
@@ -762,7 +760,6 @@ function pre_image_err(dts,scheme,interpolation_method)
             #! will just use corrected field and cell to tets 
             
             # Compute numerical pre-image (either flux-corrected or pressure-corrected)
-            # println("computing numerical pre-image")
             tetsign = NS.cell2tets!(verts,tets,i,j,k,param,mesh; 
             project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,
             compute_indices=true,inds=inds,vInds=vInds,)
@@ -812,13 +809,14 @@ end
 # scheme = "finite-difference"
 scheme = "semi-lagrangian"
 # interpolation_method = "Heun"
+# interpolation_method = "RK4"
 interpolation_method = "Euler"
 # dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
-# dts = [0.01,0.0025,0.001] 
-dts = [0.015,0.0125,0.01,0.005,0.0033,0.0025,0.00125]
+# dts = [0.001,0.00025,0.0001] 
+dts = 2 .* [0.015,0.0125,0.01,0.005,0.0033,0.0025,0.00125]
 errors = pre_image_err(dts,scheme,interpolation_method)
 
-open("$(scheme)_$(interpolation_method)_noFC_errors_test.csv","w") do io 
+open("$(scheme)_$(interpolation_method)_3D_errors_test.csv","w") do io 
     println(io,"dts,errors") # header
     for (dt,err) in zip(dts,errors)
         println(io,"$dt,$err")
