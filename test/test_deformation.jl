@@ -133,7 +133,7 @@ function test_pressure()
 
     @unpack x,y,z,dx,dy,dz,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
-    mg_arrays = NS.mg_initArrays(mg_mesh,param,p_min,p_max,par_env)
+    mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
 
     # Create initial condition
     t = 0.0 :: Float64

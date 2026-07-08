@@ -176,7 +176,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         iter = NS.mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env) 
     elseif param.pressure_scheme == "finite-difference"
         if param.pressureSolver == "FC_hypre"
-            iter = NS.FC_hypre_solver(P,RHS,tmp2,denx,deny,denz,tmp5,mg_arrays.jacob[1],mg_arrays.x_vec[1],mg_arrays.b_vec[1],dt,param,mesh,par_env,1000)
+            iter = NS.FC_hypre_solver(P,RHS,tmp2,denx,deny,denz,tmp5,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,dt,param,mesh,par_env,1000)
         elseif param.pressureSolver == "gauss-seidel"
             iter = NS.gs(P,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
         elseif param.pressureSolver == "congugateGradient"
