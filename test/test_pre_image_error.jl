@@ -442,15 +442,17 @@ function richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param,
         end
 
         # Check convergence: compare last two refined levels
-        # diff =  norm(R[end] .- R[end-1])
+        
         diff = maximum(abs.(R[end] .- R[end-1]))
         if diff < tol
-
+            
+            println("Converged at level $m with values of $(R[end]) and $(R[end-1])")
             pt .= R[end]
             return true  # early exit, converged
         end
     end
 
+    println("Richardson extrapolation did not converge within $nsteps steps. Final diff = $diff")
     # Return the most refined extrapolation
     pt .= R[end]
 
@@ -488,7 +490,7 @@ function richardson_extrapolation_n!(I,pt, i, j, k, uf, vf, wf, dt, nsteps, para
 
                     if n > 2 && l == n
                         # Check convergence: compare last two refined levels
-                        diff = maximum(abs.(I[n,l] .- I[n-1,l-1]))
+                        diff = maximum(abs.(I[n,l] .- I[n,l-1]))
                         if diff < tol
                             pt .= I[n,l]
                             return true  # early exit, converged
@@ -498,7 +500,7 @@ function richardson_extrapolation_n!(I,pt, i, j, k, uf, vf, wf, dt, nsteps, para
             end
         end
     end
-
+    
     # Return the most refined extrapolation
     pt .= I[end,end]
 
@@ -552,7 +554,7 @@ function pre_image_err(dts,scheme,interpolation_method)
         # pressure_scheme = "finite-difference",
         # pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
-        pressureSolver = "res_iteration_AA",
+        pressureSolver = "res_iteration_AA_con",
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
@@ -682,7 +684,7 @@ function pre_image_err(dts,scheme,interpolation_method)
     tri_verts = Array{eltype(tets)}(undef,3,nverts+6) ;fill!(tri_verts, 0.0)
 
     # preallocate arrays for richardson extrapolation
-    nsteps = 5
+    nsteps = 15
     I = [zeros(3) for _ in 1:nsteps, _ in 1:nsteps]
 
     # #initialize error
@@ -707,7 +709,7 @@ function pre_image_err(dts,scheme,interpolation_method)
         
         errors = tmp9; fill!(errors,0.0)
         # loop over domain and project vertices to test numerical integration 
-        for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        for k = kmin_:kmax_-1, j = jmin_:jmax_-1, i = imin_:imax_-1
 
             
             # Get cell vertices with triangulation ordering
@@ -738,14 +740,10 @@ function pre_image_err(dts,scheme,interpolation_method)
             # Project sampled points to get analytic pre-image
             # println("exact projection starting")
             for pt_id in axes(sample_pts, 2)
-                nsteps = 10
-                # pt = sample_pts[:, pt_id]
-                # richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param, mesh; tol = 1e-12)
-                richardson_extrapolation_n!(@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
-                
-                # richardson_extrapolation_n!(I,@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
+                # richardson_extrapolation_n!(@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
+                richardson_extrapolation_n!(I,@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
             end
-
+      
             # if k == 11 && j ==11 && i == 11
             #     for i in 1:8
             #         nsteps = 10
@@ -754,7 +752,6 @@ function pre_image_err(dts,scheme,interpolation_method)
             #     plot_sampled_cell(sample_pts, verts, ns;original_verts = original_verts, title_str = "exact projected cell sampled \n with $nfp points per face")
             #     error("stop")
             # end
-            
 
             #! need to store a copy of the velocity field for use with the pressure corrected field
             #! will just use corrected field and cell to tets 
@@ -784,39 +781,36 @@ function pre_image_err(dts,scheme,interpolation_method)
             # Check that barycentric coordinates map back to the correct point on the face
             # if k == 11 && j == 11 && i == 11
             #     for i in 1:8
-                    
             #         NS.project!(@view(original_verts[:,i]), i, j, k, uf, vf, wf, dt, param, mesh)
             #     end
             #     plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "pressure-corrected pre-image of sampled  \n points with $nfp points per face")
             #     error("stop")
             # end
 
-            # Compute error in sample points for i,j,k cell
+            # Compute error in sample points for i,j,k cell for leading edges(ignoring *max cells)
+            # errors[i,j,k] = sum((preimage_sample_pts[:,nfp+1:nfp*2]).^2 .+ (preimage_sample_pts[:,nfp*3+1:nfp*4]).^2 .+ (preimage_sample_pts[:,nfp*5+1:nfp*6]).^2)
+            d = preimage_sample_pts .- sample_pts
+            errors[i,j,k] = sum(d[:,nfp+1:nfp*2].^2) + sum(d[:,nfp*3+1:nfp*4].^2) + sum(d[:,nfp*5+1:nfp*6].^2)
             # errors[i,j,k] = maximum(sqrt.(sum((preimage_sample_pts .- sample_pts).^2)))
-            errors[i,j,k] =  sum((preimage_sample_pts .- sample_pts).^2)
-            # error("stop")
+            # errors[i,j,k] =  sum((preimage_sample_pts .- sample_pts).^2)
         end
         error_dt[idx] = sqrt(sum(errors)/(ntotal*Nx*Ny*Nz))
-        # error("stop")
     end
     # errs[n] = err
-
-    # println("Max error in vertex position after projection is: ", maximum(errors))
     return error_dt
-    
 end
 
-# scheme = "finite-difference"
-scheme = "semi-lagrangian"
-# interpolation_method = "Heun"
+scheme = "finite-difference"
+# scheme = "semi-lagrangian"
+interpolation_method = "Heun"
 # interpolation_method = "RK4"
-interpolation_method = "Euler"
+# interpolation_method = "Euler"
 # dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
 # dts = [0.001,0.00025,0.0001] 
 dts = 2 .* [0.015,0.0125,0.01,0.005,0.0033,0.0025,0.00125]
 errors = pre_image_err(dts,scheme,interpolation_method)
 
-open("$(scheme)_$(interpolation_method)_3D_errors_test.csv","w") do io 
+open("$(scheme)_$(interpolation_method)_3D_errors_test2.csv","w") do io 
     println(io,"dts,errors") # header
     for (dt,err) in zip(dts,errors)
         println(io,"$dt,$err")
