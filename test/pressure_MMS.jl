@@ -69,14 +69,66 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         hypreSolver = "GMRES-AMG",
         mg_lvl = lvl,
         # projection_method = "RK4",
-        projection_method = "Euler",
+        # projection_method = "Euler",
+        projection_method = "Heun",
         tesselation = "5_tets",
         
         iter_type = "standard",
         test_case = "psolve_test", 
 
     )
+    """
+    Boundary conditions for velocity
+    """
+    function BC!(u,v,w,mesh,par_env)
+        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
+        @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
+        
+        # Left 
+        if irankx == 0 
+            i = imin-1
+            u[i,:,:] = u[imax,:,:] # periodic
+            v[i,:,:] = v[imax,:,:] # periodic
+            w[i,:,:] = -w[imin,:,:] # No slip
+        end
+        # Right
+        if irankx == nprocx-1
+            i = imax+1
+            u[i,:,:] = u[imin,:,:] # periodic
+            v[i,:,:] = v[imin,:,:] # periodic
+            w[i,:,:] = -w[imax,:,:] # No slip
+        end
+        # Bottom 
+        if iranky == 0 
+            j = jmin-1
+            u[:,j,:] .= -u[:,jmin,:] # No slip
+            v[:,j,:] .= -v[:,jmin,:] # No slip
+            w[:,j,:] .= -w[:,jmin,:] # No slip
+        end
+        # Top
+        if iranky == nprocy-1
+            j = jmax+1
+            u[:,j,:] .= -u[:,jmax,:] # No slip
+            v[:,j,:] .= -v[:,jmax,:] # No slip
+            w[:,j,:] .= -w[:,jmax,:] # No slip
+        end
+        # Back 
+        if irankz == 0 
+            k = kmin-1
+            u[:,:,k] = -u[:,:,kmin] # No slip
+            v[:,:,k] = -v[:,:,kmin] # No slip
+            w[:,:,k] = -w[:,:,kmin] # No slip
+        end
+        # Front
+        if irankz == nprocz-1
+            k = kmax+1
+            u[:,:,k] = -u[:,:,kmax] # No slip
+            v[:,:,k] = -v[:,:,kmax] # No slip
+            w[:,:,k] = -w[:,:,kmax] # No slip
+        end
 
+        return nothing
+    end
 
     """
     Compute manufactured solution and source term
@@ -102,7 +154,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         NS.interpolateFace!(u,v,w,uf,vf,wf,mesh)
 
         for i = imin_:imax_, j = jmin_:jmax_
-            RHS[i,j,k] = 2/(deny[i,j,k]+deny[i,j+1,k])*(vf[i,j+1,k]-vf[i,j,k])/dy
+            RHS[i,j,k] = (vf[i,j+1,k]-vf[i,j,k])/dy
         end
 
         return nothing
@@ -152,8 +204,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     t = 0.0 :: Float64
 
     # Create source term/exact solution and apply BC to Pressure
-    # VF[:,:,:] .= 0.0
-    IC!(VF,mesh)
+    fill!(VF,0.0)
+    # IC!(VF,mesh)
     # NS.update_borders!(VF,mesh,par_env)
     # compute density and viscosity at intial conditions
     NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
@@ -165,15 +217,17 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 
     # Compute band around interface
     # NS.computeBand!(band,VF,param,mesh,par_env)
-    fill!(band,1.0)
+    fill!(band,0.0)
 
     # Loop over time
     nstep = 0
     iter = 0
 
+    P_old = copy(P)
+    
     # # Call pressure Solver (handles processor boundaries for P)
     if param.mg_lvl > 1
-        iter = NS.mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env) 
+        iter = NS.mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env)
     elseif param.pressure_scheme == "finite-difference"
         if param.pressureSolver == "FC_hypre"
             iter = NS.FC_hypre_solver(P,RHS,tmp2,denx,deny,denz,tmp5,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,dt,param,mesh,par_env,1000)
@@ -203,6 +257,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
       # Plotting routine
     P_slice = P[imin_:imax_,jmin_:jmax_,1]
     exact_slice = exact_sol[imin_:imax_,jmin_:jmax_,1]
+    P_old_slice = P_old[imin_:imax_,jmin_:jmax_,1]
     RHS_slice = RHS[imin_:imax_,jmin_:jmax_,1]
     error_slice = (exact_slice - P_slice)
     
@@ -210,7 +265,10 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     # Create x and y coordinates for plotting
     x_plot = x[imin_:imax_]
     y_plot = y[jmin_:jmax_]
-    plt = true
+    plt = false
+
+    
+
     if plt 
         # Create subplots
         fig = Figure(size = (1000, 800))
@@ -221,7 +279,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         ax1 = Axis(fig[1, 1],
             xlabel = "x",
             ylabel = "y",
-            title = "Computed P",
+            title = "Error n+1",
             aspect = DataAspect()
         )
 
@@ -293,14 +351,15 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     return L2_error,Linf_error
 end
 
-mesh_size = 48
+mesh_size = 64
 scheme = "finite-difference"
 # solver = "geometric_mg"
 # solver = "FC_hypre"
 solver = "gauss-seidel"
 # scheme = "semi-lagrangian"
 # solver = "res_iteration_AA"
-lvl = 2
+# solver = "res_iteration"
+lvl = 3
 
 @time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
 # times = time() - t_start
@@ -319,6 +378,16 @@ lvl = 2
 # solver_tag = ["gauss-seidel","CG","NL Jacobi","FAS","Secant"]
 
 # markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
+# L2_err   = zeros(length(schemes), length(mesh_sizes))
+# Linf_err = zeros(length(schemes), length(mesh_sizes))
+# times = zeros(length(schemes), length(mesh_sizes))
+# for j in eachindex(schemes)
+#     for i in eachindex(mesh_sizes)
+#         t_start = time()
+#         L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
+#         times[j,i] = time() - t_start
+#     end
+# end
 # L2_err   = zeros(length(schemes), length(mesh_sizes))
 # Linf_err = zeros(length(schemes), length(mesh_sizes))
 # times = zeros(length(schemes), length(mesh_sizes))
