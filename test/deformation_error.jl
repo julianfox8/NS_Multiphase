@@ -1,5 +1,6 @@
 using CairoMakie
 using NavierStokes_Parallel 
+using LaTeXStrings
 
 NS = NavierStokes_Parallel
 
@@ -42,19 +43,26 @@ plot_all_periods = true
 # FD_pvd_64  = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_finite-difference_64_64_1/Solver.pvd"
 # FD_pvd_96  = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_finite-difference_96_96_1/Solver.pvd"
 # FD_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_result_finite-difference_128_128_1/Solver.pvd"
+# noFC_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_no_FC_finite-difference_48_48_1/Solver.pvd"
+# noFC_pvd_64 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_no_FC_finite-difference_64_64_1/Solver.pvd"
+# noFC_pvd_96 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_no_FC_finite-difference_96_96_1/Solver.pvd"
+# noFC_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Zalesak_no_FC_finite-difference_128_128_1/Solver.pvd"
+
 # -------------------------
 # Deformation Data
 # -------------------------
-SL_pvd_48 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_semi-lagrangian_48_48_1/Solver.pvd"
-SL_pvd_64 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_64_64_1/Solver.pvd"
-SL_pvd_96 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_96_96_1/Solver.pvd"
+SL_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_semi-lagrangian_48_48_1/Solver.pvd"
+SL_pvd_64 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_64_64_1/Solver.pvd"
+SL_pvd_96 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_96_96_1/Solver.pvd"
 SL_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_128_128_1/Solver.pvd"
-# # FD_pvd_48 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_result_euler_finite-difference_48_48_1/Solver.pvd"
-# # FD_pvd_64 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_result_euler_finite-difference_64_64_1/Solver.pvd"
-FD_pvd_48 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_48_48_1/Solver.pvd"
-FD_pvd_64 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_64_64_1/Solver.pvd"
-FD_pvd_96 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_96_96_1/Solver.pvd"
+FD_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_48_48_1/Solver.pvd"
+FD_pvd_64 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_64_64_1/Solver.pvd"
+FD_pvd_96 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_96_96_1/Solver.pvd"
 FD_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_128_128_1/Solver.pvd"
+noFC_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_no_FC_finite-difference_48_48_1/Solver.pvd"
+noFC_pvd_64 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_no_FC_finite-difference_64_64_1/Solver.pvd"
+noFC_pvd_96 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_no_FC_finite-difference_96_96_1/Solver.pvd"
+noFC_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_no_FC_finite-difference_128_128_1/Solver.pvd"
 
 data = Dict(
     "FD" => Dict(
@@ -69,47 +77,25 @@ data = Dict(
         64  => SL_pvd_64,
         96  => SL_pvd_96,
         128 => SL_pvd_128
+    ),
+    "noFC" => Dict(
+        48  => noFC_pvd_48,
+        64  => noFC_pvd_64,
+        96  => noFC_pvd_96,
+        128 => noFC_pvd_128
     )
+
 )
-
-
-
-# SL_pvd_1_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_4_semi-lagrangian_64_64_1/Solver.pvd"
-# SL_pvd_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_2_semi-lagrangian_64_64_1/Solver.pvd"
-# SL_pvd_3_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_3_4_semi-lagrangian_64_64_1/Solver.pvd"
-# SL_pvd_1   = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_semi-lagrangian_64_64_1/Solver.pvd"
-# SL_pvd_1_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_1_2_semi-lagrangian_64_64_1/Solver.pvd"
-# FD_pvd_1_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_4_finite-difference_64_64_1/Solver.pvd"
-# FD_pvd_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_2_finite-difference_64_64_1/Solver.pvd"
-# FD_pvd_3_4 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_3_4_finite-difference_64_64_1/Solver.pvd"
-# FD_pvd_1   = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_finite-difference_64_64_1/Solver.pvd"
-# FD_pvd_1_1_2 = "/Users/julia/repo/NS_Multiphase/results/VTK_Deformation_cfl_1_1_2_finite-difference_64_64_1/Solver.pvd"
-
-
-# data = Dict(
-#     "FD" => Dict(
-#         0.25  => FD_pvd_1_4,
-#         0.5   => FD_pvd_1_2,
-#         0.75  => FD_pvd_3_4,
-#         1.0   => FD_pvd_1,
-#         1.5   => FD_pvd_1_1_2
-#     ),
-#     "SL" => Dict(
-#         0.25  => SL_pvd_1_4,
-#         0.5   => SL_pvd_1_2,
-#         0.75  => SL_pvd_3_4,
-#         1.0   => SL_pvd_1,
-#         1.5   => SL_pvd_1_1_2
-#     )
-# )
 
 marker_map = Dict(
     "FD" => :diamond,
-    "SL" => :circle
+    "SL" => :circle,
+    "noFC" => :rect
 )
 linestyle_map = Dict(
     "FD" => :solid,
-    "SL" => :dash
+    "SL" => :dash,
+    "noFC" => :dashdot
 )
 # data = Dict(
 #     "FD" => Dict(
@@ -123,7 +109,7 @@ function compute_all_errors(data, t_start,t_len)
     results = Dict()
 
     for (scheme, res_dict) in data
-        
+        println("Processing scheme: $scheme")
         Nx_vals = sort(collect(keys(res_dict)))
         n_res = length(Nx_vals)
 
@@ -152,7 +138,6 @@ end
 
 
 function plot_convergence(results;
-    mode = :average,              # :average, :periods, :both
     save_fig = false,
     save_path = "test_convergence.png"
 )
@@ -166,50 +151,32 @@ function plot_convergence(results;
         xscale = log10,
         yscale = log10,
         xticks = (mesh_sizes),
+        # xticks = (cfl_list),
 
-        titlesize = 30,
-        xlabelsize = 24,
-        ylabelsize = 24,
-        xticklabelsize = 18,
-        yticklabelsize = 18
+        # titlesize = 30,
+        xlabelsize = 34,
+        ylabelsize = 34,
+        xticklabelsize = 24,
+        yticklabelsize = 24
     )
 
     for (scheme, res) in results
         if scheme =="FD"
-            scheme_label = "SL-FV"
+            scheme_label = "SL-FV w/ FC"
         elseif scheme == "SL"
             scheme_label = "SL-SL"
+        elseif scheme == "noFC"
+            scheme_label = "SL_FV w/o FC"
         end
         Nx = res.Nx
         err = res.err
-        err_mean = res.err_mean
         n_periods = size(err, 1)
 
         # -------------------------
-        # PERIOD CURVES
+        # PERIOD CURVE
         # -------------------------
-        if mode == :periods || mode == :both
-            for p in 1:n_periods
-                # lines!(ax, Nx, err[p, :],
-                #     linestyle = get(linestyle_map, scheme, :solid),
-                #     label = "$scheme_label",
-                #     linewidth = 2
-                # )
-                # scatter!(ax, Nx, err[p,:],marker = get(marker_map, scheme, :utriangle))
-                scatterlines!(ax, Nx, err[p,:],linestyle = get(linestyle_map, scheme, :solid),marker = get(marker_map, scheme, :utriangle),label = "$scheme_label")
-            end
-        end
-
-        # -------------------------
-        # AVERAGE CURVE
-        # -------------------------
-        if mode == :average || mode == :both
-            lines!(ax, Nx, err_mean,
-                linewidth = 3,
-                label = "$scheme Avg"
-            )
-            # scatter!(ax, Nx, err_mean,marker = get(marker_map, scheme, :utriangle))
-            scatter!(ax, Nx, err_mean,markersize = 12)
+        for p in 1:n_periods
+            scatterlines!(ax, Nx, err[p,:],linestyle = get(linestyle_map, scheme, :solid),marker = get(marker_map, scheme, :utriangle),label = "$scheme_label")
         end
 
         # -------------------------
@@ -217,18 +184,20 @@ function plot_convergence(results;
         # -------------------------
         if scheme == "SL"
             x_ref = Nx[1]
+            y_ref = err[1,1]   # first period as anchor
 
-            y_ref = if mode == :average
-                err_mean[1]
-            else
-                err[1,1]   # first period as anchor
-            end
-
-            ref1 = (y_ref+1e-4) .* (Nx ./ x_ref).^(-1) 
+            ref1 = (y_ref+1e-4) .* (Nx ./ x_ref).^(-1)
             ref2 = (y_ref-1e-4) .* (Nx ./ x_ref).^(-2) 
 
             lines!(ax, Nx, ref1, linestyle=:dash, label = "O(Δx)",linewidth = 2)
             lines!(ax, Nx, ref2, linestyle=:dot,  label = "O(Δx²)",linewidth = 2)
+        # elseif scheme == "noFC"
+        #     x_ref = Nx[1]
+        #     y_ref = err[1,1]   # first period as anchor
+
+        #     ref1 = (y_ref+1e-2) .* (Nx ./ x_ref).^(-1)
+        
+        #     lines!(ax, Nx, ref1, linestyle=:dash, label = "O(Δx)",linewidth = 2)
         end
     end
 
@@ -246,12 +215,14 @@ function plot_convergence(results;
 end
 
 mesh_sizes = [48, 64, 96, 128]
+# cfl_list = [0.25, 0.5, 0.75, 1.0,1.5]
+# cfl_list = [0.5, 1.0]
+cfl_list = [0.75]
 t_len = 2.0
 t_start = 2.0
 results = compute_all_errors(data, t_start, t_len)
 
 f = plot_convergence(results;
-    mode = :periods,
     save_fig = true,
     save_path = "def_convergence.png"
 )
