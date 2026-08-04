@@ -21,7 +21,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         mu_liq=0.0,       # Dynamic viscosity of liquid (N/m)
         mu_gas = 0.0,   # Dynamic viscosity of gas (N/m)
         rho_liq= 1.0,     # Density of liquid (kg/m^3)
-        rho_gas = 100000.0,  # Density of gas (kg/m^3)
+        rho_gas = 1.0,  # Density of gas (kg/m^3)
         sigma = 0.0,    # Surface tension coefficient (N/m)
         grav_x = 0.0,   # Gravity  (m/s^2)
         grav_y = 0.0,   # Gravity (m/s^2)
@@ -41,7 +41,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         CFL=1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
-        tol = 1e-8,
+        tol = 1e-5,
 
         # Processors 
         nprocx = 1,
@@ -55,13 +55,6 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 
         pressure_scheme = scheme,
         pressureSolver = solver,
-        # pressureSolver = "hypreSecant",
-        # pressurePrecond = "nl_jacobi",
-
-        # pressure_scheme = "finite-difference",
-        # pressureSolver = "congugateGradient",
-        # pressureSolver = "FC_hypre",
-        # pressureSolver = "gauss-seidel",
 
         hypreSolver = "GMRES-AMG",
         mg_lvl = lvl,
@@ -91,17 +84,11 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
             # v[i,j,k] = -2π*sin(2π*ym[j])*cos(2π*xm[i])*dt*(2/(deny[i,j,k]+deny[i,j+1,k]))
             uf[i,j,k] = -2π*sin(2π*x[i])*cos(2π*ym[j])*dt/(denx[i,j,k])
             vf[i,j,k] = -2π*sin(2π*y[j])*cos(2π*xm[i])*dt/(deny[i,j,k])
+            wf[i,j,k] = 0.0
         end
 
-        # # apply periodic BC
-        # NS.update_borders!(u,mesh,par_env)
-        # NS.update_borders!(v,mesh,par_env)
-        # NS.update_borders!(w,mesh,par_env)
 
-        # Create face velocities
-        # NS.interpolateFace!(u,v,w,uf,vf,wf,mesh)
-        k = 1
-        for i = imin_:imax_, j = jmin_:jmax_
+        for  k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
             RHS[i,j,k] = (vf[i,j+1,k]-vf[i,j,k])/dy + (uf[i+1,j,k]-uf[i,j,k])/dx
         end
 
@@ -115,16 +102,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,
                     xm,ym,y,Lx,Ly,Lz,dy = mesh
 
-        # y0 = 0.5
-        # x0 = 0.5
-        # R = 0.25
-        # r_fun = (x,y) -> sqrt((x-x0)^2 + (y-y0)^2)
-        # ϵ = 0.01
-        # for j ∈ jmin_:jmax_, i ∈ imin_:imax_
-        #     VF[i,j,1] = 1/2*(1 - tanh((r_fun(x[i],y[j])-R)/ϵ))
-        # end
 
-
+        # Volume Fraction
         # Volume Fraction
         rad=0.25
         xo=0.5
@@ -172,8 +151,9 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     
     # compute_MMS!(uf,vf,wf,RHS,VF,dt,exact_sol,mesh,par_env)
     compute_MMS!(u,v,w,uf,vf,wf,RHS,VF,dt,exact_sol,denx,deny,denz,mesh,par_env)
-    
-
+    # println("u-face vel along boundary: ", uf[imin_,:,1])
+    # println("u-face vel along boundary: ", uf[imin_-1,:,1])
+    # println("v-face vel along boundary: ", vf[:,jmin_,1])
     # Compute band around interface
     NS.computeBand!(band,VF,param,mesh,par_env)
     # fill!(band,0.0)
@@ -190,6 +170,10 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
             iter = NS.FC_hypre_solver(P,RHS,tmp2,denx,deny,denz,tmp5,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,dt,param,mesh,par_env,20000)
         elseif param.pressureSolver == "gauss-seidel"
             iter = NS.gs(P,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
+        elseif param.pressureSolver == "jacobi"
+            iter = NS.jacobi(P,tmp6,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
+        elseif param.pressureSolver == "geometric_mg"
+            iter = NS.mg_geometric!(P, RHS, denx, deny, denz, dt, param, mg_mesh.mesh_lvls[1], par_env)
         elseif param.pressureSolver == "congugateGradient"
             iter = NS.cg!(P, RHS, denx, deny, denz,tmp6,dt, param, mg_mesh.mesh_lvls[1], par_env)  
         end
@@ -218,7 +202,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     # Create x and y coordinates for plotting
     x_plot = x[imin_:imax_]
     y_plot = y[jmin_:jmax_]
-    plt = false
+    plt = true
     if plt 
         denx_cell = similar(P_slice)
         deny_cell = similar(P_slice)
@@ -322,7 +306,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         # Global title
         # -----------------------------
         Label(fig[0, :],
-            "Mesh: $(Nx)x$(Ny), L2 error: $(round(L2_error, sigdigits=4))",
+            "Mesh: $(Nx)x$(Ny), L∞ error: $(round(Linf_error, sigdigits=4)), interpolation: $(param.interpolation_method)",
             fontsize = 18
         )
 
@@ -334,14 +318,16 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 end
 
 mesh_size = 48
-# scheme = "finite-difference"
+scheme = "finite-difference"
+# solver = "geometric_mg"
 # solver = "FC_hypre"
-# solver = "gauss-seidel"
-scheme = "semi-lagrangian"
+solver = "gauss-seidel"
+# scheme = "semi-lagrangian"
 # solver = "res_iteration_AA2"
-lvl = 1
+lvl = 4
 
 @time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
+
 # times = time() - t_start
 # println("time taken: $times seconds")
 # mesh_sizes =[16,32,64,128]
@@ -353,7 +339,6 @@ lvl = 1
 # # solvers = ["res_iteration"]#,"res_iteration"]
 # tags = ["SL-FV","SL-SL"]
 
-# mesh_sizes =[32,64,128]
 # lvl = [1,1,1,3,1]
 # schemes = ["finite-difference","finite-difference","semi-lagrangian","semi-lagrangian","semi-lagrangian"]
 # solvers = ["gauss-seidel","congugateGradient","res_iteration","res_iteration","hypreSecant"]
@@ -484,30 +469,35 @@ if timing_plot
     # ---------------------------------------------
     println("\nTiming results (seconds):")
     println(times)
-
-    pTime = plot(
+    f = Figure(size = (900,600))
+    pTime = Axis(f[1,1],
         xlabel = "N",
         ylabel = "Wall-clock time (s)",
-        xscale = :log10,
-        yscale = :log10,
-        legend = :topleft,
-        title = "Timing vs Resolution"
+        xscale = log10,
+        yscale = log10,
+        xticks = (mesh_sizes[2:end]),
+        title = "Timing vs Resolution",
+        titlesize = 30,
+        xlabelsize = 24,
+        ylabelsize = 24,
+        xticklabelsize = 18,
+        yticklabelsize = 18
     )
 
     # Optional: offsets to separate curves vertically (log space)
     time_offsets = [0.0, 0.0, 0.0, 0.0, 0.0]   # adjust if needed, same length as schemes
 
     for j in eachindex(schemes)
-        plot!(
+        scatterlines!(
             pTime,
-            mesh_sizes,
-            times[j, :] .* 10 .^ time_offsets[j],
-            label = "$(solver_tag[j])",
-            linewidth = 3,
-            markershape = markers[j]
+            mesh_sizes[2:end],
+            times[j, 2:end] .* 10 .^ time_offsets[j],
+            label = "$(tags[j])",
+            linewidth = 3
+            # markershape = markers[j]
         )
     end
-
-    savefig(pTime, "timing_plot.png")
+    axislegend(pTime, position = :lt,labelsize = 24)
+    save( "timing_plot.png",f)
     println("Saved timing plot: timing_plot.png")
 end
