@@ -445,14 +445,12 @@ function richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param,
         
         diff = maximum(abs.(R[end] .- R[end-1]))
         if diff < tol
-            
-            println("Converged at level $m with values of $(R[end]) and $(R[end-1])")
+
             pt .= R[end]
             return true  # early exit, converged
         end
     end
 
-    println("Richardson extrapolation did not converge within $nsteps steps. Final diff = $diff")
     # Return the most refined extrapolation
     pt .= R[end]
 
