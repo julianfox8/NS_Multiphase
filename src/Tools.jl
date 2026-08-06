@@ -117,7 +117,7 @@ macro loop(args...)
 
 
         quote
-            if eval($(esc(p))).iter_type == "standard"
+            if $(esc(p)).iter_type == "standard"
                 # Standard for loops k,j,i
                 for $(esc(idz)) = $(esc(rangez)),$(esc(idy)) = $(esc(rangey)),$(esc(idx)) = $(esc(rangex))
                     $(esc(lbody))
@@ -146,7 +146,7 @@ macro loop(args...)
     elseif iter.args[2].head == :call       
         # Handle I = CartesianIndices(P.f[ii]) iterator
         indices_arg = iter.args[2].args[2]
-        println("here")
+
         # println(indices_arg[1])
         # println(iter.args[2].args[1])
         # i = iter.args[1]
@@ -1284,7 +1284,7 @@ end
 
 
 """
-Density/Viscosity calculation
+Density/Viscosity calculation for face-centered quantities
 """
 function compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh

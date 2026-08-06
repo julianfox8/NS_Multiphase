@@ -113,6 +113,54 @@ function restrict_z_face!(coarse_field, fine_field,coarse_mesh)
     end
 end
 
+"""
+Harmonic-mean restriction of face densities (or any face coefficient that
+enters the operator as 1/coeff, e.g. denx/deny/denz). Arithmetic averaging
+of a discontinuous coefficient across an interface does not preserve the
+coarse-grid resistance and is a known source of multigrid slowdown for
+high-contrast-coefficient (e.g. high density ratio) problems. The harmonic
+mean (equivalently: arithmetic-average 1/coeff, then invert) is the
+flux-consistent choice.
+"""
+function restrict_x_face_harmonic!(coarse_field, fine_field, coarse_mesh)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = coarse_mesh
+    for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_+1
+        ii = 2i - 1
+        jj = 2j - 1
+        kk = 2k - 1
+        coarse_field[i,j,k] = 4 / (
+            1/fine_field[ii,  jj,  kk]   + 1/fine_field[ii, jj,   kk+1] +
+            1/fine_field[ii,  jj+1,kk]   + 1/fine_field[ii, jj+1, kk+1]
+        )
+    end
+end
+
+function restrict_y_face_harmonic!(coarse_field, fine_field, coarse_mesh)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = coarse_mesh
+    for k in kmin_:kmax_, j in jmin_:jmax_+1, i in imin_:imax_
+        ii = 2i - 1
+        jj = 2j - 1
+        kk = 2k - 1
+        coarse_field[i,j,k] = 4 / (
+            1/fine_field[ii,  jj,   kk]   + 1/fine_field[ii+1, jj,   kk] +
+            1/fine_field[ii,  jj,   kk+1] + 1/fine_field[ii+1, jj, kk+1]
+        )
+    end
+end
+
+function restrict_z_face_harmonic!(coarse_field, fine_field, coarse_mesh)
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = coarse_mesh
+    for k in kmin_:kmax_+1, j in jmin_:jmax_, i in imin_:imax_
+        ii = 2i - 1
+        jj = 2j - 1
+        kk = 2k - 1
+        coarse_field[i,j,k] = 4 / (
+            1/fine_field[ii,   jj,  kk]   + 1/fine_field[ii+1, jj,   kk] +
+            1/fine_field[ii,   jj+1, kk] + 1/fine_field[ii+1, jj+1, kk]
+        )
+    end
+end
+
 function fill_ghost_cells!(field, mesh, par_env)
     @unpack imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
     @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
@@ -241,6 +289,7 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     restrict!(coarse_lvl.tmplrg,VF_lvl,mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
     update_borders!(coarse_lvl.tmplrg,mg_mesh.mesh_lvls[lvl+1],par_env)
     Neumann!(coarse_lvl.tmplrg,mg_mesh.mesh_lvls[lvl+1],par_env)
+    # computeBand!(coarse_lvl.band,coarse_lvl.tmplrg,param,mg_mesh.mesh_lvls[lvl+1],par_env)
     fill!(coarse_lvl.band,2.0)
 
     # Restrict approximate solution for initial guess on coarse grid for initial guess
@@ -255,17 +304,17 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     restrict_x_face!(coarse_lvl.denx,fine_lvl.denx,mg_mesh.mesh_lvls[lvl+1])
     restrict_y_face!(coarse_lvl.deny,fine_lvl.deny,mg_mesh.mesh_lvls[lvl+1])
     restrict_z_face!(coarse_lvl.denz,fine_lvl.denz,mg_mesh.mesh_lvls[lvl+1])
-    update_borders_x!(coarse_lvl.denx,mg_mesh.mesh_lvls[lvl+1],par_env)
-    update_borders_y!(coarse_lvl.deny,mg_mesh.mesh_lvls[lvl+1],par_env)
-    update_borders_z!(coarse_lvl.denz,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_xface_borders!(coarse_lvl.denx,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_yface_borders!(coarse_lvl.deny,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_zface_borders!(coarse_lvl.denz,mg_mesh.mesh_lvls[lvl+1],par_env)
     
     # Restrict velocities
     restrict_x_face!(coarse_lvl.uf,fine_lvl.uf,mg_mesh.mesh_lvls[lvl+1])
     restrict_y_face!(coarse_lvl.vf,fine_lvl.vf,mg_mesh.mesh_lvls[lvl+1])
     restrict_z_face!(coarse_lvl.wf,fine_lvl.wf,mg_mesh.mesh_lvls[lvl+1])
-    update_borders_x!(coarse_lvl.uf,mg_mesh.mesh_lvls[lvl+1],par_env)
-    update_borders_y!(coarse_lvl.vf,mg_mesh.mesh_lvls[lvl+1],par_env)
-    update_borders_z!(coarse_lvl.wf,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_xface_borders!(coarse_lvl.uf,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_yface_borders!(coarse_lvl.vf,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_zface_borders!(coarse_lvl.wf,mg_mesh.mesh_lvls[lvl+1],par_env)
     
     # grab restricted residual (R(A^h(P^h))), compute A^2h(R(P^h) and compute tau
     fill!(coarse_lvl.AP_c,0.0)
@@ -378,9 +427,9 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter=noth
     restrict_x_face!(coarse_lvl.denx,fine_lvl.denx,mg_mesh.mesh_lvls[lvl+1])
     restrict_y_face!(coarse_lvl.deny,fine_lvl.deny,mg_mesh.mesh_lvls[lvl+1])
     restrict_z_face!(coarse_lvl.denz,fine_lvl.denz,mg_mesh.mesh_lvls[lvl+1])
-    update_borders_x!(coarse_lvl.denx,mg_mesh.mesh_lvls[lvl+1],par_env)
-    update_borders_y!(coarse_lvl.deny,mg_mesh.mesh_lvls[lvl+1],par_env)
-    update_borders_z!(coarse_lvl.denz,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_xface_borders!(coarse_lvl.denx,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_yface_borders!(coarse_lvl.deny,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_zface_borders!(coarse_lvl.denz,mg_mesh.mesh_lvls[lvl+1],par_env)
 
     # recursively call mg_vc_lin!
     if lvl < mg_lvl
@@ -476,9 +525,9 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
     restrict_x_face!(coarse_lvl.denx,fine_lvl.denx,mg_mesh.mesh_lvls[lvl+1])
     restrict_y_face!(coarse_lvl.deny,fine_lvl.deny,mg_mesh.mesh_lvls[lvl+1])
     restrict_z_face!(coarse_lvl.denz,fine_lvl.denz,mg_mesh.mesh_lvls[lvl+1])
-    update_borders_x!(coarse_lvl.denx,mg_mesh.mesh_lvls[lvl+1],par_env)
-    update_borders_y!(coarse_lvl.deny,mg_mesh.mesh_lvls[lvl+1],par_env)
-    update_borders_z!(coarse_lvl.denz,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_xface_borders!(coarse_lvl.denx,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_yface_borders!(coarse_lvl.deny,mg_mesh.mesh_lvls[lvl+1],par_env)
+    update_zface_borders!(coarse_lvl.denz,mg_mesh.mesh_lvls[lvl+1],par_env)
     
     # copmpute A(P^2h) (A operator applied to restricted approximate solution on finer level)
     fill!(coarse_lvl.AP_c,0.0)
