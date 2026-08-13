@@ -1,13 +1,28 @@
+#Ignore Manifest.toml and LocalPreferences.toml
 /Manifest.toml
+/LocalPreferences.toml
 
 # ingore local test directory
 /local_tests
 
 # Outputs
 *.png
+!papers/*/figures/*.png
 
 # VTK
 VTK*
 
 # Ignore build files within docs
 /docs/build/
+
+# Ignore various Plots for testing/debugging
+/PLOTS/
+
+# Ignore gif storage
+/gif_place/
+
+# Ignore markdowns files
+/notes
+
+# Ignore results from testing
+/results
