@@ -6,9 +6,7 @@ using NavierStokes_Parallel
 using Random
 using CairoMakie
 using Statistics
-# using Profile
-# using ProfileView
-# using FlameGraphs
+using LaTeXStrings
 
 NS = NavierStokes_Parallel
 
@@ -40,11 +38,11 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         Ny=Ny,
         Nz=1,
         stepMax=50,   # Maximum number of timesteps
-        max_dt = 2.5e-3,
+        max_dt = 2.5e-2,
         CFL=1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
-        tol = 1e-8,
+        tol = 1e-5,
 
         # Processors 
         nprocx = 1,
@@ -58,18 +56,10 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
 
         pressure_scheme = scheme,
         pressureSolver = solver,
-        # pressureSolver = "hypreSecant",
-        # pressurePrecond = "nl_jacobi",
-
-        # pressure_scheme = "finite-difference",
-        # pressureSolver = "congugateGradient",
-        # pressureSolver = "FC_hypre",
-        # pressureSolver = "gauss-seidel",
 
         hypreSolver = "GMRES-AMG",
         mg_lvl = lvl,
         # projection_method = "RK4",
-        # projection_method = "Euler",
         projection_method = "Heun",
         tesselation = "5_tets",
         
@@ -77,84 +67,30 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         test_case = "psolve_test", 
 
     )
-    """
-    Boundary conditions for velocity
-    """
-    function BC!(u,v,w,mesh,par_env)
-        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-        @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
-        
-        # Left 
-        if irankx == 0 
-            i = imin-1
-            u[i,:,:] = u[imax,:,:] # periodic
-            v[i,:,:] = v[imax,:,:] # periodic
-            w[i,:,:] = -w[imin,:,:] # No slip
-        end
-        # Right
-        if irankx == nprocx-1
-            i = imax+1
-            u[i,:,:] = u[imin,:,:] # periodic
-            v[i,:,:] = v[imin,:,:] # periodic
-            w[i,:,:] = -w[imax,:,:] # No slip
-        end
-        # Bottom 
-        if iranky == 0 
-            j = jmin-1
-            u[:,j,:] .= -u[:,jmin,:] # No slip
-            v[:,j,:] .= -v[:,jmin,:] # No slip
-            w[:,j,:] .= -w[:,jmin,:] # No slip
-        end
-        # Top
-        if iranky == nprocy-1
-            j = jmax+1
-            u[:,j,:] .= -u[:,jmax,:] # No slip
-            v[:,j,:] .= -v[:,jmax,:] # No slip
-            w[:,j,:] .= -w[:,jmax,:] # No slip
-        end
-        # Back 
-        if irankz == 0 
-            k = kmin-1
-            u[:,:,k] = -u[:,:,kmin] # No slip
-            v[:,:,k] = -v[:,:,kmin] # No slip
-            w[:,:,k] = -w[:,:,kmin] # No slip
-        end
-        # Front
-        if irankz == nprocz-1
-            k = kmax+1
-            u[:,:,k] = -u[:,:,kmax] # No slip
-            v[:,:,k] = -v[:,:,kmax] # No slip
-            w[:,:,k] = -w[:,:,kmax] # No slip
-        end
 
-        return nothing
-    end
 
     """
     Compute manufactured solution and source term
     """
     function compute_MMS!(u,v,w,uf,vf,wf,RHS,VF,dt,exact,denx,deny,denz,mesh,par_env)
         @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
-        @unpack jmin_,jmax_,xm,ym,imin_,imax_,jmin_,jmax_,kmin_,kmax_,dy,dx,dz = mesh
+        @unpack jmin_,jmax_,xm,ym,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dy,dx,dz,x,y = mesh
         @unpack xper,yper,zper,rho_gas,rho_liq,pressure_scheme = param
-        k = 1
+        
 
         # this for loop is used for MMS applied strictly to RHS
-        for i = imin_-1:imax_+1, j = jmin_-1:jmax_+1
-            exact[i,j,1] = cos(2π*ym[j])
-            v[i,j,k] = -2π*sin(2π*ym[j])*dt*(2/(deny[i,j,k]+deny[i,j+1,k]))
+        for k = kmino_:kmaxo_, j = jmino_:jmaxo_,i = imino_:imaxo_
+            exact[i,j,1] = cos(2π*ym[j])*cos(2π*xm[i])
+            # u[i,j,k] = -2π*sin(2π*xm[i])*cos(2π*ym[j])*dt*(2/(denx[i,j,k]+denx[i+1,j,k]))
+            # v[i,j,k] = -2π*sin(2π*ym[j])*cos(2π*xm[i])*dt*(2/(deny[i,j,k]+deny[i,j+1,k]))
+            uf[i,j,k] = -2π*sin(2π*x[i])*cos(2π*ym[j])*dt/(denx[i,j,k])
+            vf[i,j,k] = -2π*sin(2π*y[j])*cos(2π*xm[i])*dt/(deny[i,j,k])
+            wf[i,j,k] = 0.0
         end
 
-        # apply periodic BC
-        NS.update_borders!(u,mesh,par_env)
-        NS.update_borders!(v,mesh,par_env)
-        NS.update_borders!(w,mesh,par_env)
 
-        # Create face velocities
-        NS.interpolateFace!(u,v,w,uf,vf,wf,mesh)
-
-        for i = imin_:imax_, j = jmin_:jmax_
-            RHS[i,j,k] = (vf[i,j+1,k]-vf[i,j,k])/dy
+        for  k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+            RHS[i,j,k] = (vf[i,j+1,k]-vf[i,j,k])/dy + (uf[i+1,j,k]-uf[i,j,k])/dx
         end
 
         return nothing
@@ -167,20 +103,24 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,
                     xm,ym,y,Lx,Ly,Lz,dy = mesh
 
-        for i = imin_:imax_
-            #height
-            height = Ly/2 
 
-            for j = jmin_:jmax_        
-                if y[j] < height && y[j+1] > height 
-                    VF[i,j,1] = (height - y[j])/(y[j+1]-y[j]) 
-                elseif y[j] < height
-                    VF[i,j,1] = 1.0
-                else
-                    VF[i,j,1] = 0.0
-                end
-            end
+        # Volume Fraction
+        # Volume Fraction
+        rad=0.25
+        xo=0.5
+        yo=0.5
+
+        for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+            VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
         end
+        # rad=0.25
+        # xo=0.5
+        # yo=0.5
+        # zo=0.5
+        # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
+        #     VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
+        #     # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
+        # end
         return nothing
     end
     # Setup par_env
@@ -204,49 +144,47 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     t = 0.0 :: Float64
 
     # Create source term/exact solution and apply BC to Pressure
-    fill!(VF,0.0)
-    # IC!(VF,mesh)
+    IC!(VF,mesh) 
+    # fill!(VF,0.0)
     # NS.update_borders!(VF,mesh,par_env)
-    # compute density and viscosity at intial conditions
-    NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
+    NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+    
     # compute_MMS!(uf,vf,wf,RHS,VF,dt,exact_sol,mesh,par_env)
     compute_MMS!(u,v,w,uf,vf,wf,RHS,VF,dt,exact_sol,denx,deny,denz,mesh,par_env)
-    
-    # stats = check_neumann!(uf, vf, mesh; tol=1e-10)
-
+    # println("u-face vel along boundary: ", uf[imin_,:,1])
+    # println("u-face vel along boundary: ", uf[imin_-1,:,1])
+    # println("v-face vel along boundary: ", vf[:,jmin_,1])
     # Compute band around interface
-    # NS.computeBand!(band,VF,param,mesh,par_env)
-    fill!(band,0.0)
+    NS.computeBand!(band,VF,param,mesh,par_env)
+    # fill!(band,0.0)
 
     # Loop over time
     nstep = 0
     iter = 0
 
-    P_old = copy(P)
-    
     # # Call pressure Solver (handles processor boundaries for P)
     if param.mg_lvl > 1
-        iter = NS.mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env)
+        iter = NS.mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env) 
     elseif param.pressure_scheme == "finite-difference"
         if param.pressureSolver == "FC_hypre"
-            iter = NS.FC_hypre_solver(P,RHS,tmp2,denx,deny,denz,tmp5,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,dt,param,mesh,par_env,1000)
+            iter = NS.FC_hypre_solver(P,RHS,tmp2,denx,deny,denz,tmp5,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,dt,param,mesh,par_env,20000)
         elseif param.pressureSolver == "gauss-seidel"
             iter = NS.gs(P,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
-        elseif param.pressureSolver == "congugateGradient"
-            iter = NS.cg!(P, RHS, denx, deny, denz,tmp6,dt, param, mg_mesh.mesh_lvls[1], par_env)
+        elseif param.pressureSolver == "jacobi"
+            iter = NS.jacobi(P,tmp6,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
         elseif param.pressureSolver == "geometric_mg"
             iter = NS.mg_geometric!(P, RHS, denx, deny, denz, dt, param, mg_mesh.mesh_lvls[1], par_env)
+        elseif param.pressureSolver == "congugateGradient"
+            iter = NS.cg!(P, RHS, denx, deny, denz,tmp6,dt, param, mg_mesh.mesh_lvls[1], par_env)  
         end
     elseif param.pressure_scheme == "semi-lagrangian"
-        if param.pressureSolver == "res_iteration"
-            iter = NS.res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
-        elseif param.pressureSolver == "res_iteration_AA_con"
+        if param.pressureSolver == "res_iteration_AA_con"
             iter = NS.res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
         elseif param.pressureSolver == "res_iteration_AA_uncon"
             iter = NS.res_iteration_AA_uncon(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
         elseif param.pressureSolver == "hypreSecant"
-            iter = NS.Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,mg_arrays.jacob[1],mg_arrays.x_vec[1],mg_arrays.b_vec[1],param,mg_mesh.mesh_lvls[1],par_env)
+            iter = NS.Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,param,mg_mesh.mesh_lvls[1],par_env)
         end
     end
     println("solver: $(param.pressureSolver) converged in $iter iterations")
@@ -257,7 +195,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
       # Plotting routine
     P_slice = P[imin_:imax_,jmin_:jmax_,1]
     exact_slice = exact_sol[imin_:imax_,jmin_:jmax_,1]
-    P_old_slice = P_old[imin_:imax_,jmin_:jmax_,1]
+    VF_slice = VF[imin_:imax_,jmin_:jmax_,1]
     RHS_slice = RHS[imin_:imax_,jmin_:jmax_,1]
     error_slice = (exact_slice - P_slice)
     
@@ -266,10 +204,15 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     x_plot = x[imin_:imax_]
     y_plot = y[jmin_:jmax_]
     plt = false
-
-    
-
     if plt 
+        denx_cell = similar(P_slice)
+        deny_cell = similar(P_slice)
+
+        for j ∈ jmin_:jmax_, i ∈ imin_:imax_
+            denx_cell[i,j] = (denx[i,j,1] + denx[i+1,j,1])/2
+            deny_cell[i,j] = (deny[i,j,1] + deny[i,j+1,1])/2
+        end
+        
         # Create subplots
         fig = Figure(size = (1000, 800))
 
@@ -279,11 +222,11 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         ax1 = Axis(fig[1, 1],
             xlabel = "x",
             ylabel = "y",
-            title = "Error n+1",
+            title = "Computed P",
             aspect = DataAspect()
         )
 
-        hm1 = heatmap!(ax1, x_plot, y_plot, P_slice')
+        hm1 = heatmap!(ax1, x_plot, y_plot, P_slice)
         Colorbar(fig[1, 1, Right()], hm1)
 
         # -----------------------------
@@ -296,7 +239,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
             aspect = DataAspect()
         )
 
-        hm2 = heatmap!(ax2, x_plot, y_plot, exact_slice')
+        hm2 = heatmap!(ax2, x_plot, y_plot, exact_slice)
         Colorbar(fig[1, 2, Right()], hm2)
 
         # -----------------------------
@@ -305,11 +248,12 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         ax3 = Axis(fig[2, 1],
             xlabel = "x",
             ylabel = "y",
-            title = "Source",
+            title = "Error",
             aspect = DataAspect()
         )
 
-        hm3 = heatmap!(ax3, x_plot, y_plot, error_slice', colormap = :hot)
+        hm3 = heatmap!(ax3, x_plot, y_plot, error_slice, colormap = :hot)
+        # hm3 = heatmap!(ax3, x_plot, y_plot, RHS_slice', colormap = :hot)
         Colorbar(fig[2, 1, Right()], hm3)
 
         # -----------------------------
@@ -334,13 +278,36 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
             linestyle = :dash
         )
 
-        axislegend(ax4, position = :rb)
 
+
+        axislegend(ax4, position = :rt)
+
+
+        ax5 = Axis(fig[3, 1],
+            xlabel = "x",
+            ylabel = "y",
+            title = "denx",
+            aspect = DataAspect()
+        )
+
+        hm5 = heatmap!(ax5, x_plot, y_plot, denx_cell)
+        Colorbar(fig[3, 1, Right()], hm5)
+
+
+        ax6 = Axis(fig[3, 2],
+            xlabel = "x",
+            ylabel = "y",
+            title = "VF",
+            aspect = DataAspect()
+        )
+
+        hm6 = heatmap!(ax6, x_plot, y_plot, VF_slice)
+        Colorbar(fig[3, 2, Right()], hm6)
         # -----------------------------
         # Global title
         # -----------------------------
         Label(fig[0, :],
-            "Mesh: $(Nx)x$(Ny), L2 error: $(round(L2_error, sigdigits=4))",
+            "Mesh: $(Nx)x$(Ny), L∞ error: $(round(Linf_error, sigdigits=4)), interpolation: $(param.interpolation_method)",
             fontsize = 18
         )
 
@@ -351,54 +318,47 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     return L2_error,Linf_error
 end
 
-mesh_size = 64
-scheme = "finite-difference"
-# solver = "geometric_mg"
-# solver = "FC_hypre"
-solver = "gauss-seidel"
-# scheme = "semi-lagrangian"
-# solver = "res_iteration_AA"
-# solver = "res_iteration"
-lvl = 3
+# mesh_size = 48
+# scheme = "finite-difference"
+# # solver = "geometric_mg"
+# # solver = "FC_hypre"
+# solver = "gauss-seidel"
+# # scheme = "semi-lagrangian"
+# # solver = "res_iteration_AA2"
+# lvl = 4
 
-@time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
+# @time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
+
 # times = time() - t_start
 # println("time taken: $times seconds")
-# mesh_sizes =[16,32,64,128]
-# lvl = [1,1,3]
-# schemes = ["finite-difference","semi-lagrangian","semi-lagrangian"]
-# solvers = ["FC_hypre","res_iteration","res_iteration"]
-# tags = ["FD","SL"]
+mesh_sizes =[16,32,64,128]
+lvl = [1,1]#,3]
+schemes = ["finite-difference","semi-lagrangian"]#,"semi-lagrangian"]
+solvers = ["FC_hypre","res_iteration_AA_con"]#,"res_iteration"]
+# tags = ["SL-FV","SL-SL"]
+# schemes = ["semi-lagrangian"]#,"semi-lagrangian"]
+# solvers = ["res_iteration"]#,"res_iteration"]
+tags = ["SL-FV","SL-SL"]
 
-# mesh_sizes =[32,64,128]
 # lvl = [1,1,1,3,1]
 # schemes = ["finite-difference","finite-difference","semi-lagrangian","semi-lagrangian","semi-lagrangian"]
 # solvers = ["gauss-seidel","congugateGradient","res_iteration","res_iteration","hypreSecant"]
 # tags = ["FD","SL"]
 # solver_tag = ["gauss-seidel","CG","NL Jacobi","FAS","Secant"]
 
-# markers = [:circle,:square,:diamond,:dtriangle,:pentagon]
-# L2_err   = zeros(length(schemes), length(mesh_sizes))
-# Linf_err = zeros(length(schemes), length(mesh_sizes))
-# times = zeros(length(schemes), length(mesh_sizes))
-# for j in eachindex(schemes)
-#     for i in eachindex(mesh_sizes)
-#         t_start = time()
-#         L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
-#         times[j,i] = time() - t_start
-#     end
-# end
-# L2_err   = zeros(length(schemes), length(mesh_sizes))
-# Linf_err = zeros(length(schemes), length(mesh_sizes))
-# times = zeros(length(schemes), length(mesh_sizes))
-# for j in eachindex(schemes)
-#     for i in eachindex(mesh_sizes)
-#         t_start = time()
-#         L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
-#         times[j,i] = time() - t_start
-#     end
-# end
-conv_plot = false
+markers = [:diamond,:circle,:diamond,:dtriangle,:pentagon]
+linestyle = [:dot,:dot,:dot,:dashdot,:dashdotdot]
+L2_err   = zeros(length(schemes), length(mesh_sizes))
+Linf_err = zeros(length(schemes), length(mesh_sizes))
+times = zeros(length(schemes), length(mesh_sizes))
+for j in eachindex(schemes)
+    for i in eachindex(mesh_sizes)
+        t_start = time()
+        L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
+        times[j,i] = time() - t_start
+    end
+end
+conv_plot = true
 timing_plot = false
 
 if conv_plot
@@ -410,67 +370,97 @@ if conv_plot
     println("L∞ errors  = ", Linf_err)
 
     # Vertical offsets for separating overlapping curves
-    offsets = [0.15, 0.1]   # apply only to the first scheme
+    offsets = [0.15, 0.145]   # apply only to the first scheme
 
     # ------------------------
     # L2 convergence plot
     # ------------------------
-    pL2 = plot(
-        xlabel = "N",
-        ylabel = "L₂ error",
-        xscale = :log10,
-        yscale = :log10,
-        legend = :bottomleft
+    Ns = round.(Int, 1 .// mesh_sizes) 
+    f = Figure(size = (700,500))
+    pL2 = Axis(
+        f[1,1],
+        xlabel = L"Mesh \ Size",
+        ylabel = L"L_2 \ error",
+        xscale = log10,
+        yscale = log10,
+        # title = "MMS pressure solver",
+        xticks = (mesh_sizes),
+        # titlesize = 30,
+        xlabelsize = 28,
+        ylabelsize = 32,
+        xticklabelsize = 22,
+        yticklabelsize = 28
     )
 
+
+    # colors = ["blue","orange"]
+    for j in eachindex(schemes)
+
+        
+        vals = L2_err[j, :] .* 10^offsets[j]
+
+        # lines!(pL2, mesh_sizes, vals,
+        #     linestyle = linestyle[j],
+        #     label = tags[j],
+        #     # color = colors[j],
+        #     # linewidth = 3
+        # )
+
+        # scatter!(pL2, mesh_sizes, vals,
+        #     marker = markers[j],
+        #     # color = colors[j],
+        #     markersize = 12
+        # )
+        scatterlines!(pL2, mesh_sizes, vals,
+            linestyle = linestyle[j],
+            label = tags[j],
+            marker = markers[j],
+            linewidth = 2,
+            # color = colors[j],
+            markersize = 12
+        )
+
+    end
     # Reference slopes (plotted as lines)
     ref1_L2 = (L2_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)).*10^0.3  # 1st-order slope
     ref2_L2 = L2_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order slope
 
-    plot!(pL2, mesh_sizes, ref1_L2, linestyle=:dash, label="1st order")
-    plot!(pL2, mesh_sizes, ref2_L2, linestyle=:dash, label="2nd order")
+    lines!(pL2, mesh_sizes, ref1_L2, linestyle=:dash, label="O(Δx)",linewidth=2)
+    lines!(pL2, mesh_sizes, ref2_L2, linestyle=:dash, label="O(Δx²)",linewidth=2)
 
-    # Plot scheme results
-    for j in eachindex(schemes)
-        plot!(pL2, mesh_sizes, L2_err[j, :] .* 10^offsets[j],
-            label = "$(tags[j])",
-            linewidth = 3,
-            markershape = markers[j]
-        )
-    end
-
-    savefig(pL2, "L2_convergence.png")
+    axislegend(pL2, position = :rt,labelsize = 20)
+    save( "L2_convergence.png",f)
     println("Saved L2 plot: L2_convergence.png")
 
     # ------------------------
     # L∞ convergence plot
     # ------------------------
-    pLinf = plot(
-        xlabel = "N",
-        ylabel = "L∞ error",
-        xscale = :log10,
-        yscale = :log10,
-        legend = :bottomleft
-    )
+    # pLinf = plot(
+    #     xlabel = "N",
+    #     ylabel = "L∞ error",
+    #     xscale = :log10,
+    #     yscale = :log10,
+    #     legend = :bottomleft
+    # )
 
-    # Reference slopes
-    ref1_Linf = ( Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)) .*10^0.3 # 1st-order
-    ref2_Linf = Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order
+    # # Reference slopes
+    # ref1_Linf = ( Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)) .*10^0.3 # 1st-order
+    # ref2_Linf = Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order
 
-    plot!(pLinf, mesh_sizes, ref1_Linf, linestyle=:dash, label="1st order")
-    plot!(pLinf, mesh_sizes, ref2_Linf, linestyle=:dash, label="2nd order")
+    # plot!(pLinf, mesh_sizes, ref1_Linf, linestyle=:dash, label="1st order")
+    # plot!(pLinf, mesh_sizes, ref2_Linf, linestyle=:dash, label="2nd order")
 
-    # Plot scheme results
-    for j in eachindex(schemes)
-        plot!(pLinf, mesh_sizes, Linf_err[j, :] .* 10^offsets[j],
-            label = "$(tags[j])",
-            linewidth = 3,
-            markershape = markers[j]
-        )
-    end
+    # # Plot scheme results
+    # for j in eachindex(schemes)
+    #     plot!(pLinf, mesh_sizes, Linf_err[j, :] .* 10^offsets[j],
+    #         label = "$(tags[j])",
+    #         linewidth = 3,
+    #         markershape = markers[j]
+    #     )
+    # end
 
-    savefig(pLinf, "Linf_convergence.png")
-    println("Saved L∞ plot: Linf_convergence.png")
+    # savefig(pLinf, "Linf_convergence.png")
+    # println("Saved L∞ plot: Linf_convergence.png")
 
 end
 
@@ -480,30 +470,35 @@ if timing_plot
     # ---------------------------------------------
     println("\nTiming results (seconds):")
     println(times)
-
-    pTime = plot(
+    f = Figure(size = (900,600))
+    pTime = Axis(f[1,1],
         xlabel = "N",
         ylabel = "Wall-clock time (s)",
-        xscale = :log10,
-        yscale = :log10,
-        legend = :topleft,
-        title = "Timing vs Resolution"
+        xscale = log10,
+        yscale = log10,
+        xticks = (mesh_sizes[2:end]),
+        title = "Timing vs Resolution",
+        titlesize = 30,
+        xlabelsize = 24,
+        ylabelsize = 24,
+        xticklabelsize = 18,
+        yticklabelsize = 18
     )
 
     # Optional: offsets to separate curves vertically (log space)
     time_offsets = [0.0, 0.0, 0.0, 0.0, 0.0]   # adjust if needed, same length as schemes
 
     for j in eachindex(schemes)
-        plot!(
+        scatterlines!(
             pTime,
-            mesh_sizes,
-            times[j, :] .* 10 .^ time_offsets[j],
-            label = "$(solver_tag[j])",
-            linewidth = 3,
-            markershape = markers[j]
+            mesh_sizes[2:end],
+            times[j, 2:end] .* 10 .^ time_offsets[j],
+            label = "$(tags[j])",
+            linewidth = 3
+            # markershape = markers[j]
         )
     end
-
-    savefig(pTime, "timing_plot.png")
+    axislegend(pTime, position = :lt,labelsize = 24)
+    save( "timing_plot.png",f)
     println("Saved timing plot: timing_plot.png")
 end

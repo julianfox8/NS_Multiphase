@@ -21,7 +21,6 @@ struct PreimageMesh
     pyramid_faces:: Vector{Int}                       # which face the pyramid belongs to
 end
 
-
 function test_pressure()
     # Define parameters 
     param = parameters(
@@ -45,7 +44,7 @@ function test_pressure()
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
         max_dt = 1e-1,
-        CFL=1.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -60,17 +59,25 @@ function test_pressure()
         yper = false,
         zper = true,
 
+        # Restart  
+        # restart = true,
+        # restart_itr = 83,
+
         # Turn off NS solver
         solveNS = false,
         VFVelocity = "Deformation",
 
-        # pressure_scheme = "finite-difference",
-        pressure_scheme = "semi-lagrangian",
+        pressure_scheme = "finite-difference",
+        # pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
-        pressureSolver = "res_iteration",
+        # pressureSolver = "res_iteration",
+        pressureSolver = "res_iteration_AA_con",
+
+        mg_lvl = 1,
 
         hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
+        # projection_method = "Euler",
         # projection_method = "Euler",
         # projection_method = "RK4",
         projection_method = "Heun",
@@ -79,7 +86,7 @@ function test_pressure()
         iter_type = "standard",
         #iter_type = "floop",
         # test_case = "Deformation_result_euler",
-        test_case = "Deformation_test",
+        test_case = "Deformation_result",
     )
 
     """
@@ -134,8 +141,10 @@ function test_pressure()
     @unpack x,y,z,dx,dy,dz,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
     mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
+    mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
 
     # Create initial condition
+    #! VF does not have BC applied (need to address)
     t = 0.0 :: Float64
     IC!(P,u,v,w,VF,mesh)
 
@@ -213,7 +222,7 @@ function test_pressure()
 
             # Determine pressure correction
             iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)#;pmesh=pmesh)
-        
+            # error("stop")
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
             # NS.pmesh2VTK(pmesh,"pressure_preimage",param)
@@ -227,9 +236,9 @@ function test_pressure()
         NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
         
         # Predictor step (including VF transport)
-        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds;pmesh=tpmesh)
+        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)#;pmesh=tpmesh)
         # NS.pmesh2VTK(tpmesh,"FD_transport_preimage",param)
-        NS.pmesh2VTK(tpmesh,"SL_transport_preimage_15",param)
+        # NS.pmesh2VTK(tpmesh,"SL_transport_preimage_15",param)
 
         # Update bands with transported VF
         # NS.computeBand!(band,VF,param,mesh,par_env)

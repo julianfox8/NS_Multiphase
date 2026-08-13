@@ -52,11 +52,14 @@ plot_all_periods = true
 # Deformation Data
 # -------------------------
 SL_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_semi-lagrangian_48_48_1/Solver.pvd"
+SL_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_48_48_1/Solver.pvd"
 SL_pvd_64 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_64_64_1/Solver.pvd"
 SL_pvd_96 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_96_96_1/Solver.pvd"
 SL_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_semi-lagrangian_128_128_1/Solver.pvd"
-FD_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_48_48_1/Solver.pvd"
-FD_pvd_64 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_64_64_1/Solver.pvd"
+# FD_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_48_48_1/Solver.pvd"
+FD_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_48_48_1/Solver.pvd"
+# FD_pvd_64 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_2_midpt2_finite-difference_64_64_1/Solver.pvd"
+FD_pvd_64 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_64_64_1/Solver.pvd"
 FD_pvd_96 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_96_96_1/Solver.pvd"
 FD_pvd_128 = "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_result_finite-difference_128_128_1/Solver.pvd"
 noFC_pvd_48 =  "/Users/julia/repo/NS_Multiphase/paper_1_result/VTK_Deformation_no_FC_finite-difference_48_48_1/Solver.pvd"
@@ -93,9 +96,9 @@ marker_map = Dict(
     "noFC" => :rect
 )
 linestyle_map = Dict(
-    "FD" => :solid,
-    "SL" => :dash,
-    "noFC" => :dashdot
+    "FD" => :dot,
+    "SL" => :dot,
+    "noFC" => :dot
 )
 # data = Dict(
 #     "FD" => Dict(
@@ -145,8 +148,8 @@ function plot_convergence(results;
     f = Figure(size = (700,500))
     ax = Axis(f[1,1],
         # title = "2D deformation test case Eₛ",
-        ylabel = "L₁ error",
-        xlabel = "Mesh Size",
+        ylabel = L"E_{\text{shape}}",
+        xlabel = L"Mesh \ Size",
         # xlabel = "CFL",
         xscale = log10,
         yscale = log10,
@@ -154,10 +157,10 @@ function plot_convergence(results;
         # xticks = (cfl_list),
 
         # titlesize = 30,
-        xlabelsize = 34,
-        ylabelsize = 34,
-        xticklabelsize = 24,
-        yticklabelsize = 24
+        xlabelsize = 28,
+        ylabelsize = 32,
+        xticklabelsize = 22,
+        yticklabelsize = 28
     )
 
     for (scheme, res) in results
@@ -190,7 +193,7 @@ function plot_convergence(results;
             ref2 = (y_ref-1e-4) .* (Nx ./ x_ref).^(-2) 
 
             lines!(ax, Nx, ref1, linestyle=:dash, label = "O(Δx)",linewidth = 2)
-            lines!(ax, Nx, ref2, linestyle=:dot,  label = "O(Δx²)",linewidth = 2)
+            lines!(ax, Nx, ref2, linestyle=:dash,  label = "O(Δx²)",linewidth = 2)
         # elseif scheme == "noFC"
         #     x_ref = Nx[1]
         #     y_ref = err[1,1]   # first period as anchor
@@ -201,7 +204,7 @@ function plot_convergence(results;
         end
     end
 
-    axislegend(ax, position = :lb,labelsize = 16)
+    axislegend(ax, position = :lb,labelsize = 20)
 
     # -------------------------
     # SAVE FIGURE
