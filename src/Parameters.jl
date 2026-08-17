@@ -61,6 +61,9 @@ using Parameters
     hypreSolver :: String = "LGMRES"
     pressurePrecond :: String = "none"
     
+    # Set flux-correction flag
+    flux_corrections :: Bool = true
+
     # Multigrid solver levels
     mg_lvl :: Int64 = 1
 
@@ -87,6 +90,7 @@ using Parameters
 
     # Dynamic VTK directory creation
     test_case :: String = "test"
-    VTK_dir :: String = "results/VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)"
+    VTK_root :: String = "results"
+    VTK_dir :: String = joinpath(VTK_root,"VTK_$(test_case)_$(pressure_scheme)_$(Nx)_$(Ny)_$(Nz)")
 
 end

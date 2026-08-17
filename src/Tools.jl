@@ -1868,12 +1868,25 @@ function get_VF_heights(VF,mesh,param,par_env)
 
 end
 
+"""
+struct for storing pre-images as vtk files for visualization 
+"""
+struct PreimageMesh
+    # Pre-image Geometry
+    vertex_pts::Vector{Vector{Float64}} # 3D coordinates of pre-image vertices
 
+    # Flux-correction geometry
+    faces        :: Vector{NTuple{4,Int}}   # Cell faces, ordered such that faces are read x-,x+,y-,y+,z-,z+
+    face_cells   :: Vector{Int}              # owning cell id
 
+    # Cells
+    vertex_cells::Vector{Vector{Int}}
+    cell_id::Vector{Int}
 
-
-
-
+    # Fields for storing pyramids
+    pyramids     :: Vector{Vector{Vector{Float64}}}  # each pyramid = 5 points, ordered such that pyramids are read x-,x+,y-,y+,z-,z+
+    pyramid_faces:: Vector{Int}                       # which face the pyramid belongs to
+end
 
 
 
