@@ -77,7 +77,7 @@ function VTK_init(param,par_env)
             end
         else
             isdir(dir) && rm(dir, recursive=true)
-            mkdir(dir)
+            mkpath(dir)
         end
     end
     MPI.Barrier(par_env.comm)
@@ -446,7 +446,7 @@ function pVTK_init(param,par_env)
 
     if isroot
         isdir(dir) && rm(dir, recursive=true)
-        mkdir(dir)
+        mkpath(dir)
     end
 
     pvd_pressure = paraview_collection(joinpath(dir,"P_Solver"),append=true)
