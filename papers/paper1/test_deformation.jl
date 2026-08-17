@@ -4,24 +4,7 @@ using MPI
 
 NS = NavierStokes_Parallel
 
-struct PreimageMesh
-    # Pre-image Geometry
-    vertex_pts::Vector{Vector{Float64}} # 3D coordinates of pre-image vertices
-
-    # Flux-correction geometry
-    faces        :: Vector{NTuple{4,Int}}   # Cell faces, ordered such that faces are read x-,x+,y-,y+,z-,z+
-    face_cells   :: Vector{Int}              # owning cell id
-
-    # Cells
-    vertex_cells::Vector{Vector{Int}}
-    cell_id::Vector{Int}
-
-    # Fields for storing pyramids
-    pyramids     :: Vector{Vector{Vector{Float64}}}  # each pyramid = 5 points, ordered such that pyramids are read x-,x+,y-,y+,z-,z+
-    pyramid_faces:: Vector{Int}                       # which face the pyramid belongs to
-end
-
-function test_pressure()
+function test_deformation(n,scheme,fc,pre_image_vis=false)
     # Define parameters 
     param = parameters(
         # Constants
@@ -39,8 +22,8 @@ function test_pressure()
         tFinal=2.0,      # Simulation time
         
         # Discretization inputs
-        Nx=64,           # Number of grid cells
-        Ny=64,
+        Nx=n,           # Number of grid cells
+        Ny=n,
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
         max_dt = 1e-1,
@@ -67,7 +50,7 @@ function test_pressure()
         solveNS = false,
         VFVelocity = "Deformation",
 
-        pressure_scheme = "finite-difference",
+        pressure_scheme = scheme,
         # pressure_scheme = "semi-lagrangian",
         # pressureSolver = "hypreSecant",
         # pressureSolver = "res_iteration",
@@ -81,12 +64,16 @@ function test_pressure()
         # projection_method = "Euler",
         # projection_method = "RK4",
         projection_method = "Heun",
+        
+        flux_corrections = fc,
 
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
-        # test_case = "Deformation_result_euler",
-        test_case = "Deformation_result",
+
+        # Output name for VTK and CSV files
+        VTK_root = joinpath(@__DIR__,"results"),
+        test_case = "Deformation",
     )
 
     """
@@ -141,7 +128,6 @@ function test_pressure()
     @unpack x,y,z,dx,dy,dz,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
     mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
-    mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
 
     # Create initial condition
     #! VF does not have BC applied (need to address)
@@ -179,20 +165,22 @@ function test_pressure()
     h_last =[100]
 
     # Initialize struct to store vertices of pre-images based on domain size
-    pmesh = PreimageMesh(Vector{Vector{Float64}}(),
-            Vector{NTuple{4,Int}}(),
-            Int[],
-            Vector{Vector{Int}}(),
-            Int[],
-            Vector{Vector{Vector{Float64}}}(),
-            Int[])
-    tpmesh = PreimageMesh(Vector{Vector{Float64}}(),
-            Vector{NTuple{4,Int}}(),
-            Int[],
-            Vector{Vector{Int}}(),
-            Int[],
-            Vector{Vector{Vector{Float64}}}(),
-            Int[])
+    if pre_image_vis
+        pmesh = NS.PreimageMesh(Vector{Vector{Float64}}(),
+                Vector{NTuple{4,Int}}(),
+                Int[],
+                Vector{Vector{Int}}(),
+                Int[],
+                Vector{Vector{Vector{Float64}}}(),
+                Int[])
+        tpmesh = NS.PreimageMesh(Vector{Vector{Float64}}(),
+                Vector{NTuple{4,Int}}(),
+                Int[],
+                Vector{Vector{Int}}(),
+                Int[],
+                Vector{Vector{Vector{Float64}}}(),
+                Int[])
+    end
 
     # Initialize VTK
     pvd,pvd_restart,pvd_PLIC = NS.VTK_init(param,par_env)
@@ -219,14 +207,15 @@ function test_pressure()
         t += dt
 
         if param.pressure_scheme == "semi-lagrangian"
-
             # Determine pressure correction
-            iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)#;pmesh=pmesh)
-            # error("stop")
+            if !pre_image_vis
+                iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
+            else
+                iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;pmesh=pmesh)
+                NS.pmesh2VTK(pmesh,"pressure_preimage",param)
+            end
             # Corrector face velocities
             NS.corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
-            # NS.pmesh2VTK(pmesh,"pressure_preimage",param)
-
         end
         
         # Calculate divergence
@@ -236,9 +225,13 @@ function test_pressure()
         NS.std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
         
         # Predictor step (including VF transport)
-        NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)#;pmesh=tpmesh)
-        # NS.pmesh2VTK(tpmesh,"FD_transport_preimage",param)
-        # NS.pmesh2VTK(tpmesh,"SL_transport_preimage_15",param)
+        if !pre_image_vis
+            NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
+        else
+            NS.transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds;pmesh=tpmesh)
+            NS.pmesh2VTK(tpmesh,"transport_preimage",param)
+            error("pre-images vtk files created")
+        end
 
         # Update bands with transported VF
         # NS.computeBand!(band,VF,param,mesh,par_env)
@@ -248,8 +241,8 @@ function test_pressure()
 
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-        # error("stop")
+        
     end
 end
 
-test_pressure()
+# test_deformation()

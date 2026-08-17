@@ -711,11 +711,7 @@ function pre_image_err(dts,scheme,interpolation_method)
         errors = tmp9; fill!(errors,0.0)
         # loop over domain and project vertices to test numerical integration 
         @time for k = kmin_:kmax_, j = jmin_:jmax_-1, i = imin_:imax_-1
-            # if i == j
-            #     println("computing pre-image error for cell ($i,$j,$k)")
-            # end
-            # println("computing pre-image error for cell ($i,$j,$k)")
-            
+
             # Get cell vertices with triangulation ordering
             tetsign = NS.cell2verts!(verts,i,j,k,param,mesh)
             original_verts = copy(verts)
@@ -732,6 +728,7 @@ function pre_image_err(dts,scheme,interpolation_method)
             #     plot_sampled_cell(sample_pts, verts, ns;original_verts = original_verts,title_str = "cell sampled with $nfp points per face")
             #     error("stop")
             # end
+
             # Compute barycentric coordinates 
             compute_barycentric!(tri_verts, sample_pts, tri_ids, lambdas, tetsign, ns)
             
@@ -742,23 +739,15 @@ function pre_image_err(dts,scheme,interpolation_method)
             # end
 
             # Project sampled points to get analytic pre-image
-            # println("exact projection starting")
             for pt_id in axes(sample_pts, 2)
                 # richardson_extrapolation_n!(@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
                 richardson_extrapolation_n!(I,@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
             end
       
             # if k == 11 && j ==11 && i == 11
-            #     for i in 1:8
-            #         nsteps = 10
-            #         richardson_extrapolation_n!(@view(original_verts[:,i]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
-            #     end
             #     plot_sampled_cell(sample_pts, verts, ns;original_verts = original_verts, title_str = "exact projected cell sampled \n with $nfp points per face")
             #     error("stop")
             # end
-
-            #! need to store a copy of the velocity field for use with the pressure corrected field
-            #! will just use corrected field and cell to tets 
             
             # Compute numerical pre-image (either flux-corrected or pressure-corrected)
             tetsign = NS.cell2tets!(verts,tets,i,j,k,param,mesh; 
@@ -792,15 +781,16 @@ function pre_image_err(dts,scheme,interpolation_method)
             # end
 
             # Compute error in sample points for i,j,k cell for leading edges(ignoring *max cells)
-            # errors[i,j,k] = sum((preimage_sample_pts[:,nfp+1:nfp*2]).^2 .+ (preimage_sample_pts[:,nfp*3+1:nfp*4]).^2 .+ (preimage_sample_pts[:,nfp*5+1:nfp*6]).^2)
             d = preimage_sample_pts .- sample_pts
             errors[i,j,k] = sum(d[:,nfp+1:nfp*2].^2) + sum(d[:,nfp*3+1:nfp*4].^2) + sum(d[:,nfp*5+1:nfp*6].^2)
+            
+            # L-infinity norm if wanted
             # errors[i,j,k] = maximum(sqrt.(sum((preimage_sample_pts .- sample_pts).^2)))
-            # errors[i,j,k] =  sum((preimage_sample_pts .- sample_pts).^2)
+            
         end
+        # Compute L2 norm (pre-image error)
         error_dt[idx] = sqrt(sum(errors)/(ntotal*(Nx-1)*(Ny-1)*(Nz)))
     end
-    # errs[n] = err
     return error_dt
 end
 
@@ -809,8 +799,7 @@ scheme = "finite-difference"
 interpolation_method = "Heun"
 # interpolation_method = "RK4"
 # interpolation_method = "Euler"
-# dts = [0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.0025,0.001]
-# dts = [0.001,0.00025,0.0001] 
+
 dts = 2 .* [0.02, 0.015,0.0125,0.01,0.005,0.0033,0.0025,0.00125]
 errors = pre_image_err(dts,scheme,interpolation_method)
 
@@ -820,6 +809,8 @@ open("$(scheme)_$(interpolation_method)_2D_errors_test2.csv","w") do io
         println(io,"$dt,$err")
     end
 end
+
+# Individual plotting of error if wanted
 # println("Errors for each dt: ", errors)
 # f = Figure(size = (700, 500))
 # ax = Axis(

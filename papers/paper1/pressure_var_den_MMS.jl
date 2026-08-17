@@ -13,7 +13,7 @@ NS = NavierStokes_Parallel
 
 
 # Define parameters 
-function test_psolve(Nx,Ny,scheme,solver,lvl)
+function test_psolve(Nx,Ny,scheme,solver,lvl,plt=false)
     println("Starting MMS test for pressure with Nx = $Nx and Ny = $Ny ")
     ##! still need to determine the best way to upate Nx,Ny,Nz
 
@@ -203,7 +203,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
     # Create x and y coordinates for plotting
     x_plot = x[imin_:imax_]
     y_plot = y[jmin_:jmax_]
-    plt = false
+
+    # Need to set arg plt = true to visualize single run MMS 
     if plt 
         denx_cell = similar(P_slice)
         deny_cell = similar(P_slice)
@@ -253,7 +254,6 @@ function test_psolve(Nx,Ny,scheme,solver,lvl)
         )
 
         hm3 = heatmap!(ax3, x_plot, y_plot, error_slice, colormap = :hot)
-        # hm3 = heatmap!(ax3, x_plot, y_plot, RHS_slice', colormap = :hot)
         Colorbar(fig[2, 1, Right()], hm3)
 
         # -----------------------------
