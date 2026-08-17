@@ -4,7 +4,7 @@ using MPI
 
 NS = NavierStokes_Parallel
 
-function test_zalesak(n,scheme,fc,pre_image_vis = false)
+function test_zalesak(n,scheme,fc,case;pre_image_vis = false)
     # Define parameters 
     param = parameters(
         # Constants
@@ -72,7 +72,7 @@ function test_zalesak(n,scheme,fc,pre_image_vis = false)
 
         # Output name for VTK and CSV
         VTK_root = joinpath(@__DIR__,"results"),
-        test_case = "Zalesak",
+        test_case = case,
 
     )
 

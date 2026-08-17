@@ -20,8 +20,7 @@ function run_cases(case, Ns = CASES[case].Ns)
     spec = CASES[case]
     for v in VARIANTS, n in Ns
         @info "running $(v.tag) N=$n"
-        spec.runner(n; scheme = v.scheme, fc = v.fc,
-                       test_case = "$(spec.prefix)_$(v.tag)")
+        spec.runner(n, v.scheme, v.fc,"$(spec.prefix)_$(v.tag)";)
     end
 end
 

@@ -4,7 +4,7 @@ using MPI
 
 NS = NavierStokes_Parallel
 
-function test_deformation(n,scheme,fc,pre_image_vis=false)
+function test_deformation(n,scheme,fc,case;pre_image_vis=false)
     # Define parameters 
     param = parameters(
         # Constants
@@ -73,7 +73,7 @@ function test_deformation(n,scheme,fc,pre_image_vis=false)
 
         # Output name for VTK and CSV files
         VTK_root = joinpath(@__DIR__,"results"),
-        test_case = "Deformation",
+        test_case = case,
     )
 
     """
@@ -163,7 +163,7 @@ function test_deformation(n,scheme,fc,pre_image_vis=false)
     # Output IC
     t_last =[-100.0,]
     h_last =[100]
-
+    
     # Initialize struct to store vertices of pre-images based on domain size
     if pre_image_vis
         pmesh = NS.PreimageMesh(Vector{Vector{Float64}}(),
