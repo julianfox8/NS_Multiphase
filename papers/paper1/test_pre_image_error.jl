@@ -1,513 +1,13 @@
 using NavierStokes_Parallel 
-using CairoMakie
-# using GLMakie
 using LinearAlgebra
+using DataFrames
+using CSV
 NS = NavierStokes_Parallel
 
-"""
-need to keep in mind the orientation of the odd and even cells in mind
-    # even cell    
-    face 1: verts 5,7,3,1
-    face 2: verts 8,6,2,4
-    face 3: verts 2,6,5,1
-    face 4: verts 8,4,3,7
-    face 5: verts 2,1,3,4
-    face 6: verts 6,8,7,5
+include(joinpath(@__DIR__,"common.jl"))
+include(joinpath(@__DIR__,"pre_image_tools.jl"))
 
-    odd cell
-    face 1: verts 8,6,2,4
-    face 2: verts 5,7,3,1
-    face 3: verts 2,6,5,1
-    face 4: verts 7,8,4,3
-    face 5: verts 2,1,3,4
-    face 6: verts 6,5,7,8
-"""
-
-const FACES_EVEN = (
-    (5,7,3,1),
-    (8,6,2,4),
-    (2,6,5,1),
-    (8,4,3,7),
-    (2,1,3,4),
-    (6,8,7,5),
-)
-
-const FACES_ODD = (
-    (8,6,2,4),
-    (5,7,3,1),
-    (2,6,5,1),
-    (7,8,4,3),
-    (2,1,3,4),
-    (6,5,7,8),
-)
-
-
-"""
-    plot_points_on_faces(tri_verts, tri_id, lambdas; tetsign=nothing)
-
-Plot points mapped back onto the triangulated cell faces using barycentric coordinates.
-
-Arguments:
-- `tri_verts` : 3×3×Ntri array of triangle vertices (x,y,z)
-- `tri_id`    : vector of length Npts with triangle indices for each point
-- `lambdas`   : 3×Npts barycentric coordinates
-- `tetsign`  : optional, scalar or vector to color points by cell orientation
-"""
-function plot_points_on_faces(tri_verts, tri_ids, lambdas, tetsign, ns)
-    
-    points_mapped = zeros(3, length(tri_ids))
-
-    # Map each point using barycentric coordinates
-    nfp = ns^2
-
-    # loop over triangle id's
-    for pt_id in eachindex(tri_ids)
-        # grab point and face information based on tetsign
-        tri = tri_ids[pt_id]
-        face_id = div(pt_id-1, nfp) + 1
-
-        if tetsign > 0
-            face = FACES_EVEN[face_id]
-        else
-            face = FACES_ODD[face_id]
-        end
-
-        
-        v1 = @view tri_verts[:,face[tri]]
-        v2 = @view tri_verts[:,face[mod(tri,4)+1]]
-        v3 = @view tri_verts[:,9+(face_id-1)]
-
-        λ = lambdas[:, pt_id]
-        points_mapped[:, pt_id] = λ[1]*v1 + λ[2]*v2 + λ[3]*v3
-    end
-
-    # Make a 3D scatter plot
-    fig = Figure(size=(600,600))
-    ax = Axis3(fig[1,1],
-        xlabel = "X",
-        ylabel = "Y",
-        zlabel = "Z",
-        title = "Mapped points on triangulated cell faces",
-        aspect = :data)
-    
-    # Optional coloring by tetsign
-    colors = tetsign === nothing ? :blue : tetsign
-
-    scatter!(ax, points_mapped[1,:], points_mapped[2,:], points_mapped[3,:], markersize=8, color=colors)
-    nfaces = 6
-    nfp = ns^2
-    offset = 0
-
-    for f in 1:nfaces
-
-        face_pts = @view points_mapped[:, offset+1 : offset+nfp]
-
-        X = reshape(face_pts[1,:], ns, ns)
-        Y = reshape(face_pts[2,:], ns, ns)
-        Z = reshape(face_pts[3,:], ns, ns)
-
-        # # ξ-direction lines
-        # for j in 1:ns
-        #     lines!(ax, X[:,j], Y[:,j], Z[:,j])
-        # end
-
-        # # η-direction lines
-        # for i in 1:ns
-        #     lines!(ax, X[i,:], Y[i,:], Z[i,:])
-        # end
-        surface!(ax,X,Y,Z,color = :lightblue, shading=true,transparency = true)
-        offset += nfp
-    end
-
-    display(fig)
-end
-
-
-function plot_sampled_cell(sample_pts, verts, ns; original_verts = nothing, title_str = "test cell")
-    fig = Figure(size = (700, 700))
-    ax = Axis3(fig[1,1],
-        # xlabel = "X",
-        # ylabel = "Y",
-        # zlabel = "Z",
-        protrusions = 75,
-        # title = title_str,
-        titlesize = 30,
-        xlabelsize = 24,
-        ylabelsize = 24,
-        zlabelsize = 24,
-        xticklabelsize = 18,
-        yticklabelsize = 18,
-        zticklabelsize = 18,
-        aspect = :data
-    )
-    hidedecorations!(ax,grid=false)
-    # Plot original 8 vertices for reference
-    if !isnothing(original_verts)
-        scatter!(ax,
-            original_verts[1, 1:8],
-            original_verts[2, 1:8],
-            original_verts[3, 1:8],
-            markersize = 9,
-            color = :red
-        )
-        for f in FACES_EVEN
-            i1,i2,i3,i4 = f
-
-            xs = original_verts[1,[i1,i2,i3,i4,i1]]
-            ys = original_verts[2,[i1,i2,i3,i4,i1]]
-            zs = original_verts[3,[i1,i2,i3,i4,i1]]
-
-            lines!(ax, xs, ys, zs, color = :red, linewidth = 2)
-        end
-    end
-
-    
-    nfaces = 6
-    nfp = ns^2
-    offset = 0
-    alpha_list = [0.7, 0.4, 0.7, 0.1, 0.2, 0.7]
-    face_colors = [:lightblue, :blue, :yellow, :orange, :green, :darkgreen]  # one color per face
-
-    for f in 1:nfaces
-        face_pts = @view sample_pts[:, offset+1 : offset+nfp]
-
-        X = reshape(face_pts[1,:], ns, ns)
-        Y = reshape(face_pts[2,:], ns, ns)
-        Z = reshape(face_pts[3,:], ns, ns)
-
-        # Plot surface of the face
-        # surface!(ax, X, Y, Z, color=face_colors[f], alpha=alpha_list[f])
-        # surface!(ax, X, Y, Z, color = :lightblue, alpha=0.4,transparency=true)
-        surface!(ax, X, Y, Z, alpha=0.4,transparency=true,colormap = :magma)
-
-        # Scatter the points of this face
-        # scatter!(ax, face_pts[1,:], face_pts[2,:], face_pts[3,:], 
-        #          color=face_colors[f], markersize=6)#, label="Face $f points")
-        scatter!(ax, face_pts[1,:], face_pts[2,:], face_pts[3,:], 
-                 color = :black, markersize=6)
-        offset += nfp
-    end
-
-    # axislegend(ax, position = :rb)
-
-    display(fig)
-end
-
-"""
-Map the sample points on the pre-image based on barycentric coordinates
-    - sample_pts is a 3xN array of points sampled along the cell faces
-    - tri_verts is a 3x14 array of the 8 cell vertices followed by the 6 face midpoints used for triangulation
-    - tri_ids is a length N vector that contains the triangle ID for each sample point
-    - lambdas is a 3xN array that contains the barycentric coordinates for each sample point
-    - tetsign is used to determine the correct triangulation of the faces based on cell orientation
-"""
-function map_sample_points_to_preimage!(sample_pts, tri_verts, tri_ids, lambdas, tetsign, ns)
-    # Map each point using barycentric coordinates
-    nfp = ns^2
-    
-    # loop over triangle id's
-    for pt_id in eachindex(tri_ids)
-    
-        # grab point and face information based on tetsign
-        tri = tri_ids[pt_id]
-        face_id = div(pt_id-1, nfp) + 1
-
-        if tetsign > 0
-            face = FACES_EVEN[face_id]
-        else
-            face = FACES_ODD[face_id]
-        end
-        
-        v1 = @view tri_verts[:,face[tri]]
-        v2 = @view tri_verts[:,face[mod(tri,4)+1]]
-        v3 = @view tri_verts[:,9+(face_id-1)]
-
-        λ = lambdas[:, pt_id]
-        sample_pts[:, pt_id] = λ[1]*v1 + λ[2]*v2 + λ[3]*v3
-    end
-
-end
-
-
-function sample_cell_faces!(pts,verts,tetsign,ns)
-
-    faces = tetsign > 0 ? FACES_EVEN : FACES_ODD
-
-    # ξvals = range(0, 1, length=ns)
-    ξvals = ((1:ns) .- 0.5) ./ ns
-    ηvals = ξvals
-
-    idx = 1
-    for f in 1:6
-        face = faces[f]
-
-        v1 = @view verts[:,face[1]]
-        v2 = @view verts[:,face[2]]
-        v3 = @view verts[:,face[3]]
-        v4 = @view verts[:,face[4]]
-
-        for η in ηvals, ξ in ξvals
-            @inbounds pts[:,idx] .=
-                (1-ξ)*(1-η)*v1 +
-                 ξ   *(1-η)*v2 +
-                 ξ   * η   *v3 +
-                (1-ξ)* η   *v4
-            idx += 1
-        end
-    end
-end
-
-
-"""
-Compute barycentric coordinates of sample points with respect to triangulated cell faces
-    - tri_verts is a 3x14 array of the 8 cell vertices followed by the 6 face midpoints
-    - sample_pts is a 3xN array of points sampled along the cell faces
-    - tri_ids is a length N vector that will store the triangle ID for each sample point
-    - lambdas is a 3xN array that will store the barycentric coordinates for each sample point
-
-    algorithm:
-    - determine the face the sample point lives on based on the number of samples points
-    -using the FACES_EVEN and FACES_ODD arrays, determine the vertices and center point to loop over
-    -loop over the 4 triangles that make up the face and compute barycentric coordinates 
-    for each triangle to find the correct triangle and barycentric coordinates for the sample point
-"""
-function compute_barycentric!(tri_verts, sample_pts, tri_ids, lambdas,tetsign,ns; tol=1e-12)
-
-    nfp = ns^2
-
-    # loop over sample points
-    for pt_id in axes(sample_pts, 2)
-        # grab point and face information based on tetsign
-        p = sample_pts[:, pt_id]
-        found = false
-        face_id = div(pt_id-1, nfp) + 1
-
-        if tetsign > 0
-            face = FACES_EVEN[face_id]
-        else
-            face = FACES_ODD[face_id]
-        end
-
-        for tri_id in 1:4
-            v1 = @view tri_verts[:,face[tri_id]]
-            v2 = @view tri_verts[:,face[mod(tri_id,4)+1]]
-            v3 = @view tri_verts[:,9+(face_id-1)]
-            # if p == [0.0 , 0.25, 0.25]
-            #     println("Checking point ", p, " against triangle with vertices ", v1, ", ", v2, ", ", v3)
-            #     println(8+(face_id-1))
-            # end
-            # println("Checking point ", p, " against triangle with vertices ", v1, ", ", v2, ", ", v3)
-            # Vectors
-            v0 = v2 - v1
-            v1v = v3 - v1  
-            v2v = p - v1
-
-            # Dot products
-            d00 = dot(v0, v0)
-            d01 = dot(v0, v1v)
-            d11 = dot(v1v, v1v)
-            d20 = dot(v2v, v0)
-            d21 = dot(v2v, v1v)
-
-            denom = d00*d11 - d01*d01
-            λ2 = (d11*d20 - d01*d21)/denom
-            λ3 = (d00*d21 - d01*d20)/denom
-            λ1 = 1 - λ2 - λ3
-
-            # Allow small tolerance for points on edges/corners
-            if λ1 >= -tol && λ2 >= -tol && λ3 >= -tol
-                # Clamp slightly negative values to zero for stability
-                λ1 = max(0.0, λ1)
-                λ2 = max(0.0, λ2)
-                λ3 = max(0.0, λ3)
-
-                tri_ids[pt_id] = tri_id
-                lambdas[:, pt_id] .= (λ1, λ2, λ3)
-                found = true
-                break
-            end
-
-        end
-
-        if !found
-            error("Point $pt_id is not inside any triangle!")
-        end
-    end
-end
-
-
-"""
-Determine triangulated vertices from the tets 
-    - tets is a 4xN array of the vertex indices for each tetrahedron in the cell (independent of cell orientation)
-    - tri_verts is a 3x14 array of the 8 cell vertices followed by the 6 face midpoints
-"""
-function triangulate_face_wtets!(tetsign,verts,tets)
-    if tetsign > 0
-        
-        verts[:,9] = tets[:,4,6] # face 1: verts 5,7,3,1
-        verts[:,10] = tets[:,4,8] # face 2: verts 8,6,2,4
-        verts[:,11] = tets[:,4,10] # face 3: verts 2,6,5,1
-        verts[:,12] = tets[:,4,12] # face 4: verts 8,4,3,7
-        verts[:,13] = tets[:,4,14] # face 5: verts 2,1,3,4
-        verts[:,14] = tets[:,4,16] # face 6: verts 6,8,7,5
-    else
-        verts[:,9] = tets[:,4,6] # face 1: verts 8,6,2,4
-        verts[:,10] = tets[:,4,8] # face 2: verts 5,7,3,1
-        verts[:,11] = tets[:,4,10] # face 3: verts 2,6,5,1
-        verts[:,12] = tets[:,4,12] # face 4: verts 7,8,4,3
-        verts[:,13] = tets[:,4,14] # face 5: verts 2,1,3,4
-        verts[:,14] = tets[:,4,16] # face 6: verts 6,5,7,8
-    end
-    return nothing
-end
-
-
-"""
-Determine verts for a cell in ordering that triangulates faces consistently
-    - verts is a 3xn array and that is filled by this function
-    - assumes square cells and that the first 8 verts are ordered as in cell2verts!
-    -uses midpoint between two diagonal cells
-"""
-function triangulate_face!(sign,verts)
-    if sign > 0
-        # even cell
-        # face 1: verts 5,7,3,1
-        verts[:,9] = 0.5*(verts[:,1] + verts[:,7]) # diagonal midpoint
-        # face 2: verts 8,6,2,4
-        verts[:,10] = 0.5*(verts[:,6] + verts[:,4]) # diagonal midpoint
-        # face 3: verts 2,6,5,1
-        verts[:,11] = 0.5*(verts[:,1] + verts[:,6]) # diagonal midpoint
-        # face 4: verts 8,4,3,7
-        verts[:,12] = 0.5*(verts[:,7] + verts[:,4]) # diagonal midpoint
-        # face 5: verts 2,1,3,4
-        verts[:,13] = 0.5*(verts[:,1] + verts[:,4]) # diagonal midpoint
-        # face 6: verts 6,8,7,5
-        verts[:,14] = 0.5*(verts[:,6] + verts[:,7]) # diagonal midpoint
-    else
-        # odd cell
-        # face 1: verts 8,6,2,4
-        verts[:,9] = 0.5*(verts[:,6] + verts[:,4]) # diagonal midpoint
-        # face 2: verts 5,7,3,1
-        verts[:,10] = 0.5*(verts[:,1] + verts[:,7]) # diagonal midpoint
-        # face 3: verts 2,6,5,1
-        verts[:,11] = 0.5*(verts[:,1] + verts[:,6]) # diagonal midpoint
-        # face 4: verts 7,8,3,4
-        verts[:,12] = 0.5*(verts[:,7] + verts[:,4]) # diagonal midpoint
-        # face 5: verts 2,1,3,4
-        verts[:,13] = 0.5*(verts[:,1] + verts[:,4]) # diagonal midpoint
-        # face 6: verts 6,5,7,8
-        verts[:,14] = 0.5*(verts[:,6] + verts[:,7]) # diagonal midpoint
-    end
-    return nothing
-end  
-
-"""
-Richardson extrapolation wrapper for project!
-
-Arguments:
-- pt         : point to be updated (mutated in-place)
-- i,j,k      : mesh indices
-- uf,vf,wf   : velocity fields
-- dt         : coarse time step
-- param,mesh: passed through untouched
-- p          : order of the base method (Euler=1, Midpoint=2, RK4=4)
-"""
-function richardson_extrapolation_n!(pt, i, j, k, uf, vf, wf, dt, nsteps, param, mesh; tol = 1e-14)
-    @unpack projection_method = param
-    # Base solutions at different step refinements
-    I = [copy(pt) for _ in 1:nsteps]
-
-
-    # Step 1: compute the time-integrated solutions
-    for n in 1:nsteps
-        dt_step = dt / 2^(n-1)
-       
-        # Apply the base integrator 2^(n-1) times
-        for _ in 1:2^(n-1)
-            NS.project!(I[n], i, j, k, uf, vf, wf, dt_step, param, mesh)
-        end
-    end
-
-    # Determine the base order of the method
-    p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" || projection_method == "Heun" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
-    
-    # Build Richardson table
-    R = [copy(I[n]) for n in 1:nsteps]  # first column = base solutions
-
-    # Extrapolate: Romberg-style triangular table
-    for m in 1:nsteps-1
-        for l in nsteps:-1:m+1
-            # multiplier for error reduction: 2^p for first level, 2^(2p) for second, etc.
-            R[l] .= (2^(p+(m-1)) * R[l] .- R[l-1]) / (2^(p+(m-1)) - 1)
-        end
-
-        # Check convergence: compare last two refined levels
-        
-        diff = maximum(abs.(R[end] .- R[end-1]))
-        if diff < tol
-
-            pt .= R[end]
-            return true  # early exit, converged
-        end
-    end
-
-    # Return the most refined extrapolation
-    pt .= R[end]
-
-    return nothing
-end
-
-function richardson_extrapolation_n!(I,pt, i, j, k, uf, vf, wf, dt, nsteps, param, mesh; tol = 1e-14)
-    @unpack projection_method = param
-
-    for idx in eachindex(I)
-        I[idx] .= 0.0
-    end
-    for n in 1:nsteps
-        I[n,1] .= pt
-    end
- 
-    # Determine the base order of the method
-    p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" || projection_method == "Heun" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
-    # Step 1: compute the time-integrated solutions
-    for n in 1:nsteps
-        dt_step = dt / 2^(n-1)
-       
-        # Apply the base integrator 2^(n-1) times
-        for _ in 1:2^(n-1)
-            NS.project!(I[n,1], i, j, k, uf, vf, wf, dt_step, param, mesh)
-        end
-
-        # move to next step if n == 1, since we need at least two levels to extrapolate
-        if n == 1
-            continue
-        else
-            for m in 1:n-1
-                for l in m+1:n
-                    I[n,l] .= (2^(p+(m-1)) * I[n,l-1] .- I[n-1,l-1]) / (2^(p+(m-1)) - 1)
-
-                    if n > 2 && l == n
-                        # Check convergence: compare last two refined levels
-                        diff = maximum(abs.(I[n,l] .- I[n,l-1]))
-                        if diff < tol
-                            pt .= I[n,l]
-                            return true  # early exit, converged
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    # Return the most refined extrapolation
-    println("Warning: Richardson extrapolation did not converge within the specified tolerance. Returning the most refined estimate.")
-    pt .= I[end,end]
-
-    return nothing
-end
-
-
-function pre_image_err(dts,scheme,interpolation_method)
+function pre_image_err(dts,scheme,projection_method)
     # Define parameters 
     param = parameters(
         # Constants
@@ -561,7 +61,7 @@ function pre_image_err(dts,scheme,interpolation_method)
         # projection_method = "Euler",
         # projection_method = "RK4",
         # projection_method = "Midpoint",
-        projection_method = interpolation_method,
+        projection_method = projection_method,
 
         # Iteration method used in @loop macro
         iter_type = "standard",
@@ -691,12 +191,14 @@ function pre_image_err(dts,scheme,interpolation_method)
     # errs = zeros(length(test_dts))
     #! store copies of face velocity field 
     error_dt = zeros(length(dts))
+    cfl_dt = zeros(length(dts))
 
     for (idx, dt) in enumerate(dts)
         # Set velocity for iteration using deformation field
         NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
-        maxvel = max(maximum(u),maximum(v),maximum(w))
-        println("starting error calc for CFL = $(dt*maxvel/dx)")
+        maxvel = max(maximum(abs.(u)),maximum(abs.(v)),maximum(abs.(w)))
+        cfl = (dt*maxvel/dx)
+        println("starting error calc for CFL = $cfl")
         uf_old = copy(uf)
         vf_old = copy(vf)
         wf_old = copy(wf)
@@ -722,32 +224,13 @@ function pre_image_err(dts,scheme,interpolation_method)
             # Sample face of cell with some number of points
             sample_cell_faces!(sample_pts, verts, tetsign, ns)
             
-            # Visualize sampled points on faces before projection
-            # if k == 1 && j == 2 && i == 2
-            #     # plot_sampled_cell(sample_pts, verts, ns;title_str = "cell sampled with $nfp points per face")
-            #     plot_sampled_cell(sample_pts, verts, ns;original_verts = original_verts,title_str = "cell sampled with $nfp points per face")
-            #     error("stop")
-            # end
-
             # Compute barycentric coordinates 
             compute_barycentric!(tri_verts, sample_pts, tri_ids, lambdas, tetsign, ns)
-            
-            # Check that barycentric coordinates map back to the correct point on the face
-            # if k == 11 && j == 11 && i == 11
-            #     plot_points_on_faces(tri_verts, tri_ids, lambdas, tetsign, ns)
-            #     error("stop")
-            # end
 
             # Project sampled points to get analytic pre-image
             for pt_id in axes(sample_pts, 2)
-                # richardson_extrapolation_n!(@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
                 richardson_extrapolation_n!(I,@view(sample_pts[:,pt_id]), i, j, k, uf_old, vf_old, wf_old, dt, nsteps, param, mesh; tol = 1e-14)
             end
-      
-            # if k == 11 && j ==11 && i == 11
-            #     plot_sampled_cell(sample_pts, verts, ns;original_verts = original_verts, title_str = "exact projected cell sampled \n with $nfp points per face")
-            #     error("stop")
-            # end
             
             # Compute numerical pre-image (either flux-corrected or pressure-corrected)
             tetsign = NS.cell2tets!(verts,tets,i,j,k,param,mesh; 
@@ -771,74 +254,43 @@ function pre_image_err(dts,scheme,interpolation_method)
             # Map sample points to pre-image using barycentric coordinates and triangulation with tets
             map_sample_points_to_preimage!(preimage_sample_pts, pre_tri_verts, tri_ids, lambdas, tetsign, ns)
 
-            # Check that barycentric coordinates map back to the correct point on the face
-            # if k == 11 && j == 11 && i == 11
-            #     for i in 1:8
-            #         NS.project!(@view(original_verts[:,i]), i, j, k, uf, vf, wf, dt, param, mesh)
-            #     end
-            #     plot_sampled_cell(preimage_sample_pts, pre_tri_verts, ns;original_verts = original_verts, title_str = "pressure-corrected pre-image of sampled  \n points with $nfp points per face")
-            #     error("stop")
-            # end
-
             # Compute error in sample points for i,j,k cell for leading edges(ignoring *max cells)
             d = preimage_sample_pts .- sample_pts
             errors[i,j,k] = sum(d[:,nfp+1:nfp*2].^2) + sum(d[:,nfp*3+1:nfp*4].^2) + sum(d[:,nfp*5+1:nfp*6].^2)
             
             # L-infinity norm if wanted
             # errors[i,j,k] = maximum(sqrt.(sum((preimage_sample_pts .- sample_pts).^2)))
-            
         end
         # Compute L2 norm (pre-image error)
         error_dt[idx] = sqrt(sum(errors)/(ntotal*(Nx-1)*(Ny-1)*(Nz)))
+        cfl_dt[idx] = cfl
     end
-    return error_dt
+    return error_dt, cfl_dt
 end
 
-scheme = "finite-difference"
-# scheme = "semi-lagrangian"
-interpolation_method = "Heun"
-# interpolation_method = "RK4"
-# interpolation_method = "Euler"
+function sweep_preimage(; dts = [0.04, 0.03, 0.025, 0.02, 0.01, 0.0066, 0.005, 0.0025],
+                          preimage_vars = [(tag = "SL", scheme = "semi-lagrangian"),(tag = "FD", scheme = "finite-difference"),],
+                          projections = ["Euler", "Heun", "RK4"],
+                          outfile = joinpath(DATA, "preimage_errors.csv"))
 
-dts = 2 .* [0.02, 0.015,0.0125,0.01,0.005,0.0033,0.0025,0.00125]
-errors = pre_image_err(dts,scheme,interpolation_method)
+    rows = DataFrame(variant = String[], projection = String[],
+                     dt = Float64[], cfl = Float64[], error = Float64[])
 
-open("$(scheme)_$(interpolation_method)_2D_errors_test2.csv","w") do io 
-    println(io,"dts,errors") # header
-    for (dt,err) in zip(dts,errors)
-        println(io,"$dt,$err")
+    for v in preimage_vars, m in projections
+        @info "pre-image: $(v.tag) / $m"
+        errs, cfls = pre_image_err(dts, v.scheme, m)
+        append!(rows, DataFrame(variant     = v.tag,
+                                projection  = m,
+                                dt          = dts,
+                                cfl         = cfls,
+                                error       = errs))
     end
+
+    mkpath(DATA)
+    CSV.write(outfile, rows)
+    return rows
 end
 
-# Individual plotting of error if wanted
-# println("Errors for each dt: ", errors)
-# f = Figure(size = (700, 500))
-# ax = Axis(
-#     f[1,1],
-#     xscale = log10,
-#     yscale = log10,
-#     xlabel = "Δt",
-#     ylabel = "L2 error",
-#     title  = "Flux-corrected pre-image 3D deformation flow"
-# )
-
-# # line
-# lines!(ax, dts, errors, label = "Observed error")
-
-# # markers
-# scatter!(ax, dts, errors, markersize = 10)
-
-# # reference slopes (anchored at first point)
-# err0 = errors[1]
-# dt0  = dts[1]
-
-# ref2 = err0 .* (dts ./ dt0).^2
-# ref3 = err0 .* (dts ./ dt0).^3
-# ref4 = err0 .* (dts ./ dt0).^4
-
-# lines!(ax, dts, ref2, linestyle = :dot,  label = "O(Δt²)")
-# lines!(ax, dts, ref3, linestyle = :dashdot, label = "O(Δt³)")
-# lines!(ax, dts, ref4, linestyle = :dash, label = "O(Δt⁴)")
-# axislegend(ax, position = :rb)
-
-# f
+if abspath(PROGRAM_FILE) == @__FILE__
+    sweep_preimage()
+end
