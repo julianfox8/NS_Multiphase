@@ -771,7 +771,7 @@ function defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         u_fun = (x,y,z,t) -> 200*x
         v_fun = (x,y,z,t) -> -100(5-y)
         w_fun = (x,y,z,t) -> -50*(5-z)
-    elseif VFVelocity == "rotation"
+    elseif VFVelocity == "Zalesak"
         u_fun = (x,y,z,t) -> 2π*(0.5 - y)
         v_fun = (x,y,z,t) -> 2π*(x - 0.5)
         w_fun = (x,y,z,t) -> 0.0
