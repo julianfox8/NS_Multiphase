@@ -768,7 +768,7 @@ function par_anderson_accel_con(Fhist,par_env)
         end
     end
     # ϵ = (1e-2)^2* maximum(diag(G))
-    ϵ = 1e-10* maximum(diag(G))
+    ϵ = 1e-12* maximum(diag(G))
     for i in 1:m
         G[i,i] += ϵ
     end

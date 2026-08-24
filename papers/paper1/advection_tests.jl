@@ -27,7 +27,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         Nz=1,
         stepMax=10000,   # Maximum number of timesteps
         max_dt =1e-1,
-        CFL=0.75,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+        CFL=0.5,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
         tol = 1e-8,
@@ -53,9 +53,8 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
 
         pressure_scheme = scheme,
         # pressure_scheme = "semi-lagrangian",
-        pressureSolver = "hypreSecant",
-        # pressureSolver = "res_iteration_AA_con",
-        
+        # pressureSolver = "hypreSecant",
+        pressureSolver = "res_iteration_AA_con",
 
         # projection_method = "Euler",
         # projection_method = "Midpoint",
