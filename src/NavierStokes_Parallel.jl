@@ -19,6 +19,7 @@ using HYPRE.LibHYPRE
 using EzXML
 using JSON
 using GeometricMultigrid
+using CairoMakie
 
 include("Parameters.jl")
 include("Mesh.jl")
