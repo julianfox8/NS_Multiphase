@@ -708,11 +708,20 @@ end
 
 
 function jacob_single(jacob,LHS1,LHS2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mesh
     fill!(LHS1,0.0)
     fill!(LHS2,0.0)
-    delta = 5
+    
+    λ = 0.05                      # target probe displacement, in cells
+    h² = min(dx,dy,dz)^2
+    scale = λ*h²/dt^2             # loop-invariant part
+
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        ρ_min = min(denx[i,j,k], denx[i+1,j,k],
+                    deny[i,j,k], deny[i,j+1,k],
+                    denz[i,j,k], denz[i,j,k+1])
+        delta = scale*ρ_min
+
         add_perturb!(P,delta,i,j,k,mesh,par_env)
         A!(i,j,k,LHS1,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env)
         remove_perturb!(P,delta,i,j,k,mesh,par_env)
