@@ -8,14 +8,16 @@ using CairoMakie
 using Statistics
 using LaTeXStrings
 
+using CSV
+using DataFrames
+
 NS = NavierStokes_Parallel
 
-
+include(joinpath(@__DIR__, "common.jl"))
 
 # Define parameters 
-function test_psolve(Nx,Ny,scheme,solver,lvl,plt=false)
+function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
     println("Starting MMS test for pressure with Nx = $Nx and Ny = $Ny ")
-    ##! still need to determine the best way to upate Nx,Ny,Nz
 
     param = parameters(
         # Constants
@@ -81,8 +83,6 @@ function test_psolve(Nx,Ny,scheme,solver,lvl,plt=false)
         # this for loop is used for MMS applied strictly to RHS
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_,i = imino_:imaxo_
             exact[i,j,1] = cos(2π*ym[j])*cos(2π*xm[i])
-            # u[i,j,k] = -2π*sin(2π*xm[i])*cos(2π*ym[j])*dt*(2/(denx[i,j,k]+denx[i+1,j,k]))
-            # v[i,j,k] = -2π*sin(2π*ym[j])*cos(2π*xm[i])*dt*(2/(deny[i,j,k]+deny[i,j+1,k]))
             uf[i,j,k] = -2π*sin(2π*x[i])*cos(2π*ym[j])*dt/(denx[i,j,k])
             vf[i,j,k] = -2π*sin(2π*y[j])*cos(2π*xm[i])*dt/(deny[i,j,k])
             wf[i,j,k] = 0.0
@@ -103,8 +103,6 @@ function test_psolve(Nx,Ny,scheme,solver,lvl,plt=false)
         @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,
                     xm,ym,y,Lx,Ly,Lz,dy = mesh
 
-
-        # Volume Fraction
         # Volume Fraction
         rad=0.25
         xo=0.5
@@ -113,14 +111,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl,plt=false)
         for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
             VF[i,j,k]=VFcircle(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
         end
-        # rad=0.25
-        # xo=0.5
-        # yo=0.5
-        # zo=0.5
-        # for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        #     VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
-        #     # VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
-        # end
+
         return nothing
     end
     # Setup par_env
@@ -150,14 +141,11 @@ function test_psolve(Nx,Ny,scheme,solver,lvl,plt=false)
 
     NS.compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
     
-    # compute_MMS!(uf,vf,wf,RHS,VF,dt,exact_sol,mesh,par_env)
     compute_MMS!(u,v,w,uf,vf,wf,RHS,VF,dt,exact_sol,denx,deny,denz,mesh,par_env)
-    # println("u-face vel along boundary: ", uf[imin_,:,1])
-    # println("u-face vel along boundary: ", uf[imin_-1,:,1])
-    # println("v-face vel along boundary: ", vf[:,jmin_,1])
+
     # Compute band around interface
-    NS.computeBand!(band,VF,param,mesh,par_env)
-    # fill!(band,0.0)
+    # NS.computeBand!(band,VF,param,mesh,par_env)
+    fill!(band,0.0)
 
     # Loop over time
     nstep = 0
@@ -204,7 +192,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl,plt=false)
     x_plot = x[imin_:imax_]
     y_plot = y[jmin_:jmax_]
 
-    # Need to set arg plt = true to visualize single run MMS 
+    # Pass plt = true to visualize a single MMS run
     if plt 
         denx_cell = similar(P_slice)
         deny_cell = similar(P_slice)
@@ -318,187 +306,45 @@ function test_psolve(Nx,Ny,scheme,solver,lvl,plt=false)
     return L2_error,Linf_error
 end
 
-# mesh_size = 48
-# scheme = "finite-difference"
-# # solver = "geometric_mg"
-# # solver = "FC_hypre"
-# solver = "gauss-seidel"
-# # scheme = "semi-lagrangian"
-# # solver = "res_iteration_AA2"
-# lvl = 4
+# ---------------------------------------------------------------------------
+# Sweep: mesh refinement x discretisation variant -> data/mms_errors.csv
+#
+# Tags match the other paper CSVs ("SL", "FD"), so make_plots.jl can reuse the
+# same legend labels. Plotting lives in make_plots.jl, not here.
+# ---------------------------------------------------------------------------
 
-# @time L2_err, Linf_err = test_psolve(mesh_size,mesh_size,scheme,solver,lvl)    
+const MMS_VARIANTS = [
+    (tag = "FD", scheme = "finite-difference", solver = "FC_hypre",             lvl = 1),
+    (tag = "SL", scheme = "semi-lagrangian",   solver = "res_iteration_AA_con", lvl = 1),
+]
 
-# times = time() - t_start
-# println("time taken: $times seconds")
-mesh_sizes =[16,32,64,128]
-lvl = [1,1]#,3]
-schemes = ["finite-difference","semi-lagrangian"]#,"semi-lagrangian"]
-solvers = ["FC_hypre","res_iteration_AA_con"]#,"res_iteration"]
-# tags = ["SL-FV","SL-SL"]
-# schemes = ["semi-lagrangian"]#,"semi-lagrangian"]
-# solvers = ["res_iteration"]#,"res_iteration"]
-tags = ["SL-FV","SL-SL"]
+"""
+    sweep_mms(; Ns, variants, outfile)
 
-# lvl = [1,1,1,3,1]
-# schemes = ["finite-difference","finite-difference","semi-lagrangian","semi-lagrangian","semi-lagrangian"]
-# solvers = ["gauss-seidel","congugateGradient","res_iteration","res_iteration","hypreSecant"]
-# tags = ["FD","SL"]
-# solver_tag = ["gauss-seidel","CG","NL Jacobi","FAS","Secant"]
+Run the variable-density pressure MMS over the mesh x variant matrix and write
+`variant, N, L2, Linf, time` to `outfile`, replacing it. Point a narrowed sweep
+at a scratch `outfile` — it would otherwise truncate the full-matrix CSV.
+"""
+function sweep_mms(; Ns       = [16, 32, 64, 128],
+                     variants = MMS_VARIANTS,
+                     outfile  = joinpath(DATA, "mms_errors.csv"))
 
-markers = [:diamond,:circle,:diamond,:dtriangle,:pentagon]
-linestyle = [:dot,:dot,:dot,:dashdot,:dashdotdot]
-L2_err   = zeros(length(schemes), length(mesh_sizes))
-Linf_err = zeros(length(schemes), length(mesh_sizes))
-times = zeros(length(schemes), length(mesh_sizes))
-for j in eachindex(schemes)
-    for i in eachindex(mesh_sizes)
-        t_start = time()
-        L2_err[j,i], Linf_err[j,i] = test_psolve(mesh_sizes[i],mesh_sizes[i],schemes[j],solvers[j],lvl[j])    
-        times[j,i] = time() - t_start
+    rows = DataFrame(variant = String[], N = Int[],
+                     L2 = Float64[], Linf = Float64[], time = Float64[])
+
+    for v in variants, n in Ns
+        @info "MMS: $(v.tag) N=$n"
+        t0 = time()
+        L2, Linf = test_psolve(n, n, v.scheme, v.solver, v.lvl)
+        push!(rows, (v.tag, n, L2, Linf, time() - t0))
     end
-end
-conv_plot = true
-timing_plot = false
 
-if conv_plot
-    # ---------------------------------------------
-    # Convergence Analysis and Plotting (log-log)
-    # ---------------------------------------------
-    println("\nMesh sizes = ", mesh_sizes)
-    println("L2 errors  = ", L2_err)
-    println("L∞ errors  = ", Linf_err)
-
-    # Vertical offsets for separating overlapping curves
-    offsets = [0.15, 0.145]   # apply only to the first scheme
-
-    # ------------------------
-    # L2 convergence plot
-    # ------------------------
-    Ns = round.(Int, 1 .// mesh_sizes) 
-    f = Figure(size = (700,500))
-    pL2 = Axis(
-        f[1,1],
-        xlabel = L"Mesh \ Size",
-        ylabel = L"L_2 \ error",
-        xscale = log10,
-        yscale = log10,
-        # title = "MMS pressure solver",
-        xticks = (mesh_sizes),
-        # titlesize = 30,
-        xlabelsize = 28,
-        ylabelsize = 32,
-        xticklabelsize = 22,
-        yticklabelsize = 28
-    )
-
-
-    # colors = ["blue","orange"]
-    for j in eachindex(schemes)
-
-        
-        vals = L2_err[j, :] .* 10^offsets[j]
-
-        # lines!(pL2, mesh_sizes, vals,
-        #     linestyle = linestyle[j],
-        #     label = tags[j],
-        #     # color = colors[j],
-        #     # linewidth = 3
-        # )
-
-        # scatter!(pL2, mesh_sizes, vals,
-        #     marker = markers[j],
-        #     # color = colors[j],
-        #     markersize = 12
-        # )
-        scatterlines!(pL2, mesh_sizes, vals,
-            linestyle = linestyle[j],
-            label = tags[j],
-            marker = markers[j],
-            linewidth = 2,
-            # color = colors[j],
-            markersize = 12
-        )
-
-    end
-    # Reference slopes (plotted as lines)
-    ref1_L2 = (L2_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)).*10^0.3  # 1st-order slope
-    ref2_L2 = L2_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order slope
-
-    lines!(pL2, mesh_sizes, ref1_L2, linestyle=:dash, label="O(Δx)",linewidth=2)
-    lines!(pL2, mesh_sizes, ref2_L2, linestyle=:dash, label="O(Δx²)",linewidth=2)
-
-    axislegend(pL2, position = :rt,labelsize = 20)
-    save( "L2_convergence.png",f)
-    println("Saved L2 plot: L2_convergence.png")
-
-    # ------------------------
-    # L∞ convergence plot
-    # ------------------------
-    # pLinf = plot(
-    #     xlabel = "N",
-    #     ylabel = "L∞ error",
-    #     xscale = :log10,
-    #     yscale = :log10,
-    #     legend = :bottomleft
-    # )
-
-    # # Reference slopes
-    # ref1_Linf = ( Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-1)) .*10^0.3 # 1st-order
-    # ref2_Linf = Linf_err[1,1] .* (mesh_sizes ./ mesh_sizes[1]).^(-2)  # 2nd-order
-
-    # plot!(pLinf, mesh_sizes, ref1_Linf, linestyle=:dash, label="1st order")
-    # plot!(pLinf, mesh_sizes, ref2_Linf, linestyle=:dash, label="2nd order")
-
-    # # Plot scheme results
-    # for j in eachindex(schemes)
-    #     plot!(pLinf, mesh_sizes, Linf_err[j, :] .* 10^offsets[j],
-    #         label = "$(tags[j])",
-    #         linewidth = 3,
-    #         markershape = markers[j]
-    #     )
-    # end
-
-    # savefig(pLinf, "Linf_convergence.png")
-    # println("Saved L∞ plot: Linf_convergence.png")
-
+    mkpath(DATA)
+    CSV.write(outfile, rows)
+    @info "wrote $outfile"
+    return rows
 end
 
-if timing_plot 
-    # ---------------------------------------------
-    # Timing Plot
-    # ---------------------------------------------
-    println("\nTiming results (seconds):")
-    println(times)
-    f = Figure(size = (900,600))
-    pTime = Axis(f[1,1],
-        xlabel = "N",
-        ylabel = "Wall-clock time (s)",
-        xscale = log10,
-        yscale = log10,
-        xticks = (mesh_sizes[2:end]),
-        title = "Timing vs Resolution",
-        titlesize = 30,
-        xlabelsize = 24,
-        ylabelsize = 24,
-        xticklabelsize = 18,
-        yticklabelsize = 18
-    )
-
-    # Optional: offsets to separate curves vertically (log space)
-    time_offsets = [0.0, 0.0, 0.0, 0.0, 0.0]   # adjust if needed, same length as schemes
-
-    for j in eachindex(schemes)
-        scatterlines!(
-            pTime,
-            mesh_sizes[2:end],
-            times[j, 2:end] .* 10 .^ time_offsets[j],
-            label = "$(tags[j])",
-            linewidth = 3
-            # markershape = markers[j]
-        )
-    end
-    axislegend(pTime, position = :lt,labelsize = 24)
-    save( "timing_plot.png",f)
-    println("Saved timing plot: timing_plot.png")
+if abspath(PROGRAM_FILE) == @__FILE__
+    sweep_mms()
 end
