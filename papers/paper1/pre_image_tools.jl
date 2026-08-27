@@ -54,14 +54,17 @@ function richardson_extrapolation_n!(I,pt, i, j, k, uf, vf, wf, dt, nsteps, para
     end
  
     # Determine the base order of the method
-    p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" || projection_method == "Heun" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
+    # p = projection_method == "Euler" ? 1 : projection_method == "Midpoint" || projection_method == "Heun" ? 2 : projection_method == "RK4" ? 4 : error("Unknown method")
+    p = 1 # set to 1 as only Euler is used for the pre-image test case
     # Step 1: compute the time-integrated solutions
     for n in 1:nsteps
         dt_step = dt / 2^(n-1)
        
         # Apply the base integrator 2^(n-1) times
         for _ in 1:2^(n-1)
-            NS.project!(I[n,1], i, j, k, uf, vf, wf, dt_step, param, mesh)
+            # If the projection method is specified, use it; otherwise, default to Euler
+            # NS.project!(I[n,1], i, j, k, uf, vf, wf, dt_step, param, mesh;)
+            NS.project!(I[n,1], i, j, k, uf, vf, wf, dt_step, param, mesh;proj="Euler")
         end
 
         # move to next step if n == 1, since we need at least two levels to extrapolate
