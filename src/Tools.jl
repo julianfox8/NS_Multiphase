@@ -490,15 +490,16 @@ Semi-Lagrangian projection of point back in time
 - assumes face velocities
 - pt is updated by function
 """ 
-function project!(pt,i,j,k,uf,vf,wf,dt,param,mesh;t=nothing)
+function project!(pt,i,j,k,uf,vf,wf,dt,param,mesh;t=nothing,proj=nothing)
     @unpack projection_method,test_case,pressure_scheme,interpolation_method = param
+    
+    # Set projection method for use within richardson extrapolation (else ignore)
+    if proj !== nothing
+        projection_method = proj
+    end
 
-
-    if test_case == "Zalesak"# && pressure_scheme == "semi-lagrangian"
-        pt_init = copy(pt)
-        pt[1] = 0.5 + cos(2*π*dt)*(pt_init[1]-0.5) + sin(2*π*dt)*(pt_init[2]-0.5)
-        pt[2] = 0.5 - sin(2*π*dt)*(pt_init[1]-0.5) + cos(2*π*dt)*(pt_init[2]-0.5)
-    elseif projection_method == "RK4"
+    # Perform point displacement interpolation
+    if projection_method == "RK4"
         v1=get_velocity_face(pt         ,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
         v2=get_velocity_face(pt-0.5dt*v1,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
         v3=get_velocity_face(pt-0.5dt*v2,i,j,k,uf,vf,wf,mesh)#;method = interpolation_method)
