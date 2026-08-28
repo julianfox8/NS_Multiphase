@@ -134,6 +134,7 @@ function convergence_plot(df::DataFrame;
                           refslopes  = [1, 2],
                           refoffsets = nothing,
                           refgroup   = nothing,
+                          xscale = log10,
                           xticks     = nothing,
                           markers    = [:circle, :diamond, :rect, :utriangle, :star5, :cross],
                           linestyle  = :dot,
@@ -149,7 +150,7 @@ function convergence_plot(df::DataFrame;
 
     fig = with_theme(MIST_THEME) do
         f  = Figure()
-        ax = Axis(f[1, 1]; xlabel, ylabel, xscale = log10, yscale = log10)
+        ax = Axis(f[1, 1]; xlabel, ylabel, xscale = xscale, yscale = log10)
         xticks === nothing || (ax.xticks = xticks)
 
         for (i, sub) in enumerate(gdf)

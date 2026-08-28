@@ -98,6 +98,9 @@ function plot_preimage()
         xlabel    = L"CFL",
         ylabel    = L"E_{\text{pre-image}}",
         labels    = labels,
+        xticks     = 0.0:0.2:1.2,
+        xscale = identity,
+        refslopes = [],
         savepath  = joinpath(FIGS, "preimage_error.png"))
 end
 
