@@ -26,3 +26,6 @@ VTK*
 
 # Ignore results from testing
 /results
+
+# Ignore mac metadata
+.DS_Store
