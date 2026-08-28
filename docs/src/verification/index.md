@@ -12,7 +12,7 @@ The three following test suites all use the same data generation and plotting vi
 ### Figure Reproduction
 
 The error CSVs are committed to the repository, so every figure can be rebuilt
-without running the solver (!!! still in-progress):
+without running the solver:
 
 ```bash
 julia --project=. papers/paper1/make_plots.jl
@@ -40,18 +40,46 @@ per scheme variant at every mesh resolution. The MMS and pre-image sweeps are
 comparatively short. Completed runs are detected and skipped, so an interrupted
 advection sweep resumes simply by reissuing the same command.
 
+```@setup verif
+include(joinpath("papers", "paper1", "make_plots.jl"))
+```
+
 ### Interface advection test cases
 This suite of tests evaluates the ability of the solver to advect the volume fraction throughout the domain.
+
+The convergence plot for the deformation test case:
+```@example verif
+plot_advection("deformation")
+```
+
+The convergence plot for the Zalesak test case:
+```@example verif
+plot_advection("zalesak")
+```
+
 
 - [Zalesak disk test](zalesak.md)
 - [2D deformation test](2d_deformation.md)
 
+
 ### Method of manufactured solutions for the pressure sovler
 The method of manufactured solutions is used to evaluate the order of accuracy of the pressure solver under both the finite-difference or semi-lagrangian discretizations.
+
+The error plot for the MMS: 
+```@example verif
+plot_mms()
+```
+
 
 - [Pressure MMS](mms.md)
 
 ### Pre-image error test case
 To test the differences between the pre-images constructed with the SL-SL and the SL-FV scheme, an exact pre-image is constructed and a error metric between numerical pre-image and the exact pre-image is used to quantify the difference in accuracy between the two schemes. 
+
+The error plot for the pre-image test case:
+The convergence plot for the deformation test case:
+```@example verif
+plot_preimage()
+```
 
 - [Pre-image error test](preimage.md)
