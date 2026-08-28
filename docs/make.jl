@@ -8,9 +8,15 @@ makedocs(; sitename = "Mist.jl",
         "Home" => "index.md",
         "Examples" => [
         "Overview" => "examples/index.md",
-        "2D Deformation" => "examples/2d_deformation.md"],
-        "Numerics" => "numerics/numerics.md"
-        
+        ],
+        "Numerics" => "numerics/numerics.md",
+        "Verification" => [
+            "Overview" => "verification/index.md",
+            "Advection" => "verification/advection.md",
+            "Zalesak Disk" => "verification/zalesak.md",
+            "2D Deformation" => "verification/2d_deformation.md",
+            "Pressure MMS" => "verification/mms.md",
+            "Pre-image error" => "verification/preimage.md",]
     ],
 
 ) 
