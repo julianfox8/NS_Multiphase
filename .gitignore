@@ -2,7 +2,7 @@
 /Manifest.toml
 /LocalPreferences.toml
 
-# ingore local test directory
+# ignore local test directory
 /local_tests
 
 # Outputs
