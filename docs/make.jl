@@ -1,6 +1,7 @@
 using Documenter, NavierStokes_Parallel 
 
 makedocs(; sitename = "Mist.jl",
+    workdir = joinpath(@__DIR__, ".."),
     #modules = [NavierStokes_Parallel],
     #doctest = true,
     authors = "Julian Fox and Mark Owkes",
