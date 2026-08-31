@@ -49,7 +49,7 @@ param = parameters(
     # restart_itr = 190,
 
     solveNS = false,
-    VFVelocity = "rotation",
+    VFVelocity = "Zalesak",
 
     # pressure_scheme = "semi-lagrangian",
     # pressureSolver = "hypreSecant",

@@ -140,6 +140,7 @@ function A!(i,j,k,LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets
     end
 
     LHS[i,j,k] = divg_cell(i,j,k,gradx,grady,gradz,band,dt,p,tets_arr,param,mesh)
+
     return nothing
 end
 
@@ -852,9 +853,9 @@ function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,den
             AP_loc = AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
             J_loc  = jacob[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
 
-            J_safe = max.(abs.(J_loc), 1e-12)
-            Gn_loc = P_loc .- ω * AP_loc ./ J_safe
-            # Gn_loc = P_loc .- ω * AP_loc ./ J_loc
+            # J_safe = max.(abs.(J_loc), 1e-12)
+            # Gn_loc = P_loc .- ω * AP_loc ./ J_safe
+            Gn_loc = P_loc .- ω * AP_loc ./ J_loc
             Fn_loc = Gn_loc .- P_loc
         end
         # Gn = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
@@ -886,9 +887,9 @@ function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,den
         
         # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g  \n",p_iter,res_norm,sum_norm)
         # println("residual at iter $p_iter = $(maximum(abs.(AP)))")
-        # if p_iter % 1000 == 0 && isroot 
-        #     println("residual at iter $p_iter = $(res_norm)")
-        # end
+        if p_iter % 1000 == 0 && isroot 
+            println("residual at iter $p_iter = $(res_norm)")
+        end
         if iter !== nothing && p_iter > (max_iter-1)
             println("residual at iter $iter = $(maximum(abs.(AP)))")
         end
@@ -1411,8 +1412,8 @@ function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
                 P[i,j,k] = (1 - ω) * P[i,j,k] + ω * P_new_val
             end
         end
-        MPI.Barrier(comm)
-        update_borders!(P,mesh,par_env)
+        # MPI.Barrier(comm)
+        # update_borders!(P,mesh,par_env)
     end
 end
 
@@ -1445,7 +1446,7 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
         # # account for drift
         @views P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         Neumann!(P,mesh,par_env)
-        update_borders!(P,mesh,par_env)
+        # update_borders!(P,mesh,par_env)
         
         res_comp!(residual,RHS,P,denx,deny,denz,dt,param,mesh,par_env;τ=τ)  
 

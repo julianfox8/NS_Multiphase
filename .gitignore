@@ -8,6 +8,7 @@
 # Outputs
 *.png
 !papers/*/figures/*.png
+*.log
 
 # VTK
 VTK*
@@ -27,5 +28,11 @@ VTK*
 # Ignore results from testing
 /results
 
-# Ignore mac metadata
-.DS_Store
+# Ignore local results that live in papers/paper1/
+/papers/paper1/results_local/
+
+# Ignore DS store
+.DS_Store/
+
+
+
