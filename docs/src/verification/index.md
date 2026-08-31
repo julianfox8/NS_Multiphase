@@ -1,18 +1,16 @@
 # Verification
 
-This section contains the reproducible verification and validation performed using Mist.jl. 
+This section contains reproducible verification and validation performed using Mist.jl. 
 
 ## Manuscript 1 verification
-
-The following documentation can be used to reproduce the results from <insert publication>. The scripts outlined below can be ran and will produce the plots present within that publication. An in-depth description of the test scripts used for each result are linked to their corresponding documentation.
+The scripts outlined below can be ran and will produce the plots present within the publication<insert publication>. An in-depth description of the test scripts used for each result are linked to their corresponding documentation.
 
 #### Data Pipeline
-The three following test suites all use the same data generation and plotting visualization pipelines. The first script that is ran for each test is the runner script (E.g. [advection runner](https://github.com/julianfox8/NS_Multiphase/blob/main/papers/paper1/advection_tests.jl)). In general, the script will produce a CSV file that is then used within the make_plots.jl with the corresponding argument to produce its repsective figure. 
+The three following test suites all use the same data generation and plotting visualization pipelines. The first script that is ran for each test is the runner script (E.g. [advection runner](https://github.com/julianfox8/NS_Multiphase/blob/main/papers/paper1/advection_tests.jl)). In general, the script will produce a CSV file that is then used to produce the corresponding plot using make_plots.jl. 
 
 ### Figure Reproduction
 
-The error CSVs are committed to the repository, so every figure can be rebuilt
-without running the solver:
+The CSVs containing the various error metrics are committed to the repository, so every figure can be rebuilt without running the solver:
 
 ```bash
 julia --project=. papers/paper1/make_plots.jl
@@ -45,7 +43,7 @@ include(joinpath("papers", "paper1", "make_plots.jl"))
 ```
 
 ### Interface advection test cases
-This suite of tests evaluates the ability of the solver to advect the volume fraction throughout the domain.
+This evaluates the ability of the solver to advect the volume fraction throughout the domain.
 
 The convergence plot for the deformation test case:
 ```@example verif
