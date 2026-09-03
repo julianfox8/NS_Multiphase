@@ -233,7 +233,7 @@ function interface_update(band,P,coarse_sol,mesh,par_env)
     end
 end
 
-function mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env)
+function mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env)
     @unpack pressureSolver,pressure_scheme,mg_lvl = param
     @unpack comm,irank = par_env
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[1]
@@ -254,9 +254,9 @@ function mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays
         if pressure_scheme == "finite-difference"
             # converged = mg_vc_lin!(1,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter)
             # converged = mg_fas_lin!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter)
-            converged = mg_fas_lin2!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter)
+            converged = mg_fas_lin2!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,face_BC!,param,par_env,pvtk_iter;iter)
         elseif pressure_scheme == "semi-lagrangian"
-            converged = mg_fas!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter)
+            converged = mg_fas!(1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,face_BC!,param,par_env,pvtk_iter;iter)
         end
         
         if converged[]
@@ -273,7 +273,7 @@ end
 
 
 # #! define recursive function for V cycle FAS method
-function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter = nothing,converged::Union{Nothing, Ref{Bool}}=nothing)
+function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,face_BC!,param,par_env,pvtk_iter;iter = nothing,converged::Union{Nothing, Ref{Bool}}=nothing)
     @unpack mg_lvl = param
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl]
 
@@ -287,8 +287,8 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     end
 
     # number of pre and post smooths
-    v1 = 10
-    v2 = 10
+    v1 = 3
+    v2 = 3
 
     if lvl == mg_lvl
         # relax on coarsest level ( residual now is stored tmp1)
@@ -312,8 +312,8 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     restrict!(coarse_lvl.tmplrg,VF_lvl,mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
     update_borders!(coarse_lvl.tmplrg,mg_mesh.mesh_lvls[lvl+1],par_env)
     Neumann!(coarse_lvl.tmplrg,mg_mesh.mesh_lvls[lvl+1],par_env)
-    # computeBand!(coarse_lvl.band,coarse_lvl.tmplrg,param,mg_mesh.mesh_lvls[lvl+1],par_env)
-    fill!(coarse_lvl.band,2.0)
+    computeBand!(coarse_lvl.band,coarse_lvl.tmplrg,param,mg_mesh.mesh_lvls[lvl+1],par_env)
+    # fill!(coarse_lvl.band,2.0)
 
     # Restrict approximate solution for initial guess on coarse grid for initial guess
     restrict!(coarse_lvl.P_h,fine_lvl.P_h,mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
@@ -321,17 +321,21 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     update_borders!(coarse_lvl.P_h,mg_mesh.mesh_lvls[lvl+1],par_env)
     
     # Restrict densities
-    restrict_x_face!(coarse_lvl.denx,fine_lvl.denx,mg_mesh.mesh_lvls[lvl+1])
-    restrict_y_face!(coarse_lvl.deny,fine_lvl.deny,mg_mesh.mesh_lvls[lvl+1])
-    restrict_z_face!(coarse_lvl.denz,fine_lvl.denz,mg_mesh.mesh_lvls[lvl+1])
+    # restrict_x_face!(coarse_lvl.denx,fine_lvl.denx,mg_mesh.mesh_lvls[lvl+1])
+    # restrict_y_face!(coarse_lvl.deny,fine_lvl.deny,mg_mesh.mesh_lvls[lvl+1])
+    # restrict_z_face!(coarse_lvl.denz,fine_lvl.denz,mg_mesh.mesh_lvls[lvl+1])
+    compute_dens!(coarse_lvl.denx,coarse_lvl.deny,coarse_lvl.denz,coarse_lvl.tmplrg,param,mg_mesh.mesh_lvls[lvl+1])
     update_xface_borders!(coarse_lvl.denx,mg_mesh.mesh_lvls[lvl+1],par_env)
     update_yface_borders!(coarse_lvl.deny,mg_mesh.mesh_lvls[lvl+1],par_env)
     update_zface_borders!(coarse_lvl.denz,mg_mesh.mesh_lvls[lvl+1],par_env)
-    
+
+
+
     # Restrict velocities
-    restrict_x_face!(coarse_lvl.uf,fine_lvl.uf,mg_mesh.mesh_lvls[lvl+1])
-    restrict_y_face!(coarse_lvl.vf,fine_lvl.vf,mg_mesh.mesh_lvls[lvl+1])
-    restrict_z_face!(coarse_lvl.wf,fine_lvl.wf,mg_mesh.mesh_lvls[lvl+1])
+    # restrict_x_face!(coarse_lvl.uf,fine_lvl.uf,mg_mesh.mesh_lvls[lvl+1])
+    # restrict_y_face!(coarse_lvl.vf,fine_lvl.vf,mg_mesh.mesh_lvls[lvl+1])
+    # restrict_z_face!(coarse_lvl.wf,fine_lvl.wf,mg_mesh.mesh_lvls[lvl+1])
+    face_BC!(coarse_lvl.uf,coarse_lvl.vf,coarse_lvl.wf,mg_mesh.mesh_lvls[lvl+1],par_env)
     update_xface_borders!(coarse_lvl.uf,mg_mesh.mesh_lvls[lvl+1],par_env)
     update_yface_borders!(coarse_lvl.vf,mg_mesh.mesh_lvls[lvl+1],par_env)
     update_zface_borders!(coarse_lvl.wf,mg_mesh.mesh_lvls[lvl+1],par_env)
@@ -343,8 +347,8 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     # compute R(A(P^h)) (A operator applied to approximate solution on finer level)
     fill!(fine_lvl.AP_f,0.0)
     A!(fine_lvl.AP_f,fine_lvl.uf,fine_lvl.vf,fine_lvl.wf,fine_lvl.P_h,dt,fine_lvl.gradx,fine_lvl.grady,fine_lvl.gradz,fine_lvl.band,fine_lvl.denx,fine_lvl.deny,fine_lvl.denz,verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env)
+    fine_lvl.AP_f .-= fine_lvl.tmp1
     Neumann!(fine_lvl.AP_f, mg_mesh.mesh_lvls[lvl], par_env) 
-    # fine_lvl.AP_f .+= fine_lvl.tmp1
     restrict!(coarse_lvl.AP_f,fine_lvl.AP_f,mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
 
     # compute Tau correction (τ = R(A(P^h)) - A(R(P^h)))
@@ -355,7 +359,7 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
 
     if lvl < mg_lvl
         # recursively call mg_fas!
-        mg_fas!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter,converged)
+        mg_fas!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,face_BC!,param,par_env,pvtk_iter;iter,converged)
     end
     
     # calculate error ( P^2h-R(P^h) )
@@ -377,7 +381,7 @@ function mg_fas!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,p
     else
         # post smoothing of finest field with corrected approximate solution
         converged_flag = Ref(false)
-        poisson_solve!(fine_lvl.P_h,fine_lvl.RHS,fine_lvl.res,mg_arrays,lvl,mg_mesh,dt,param,par_env,v1;iter,verts,tets,converged_flag)
+        poisson_solve!(fine_lvl.P_h,fine_lvl.RHS,fine_lvl.res,mg_arrays,lvl,mg_mesh,dt,param,par_env,v1;verts,tets,converged_flag)
         return converged_flag
     end
 end
@@ -406,18 +410,18 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter=noth
     v2 = 10
     
     if lvl == mg_lvl 
-        poisson_solve!(fine_lvl.P_h,fine_lvl.RHS,fine_lvl.res,mg_arrays,lvl,mg_mesh,dt,param,par_env,100000;iter,tol_lvl=1e-10)
+        poisson_solve!(fine_lvl.P_h,fine_lvl.RHS,fine_lvl.res,mg_arrays,lvl,mg_mesh,dt,param,par_env,100000;iter,tol_lvl=1e-9)
 
         @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mg_mesh.mesh_lvls[lvl]
-        # P_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
-        # RHS_slice = @view fine_lvl.RHS[div(imax_,2),jmin_:jmax_,kmin_]
-        P_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
-        RHS_slice = @view fine_lvl.RHS[imin_:imax_,jmin_:jmax_,kmin_]
+        P_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
+        RHS_slice = @view fine_lvl.RHS[div(imax_,2),jmin_:jmax_,kmin_]
+        # P_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
+        # RHS_slice = @view fine_lvl.RHS[imin_:imax_,jmin_:jmax_,kmin_]
         # Plot data for vis
         ax = Axis(fig[lvl,1]; title = "Multigrid Level: $lvl")
-        # scatterlines!(ax, P_slice, color = :blue, label = "pre-smoothed Pressure")
-        # scatterlines!(ax, RHS_slice, color = :red, label = "RHS")
-        heatmap!(ax, P_slice, label = "pre-smoothed Pressure")
+        scatterlines!(ax, P_slice, color = :blue, label = "post-smoothed Pressure")
+        scatterlines!(ax, RHS_slice, color = :red, label = "RHS")
+        # heatmap!(ax, P_slice, label = "pre-smoothed Pressure")
         # heatmap!(ax, RHS_slice, label = "RHS")
         axislegend(ax)
         return
@@ -454,10 +458,12 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter=noth
     # Restrict residual and other neccessary quantities
     fill!(coarse_lvl.RHS,0.0)
     restrict!(coarse_lvl.tmplrg,VF_lvl,mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
-    Neumann!(fine_lvl.res,mg_mesh.mesh_lvls[lvl],par_env)
+    # Neumann!(fine_lvl.res,mg_mesh.mesh_lvls[lvl],par_env)
+    
     update_borders!(fine_lvl.res,mg_mesh.mesh_lvls[lvl],par_env)
     restrict!(coarse_lvl.RHS,fine_lvl.res,mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
     Neumann!(coarse_lvl.RHS,mg_mesh.mesh_lvls[lvl+1],par_env)
+
     Neumann!(coarse_lvl.tmplrg,mg_mesh.mesh_lvls[lvl+1],par_env)
     update_borders!(coarse_lvl.tmplrg,mg_mesh.mesh_lvls[lvl+1],par_env)
 
@@ -473,19 +479,19 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter=noth
     update_zface_borders!(coarse_lvl.denz,mg_mesh.mesh_lvls[lvl+1],par_env)
 
     # Slice data for vis    
-    # P_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
-    # RHS_slice = @view fine_lvl.RHS[div(imax_,2),jmin_:jmax_,kmin_]
-    # res_slice = @view fine_lvl.res[div(imax_,2),jmin_:jmax_,kmin_]
-    P_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
-    RHS_slice = @view fine_lvl.RHS[imin_:imax_,jmin_:jmax_,kmin_]
-    res_slice = @view fine_lvl.res[imin_:imax_,jmin_:jmax_,kmin_]
+    P_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
+    RHS_slice = @view fine_lvl.RHS[div(imax_,2),jmin_:jmax_,kmin_]
+    res_slice = @view fine_lvl.res[div(imax_,2),jmin_:jmax_,kmin_]
+    # P_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
+    # RHS_slice = @view fine_lvl.RHS[imin_:imax_,jmin_:jmax_,kmin_]
+    # res_slice = @view fine_lvl.res[imin_:imax_,jmin_:jmax_,kmin_]
     # Plot data for vis
     ax = Axis(fig[lvl,1]; title = "Multigrid Level: $lvl")
     # ylims!(ax, -2.0, 2.0)
-    # scatterlines!(ax, P_slice, color = :blue, label = "pre-smoothed Pressure")
-    # scatterlines!(ax, RHS_slice, color = :red, label = "RHS")
-    # scatterlines!(ax, res_slice, color = :green, label = "residual")
-    heatmap!(ax, P_slice,  label = "pre-smoothed Pressure")
+    scatterlines!(ax, P_slice, color = :blue, label = "pre-smoothed Pressure")
+    scatterlines!(ax, RHS_slice, color = :red, label = "RHS")
+    scatterlines!(ax, res_slice, color = :green, label = "residual")
+    # heatmap!(ax, P_slice,  label = "pre-smoothed Pressure")
     # heatmap!(ax, RHS_slice,  label = "RHS")
     # heatmap!(ax, res_slice, label = "residual")
     axislegend(ax)
@@ -499,50 +505,52 @@ function mg_vc_lin!(lvl,mg_arrays,mg_mesh,dt,VF,pvd_data,param,par_env;iter=noth
     end
 
     # prolongate error and move up a level
-    fill!(fine_lvl.tmp1,0.0)
-    prolong!(fine_lvl.tmp1,coarse_lvl.P_h,mg_mesh.mesh_lvls[lvl],mg_mesh.mesh_lvls[lvl+1])
-    update_borders!(fine_lvl.tmp1,mg_mesh.mesh_lvls[lvl],par_env)
+    fill!(fine_lvl.tmp2,0.0)
+    prolong!(fine_lvl.tmp2,coarse_lvl.P_h,mg_mesh.mesh_lvls[lvl],mg_mesh.mesh_lvls[lvl+1])
+    update_borders!(fine_lvl.tmp2,mg_mesh.mesh_lvls[lvl],par_env)
 
     ax = Axis(fig[lvl,2]; title = "Multigrid Level: $lvl")
     # ylims!(ax, -2.0, 2.0)
-    # P_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
-    P_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
-    # scatterlines!(ax, P_slice, color = :blue, label = "uncorrected Pressure")
+    P_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
+    # P_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
+    scatterlines!(ax, P_slice, color = :blue, label = "uncorrected Pressure")
     # heatmap!(ax, P_slice, label = "uncorrected Pressure")
-
+    r_before = res_comp!(fine_lvl.tmp3,fine_lvl.RHS,fine_lvl.P_h,fine_lvl.denx,fine_lvl.deny,fine_lvl.denz,dt,param,mg_mesh.mesh_lvls[lvl],par_env)
     # correct approximate solution with error
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        fine_lvl.P_h[i,j,k] += fine_lvl.tmp1[i,j,k]
+        fine_lvl.P_h[i,j,k] += fine_lvl.tmp2[i,j,k]
     end    
     update_borders!(fine_lvl.P_h,mg_mesh.mesh_lvls[lvl],par_env)
 
-    # err_slice = @view fine_lvl.tmp1[div(imax_,2),jmin_:jmax_,kmin_]
-    err_slice = @view fine_lvl.tmp1[imin_:imax_,jmin_:jmax_,kmin_]
+    err_slice = @view fine_lvl.tmp2[div(imax_,2),jmin_:jmax_,kmin_]
+    # err_slice = @view fine_lvl.tmp2[imin_:imax_,jmin_:jmax_,kmin_]
     # Plot data for vis
-    # scatterlines!(ax, err_slice, color = :green, label = "Error")
+    scatterlines!(ax, err_slice, color = :green, label = "Error")
     # heatmap!(ax, err_slice, color = :green, label = "Error")
+    r_after = res_comp!(fine_lvl.tmp2,fine_lvl.RHS,fine_lvl.P_h,fine_lvl.denx,fine_lvl.deny,fine_lvl.denz,dt,param,mg_mesh.mesh_lvls[lvl],par_env)
 
     if lvl !== 1
         # post-smoothening on corrected solution
         poisson_solve!(fine_lvl.P_h,fine_lvl.RHS,fine_lvl.res,mg_arrays,lvl,mg_mesh,dt,param,par_env,v2)
-        # P_s_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
-        P_s_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
-        # scatterlines!(ax, P_slice, color = :red, label = "post-smoothed Pressure")
-        heatmap!(ax, P_slice, label = "post-smoothed Pressure")
+        P_s_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
+        # P_s_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
+        scatterlines!(ax, P_slice, color = :red, label = "error correction")
+        # heatmap!(ax, P_slice, label = "post-smoothed Pressure")
         axislegend(ax)
     else
         # final solve on corrected finest grid
         converged_flag = Ref(false) 
         poisson_solve!(fine_lvl.P_h,fine_lvl.RHS,fine_lvl.res,mg_arrays,lvl,mg_mesh,dt,param,par_env,v2;iter,converged_flag)
-        # P_s_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
-        P_s_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
-        # scatterlines!(ax, P_s_slice, color = :red, label = "post-smoothed Pressure")
-        heatmap!(ax, P_s_slice, label = "post-smoothed Pressure")
+        P_s_slice = @view fine_lvl.P_h[div(imax_,2),jmin_:jmax_,kmin_]
+        # P_s_slice = @view fine_lvl.P_h[imin_:imax_,jmin_:jmax_,kmin_]
+        scatterlines!(ax, P_s_slice, color = :red, label = "post-smoothed Pressure")
+        # heatmap!(ax, P_s_slice, label = "post-smoothed Pressure")
+        Label(fig[0, :], "Iteration $iter", fontsize=20)
         axislegend(ax)
-        display(fig)
-        if iter == 1
-            error("stop")
-        end
+        # display(fig)
+        # if iter == 1
+        #     error("stop")
+        # end
         return converged_flag
     end
 end
@@ -669,7 +677,7 @@ function mg_fas_lin!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_e
 end
 
 
-function mg_fas_lin2!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter = nothing,τ = nothing,fig = nothing)
+function mg_fas_lin2!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,face_BC!,param,par_env,pvtk_iter;iter = nothing,τ = nothing,fig = nothing)
     @unpack mg_lvl = param
     @unpack comm = par_env
 
@@ -769,10 +777,10 @@ function mg_fas_lin2!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_
     # restrict RHS (for use in post-smoothening) and copy to tmp1 to compute coarse grid RHS (for use in pre-smoothening)
     fill!(coarse_lvl.RHS,0.0)
     fine_lvl.RHS .+= fine_lvl.tmp1
-    # Neumann!(fine_lvl.AP_f, mg_mesh.mesh_lvls[lvl], par_env) 
+    Neumann!(fine_lvl.RHS, mg_mesh.mesh_lvls[lvl], par_env) 
     restrict!(coarse_lvl.RHS,fine_lvl.RHS,mg_mesh.mesh_lvls[lvl+1],mg_mesh.mesh_lvls[lvl])
-    # fine_lvl.RHS .-= fine_lvl.tmp1
-    Neumann!(coarse_lvl.RHS,mg_mesh.mesh_lvls[lvl+1],par_env)
+    fine_lvl.RHS .-= fine_lvl.tmp1
+    # Neumann!(coarse_lvl.RHS,mg_mesh.mesh_lvls[lvl+1],par_env)
     # update_borders!(coarse_lvl.RHS,mg_mesh.mesh_lvls[lvl+1],par_env)
     
     # Build Tau correction (including previous level Tau correction if it exists)
@@ -796,15 +804,18 @@ function mg_fas_lin2!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_
 
     if lvl < mg_lvl
         # recursively call mg_fas!
-        mg_fas_lin2!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter,fig=fig)
+        mg_fas_lin2!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,face_BC!,param,par_env,pvtk_iter;iter,fig=fig)
 
-        mg_fas_lin2!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter,fig=fig)
+        # mg_fas_lin2!(lvl+1,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_env,pvtk_iter;iter,fig=fig)
     end
     # println("post-smoothening on level $lvl starting")
     # begin prolongation routine starting at the coarsest level (occurs after relaxation at coarsest level)
     # calculate error ( P^2h-R(P^h) )
+    # println("coarse_lvl.P_bar_H max: ", maximum(abs.(coarse_lvl.P_bar_H)))
+    # println("coarse_lvl.P_h max: ", maximum(abs.(coarse_lvl.P_h)))
     coarse_lvl.P_h .-= coarse_lvl.P_bar_H
     # println(maximum(abs.(coarse_lvl.P_h)))
+    # println("correction: ", maximum(abs.(coarse_lvl.P_h)))
     MPI.Barrier(comm)
     # prolongate error (corrected approximate solution)
     fill!(fine_lvl.res,0.0)
@@ -823,8 +834,8 @@ function mg_fas_lin2!(lvl,mg_arrays,mg_mesh,dt,VF,verts,tets,pvd_data,param,par_
     scatterlines!(ax, err_slice, color = :green, label = "Error")
 
     # fill!(fine_lvl.res,0.0)
-    fill!(fine_lvl.tmp1,0.0)
-    fill!(coarse_lvl.tmp1,0.0)
+    # fill!(fine_lvl.tmp1,0.0)
+    # fill!(coarse_lvl.tmp1,0.0)
     if lvl != 1
         # post smoothing of finest field wth corrected approximate solution
         poisson_solve!(fine_lvl.P_h,fine_lvl.RHS,fine_lvl.res,mg_arrays,lvl,mg_mesh,dt,param,par_env,v2;)

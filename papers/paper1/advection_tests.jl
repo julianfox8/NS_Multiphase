@@ -57,7 +57,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         pressure_scheme = scheme,
         
         # pressureSolver = "hypreSecant",
-        pressureSolver = "res_iteration_AA_con",
+        pressureSolver = "res_iteration",
 
         # projection_method = "Euler",
         # projection_method = "Midpoint",
@@ -68,7 +68,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         hypreSolver = "LGMRES",
         # hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
-        mg_lvl = 1,
+        mg_lvl = 3,
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
@@ -159,6 +159,59 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
     Boundary conditions for velocity
     """
     function BC!(u,v,w,mesh,par_env)
+        return nothing
+    end
+
+    """
+    Boundary conditions for face velocity
+    """
+    function face_BC!(uf,vf,wf,mesh,par_env)
+        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
+        @unpack imin,imax,jmin,jmax,kmin,kmax,x,y,z = mesh
+
+        # Left
+        if irankx == 0
+            i = imax-1
+            uf[i,:,:] .= 0.0
+            vf[i,:,:] .= 0.0
+            wf[i,:,:] .= 0.0
+        end
+        # Right
+        if irankx == nprocx-1
+            i = imax+1
+            uf[i,:,:] .= 0.0
+            vf[i,:,:] .= 0.0
+            wf[i,:,:] .= 0.0
+        end
+        # Bottom 
+        if iranky == 0 
+            j = jmin-1
+            uf[:,j,:] .= 0.0
+            vf[:,j,:] .= 0.0
+            wf[:,j,:] .= 0.0
+        end
+        # Top
+        utop=1.0
+        if iranky == nprocy-1
+            j = jmax+1
+            uf[:,j,:] .= 0.0
+            vf[:,j,:] .= 0.0
+            wf[:,j,:] .= 0.0
+        end
+        # Back 
+        if irankz == 0 
+            k = kmin-1
+            uf[:,:,k] .= 0.0
+            vf[:,:,k] .= 0.0
+            wf[:,:,k] .= 0.0
+        end
+        # Front
+        if irankz == nprocz-1
+            k = kmax+1
+            uf[:,:,k] .= 0.0
+            vf[:,:,k] .= 0.0
+            wf[:,:,k] .= 0.0
+        end
         return nothing
     end
 
@@ -255,7 +308,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         t += dt
         if param.pressure_scheme == "semi-lagrangian"
             if !pre_image_vis
-                iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
+                iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;face_BC! = face_BC!)
             else
                 iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;pmesh=pmesh)
                 NS.pmesh2VTK(pmesh,"pressure_preimage",param)
