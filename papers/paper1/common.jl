@@ -31,7 +31,7 @@ Apply per-script with `set_theme!(MIST_THEME)`, or scope it to one figure with
 `with_theme(MIST_THEME) do ... end`. 
 """
 const MIST_THEME = Theme(
-    size = (1200, 1000),
+    size = (800, 600),
     Axis = (
         xlabelsize     = 28,
         ylabelsize     = 32,
@@ -73,6 +73,7 @@ each `p` in `orders`.
 function add_refslopes!(ax, x, y0::Real;
                         orders  = [1, 2],
                         offsets = nothing,
+                        linestyle = [:dash, :dot, :dashdot],
                         color   = :gray)
 
     xs = collect(float.(x))
@@ -82,11 +83,26 @@ function add_refslopes!(ax, x, y0::Real;
         off = offsets === nothing ? 1.0 : offsets[i]
         ys  = (y0 * off) .* (xs ./ xs[1]) .^ (-p)
 
-        lines!(ax, xs, ys; linestyle = :dash, linewidth = 2, color,
+        lines!(ax, xs, ys; linestyle = linestyle[i], linewidth = 2, color,
                label = slope_label(p))
     end
 
     return ax
+end
+
+"""
+    style(spec, key, i)
+
+Per-curve style value. `spec` is either a vector, cycled by curve index `i`, or a
+`Dict` keyed on one of the values in the group `key` — so `colors` can be keyed on
+the variant while `markers` is keyed on the projection method.
+"""
+function style(spec, key, i)
+    spec isa AbstractDict || return spec[mod1(i, length(spec))]
+    for k in key
+        haskey(spec, k) && return spec[k]
+    end
+    error("no style given for group $key")
 end
 
 # ---------------------------------------------------------------------------
@@ -119,6 +135,8 @@ Optional
 - `refoffsets`: multiplicative nudges for those lines, one per order
 - `refgroup`  : which group anchors the reference lines. Defaults to the first.
 - `xticks`    : explicit tick positions, e.g. the mesh sizes
+- `colors`, `markers` : per-curve color and marker. A vector is cycled by curve; a
+                `Dict` keyed on a group-column value pins the style to that value.
 - `legendpos` : `axislegend` position
 - `savepath`  : if given, save the figure there (parent directory is created)
 
@@ -137,6 +155,7 @@ function convergence_plot(df::DataFrame;
                           xscale = log10,
                           xticks     = nothing,
                           markers    = [:circle, :diamond, :rect, :utriangle, :star5, :cross],
+                          colors     = Makie.wong_colors(),
                           linestyle  = :dot,
                           legendpos  = :lb,
                           savepath   = nothing)
@@ -155,10 +174,12 @@ function convergence_plot(df::DataFrame;
 
         for (i, sub) in enumerate(gdf)
             s = sort(sub, x)
+            k = keyof(sub)
             scatterlines!(ax, s[!, x], s[!, y];
-                          marker = markers[mod1(i, length(markers))],
+                          color  = style(colors,  k, i),
+                          marker = style(markers, k, i),
                           linestyle,
-                          label = legend_label(keyof(sub)))
+                          label = legend_label(k))
         end
 
         if !isempty(refslopes)
@@ -175,7 +196,7 @@ function convergence_plot(df::DataFrame;
 
     if savepath !== nothing
         mkpath(dirname(savepath))
-        save(savepath, fig)
+        save(savepath, fig; px_per_unit=4)
         @info "saved $savepath"
     end
 
