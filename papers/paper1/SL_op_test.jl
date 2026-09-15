@@ -37,7 +37,7 @@ function test_SLdivergence()
         nprocy = 1,
         nprocz = 1,
 
-        projection_method = "RK4",
+        projection_method = "Heun",
 
         # Periodicity
         xper = false,
@@ -87,8 +87,8 @@ function test_SLdivergence()
     #####################################
     # Play with different velocity fields
     #####################################
-    # for case in ["B"]
-    for case in ["A","B","C","D"]    
+    for case in ["A"]
+    # for case in ["A","B","C","D"]    
         # Set velocity fields 
         for k=kmino_:kmaxo_, j=jmino_:jmaxo_, i=imino_:imaxo_
 
@@ -98,8 +98,8 @@ function test_SLdivergence()
 
                 # Field a
                 ufa[i,j,k] = -(ym[j]-1.5);  vfa[i,j,k] =  (xm[i]-1.5); wfa[i,j,k] = 0.0     # ω = +1
-                ufb[i,j,k] =  (ym[j]-1.5);  vfb[i,j,k] = -(xm[i]-1.5); wfb[i,j,k] = 0.0     # ω = −1
-
+                # ufb[i,j,k] =  (ym[j]-1.5);  vfb[i,j,k] = -(xm[i]-1.5); wfb[i,j,k] = 0.0     # ω = −1
+                ufb[i,j,k] = 0;            vfb[i,j,k] = (xm[i]-1.5); wfb[i,j,k] = 0.0
                 # ufa[i,j,k] = ym[j]
                 # vfa[i,j,k] = 0.0
                 # wfa[i,j,k] = 0.0
@@ -240,6 +240,13 @@ function test_SLdivergence()
         ymin_c = y[jmin_  ] - 2param.CFL*dy
         ymax_c = y[jmax_+1] + 2param.CFL*dy
 
+        # Convective CFL of the most restrictive field (A, B or A+B), so all
+        # three columns share one abscissa and stay comparable
+        u_max = maximum([maximum(abs.(ufa)),maximum(abs.(ufb)),maximum(abs.(ufa.+ufb))])
+        v_max = maximum([maximum(abs.(vfa)),maximum(abs.(vfb)),maximum(abs.(vfa.+vfb))])
+        w_max = maximum([maximum(abs.(wfa)),maximum(abs.(wfb)),maximum(abs.(wfa.+wfb))])
+        cfls  = dts .* maximum([u_max/dx, v_max/dy, w_max/dz])
+
         # Divergence limits
         dmin = minimum([minimum(diva),minimum(divb),minimum(diva+divb),minimum(divab),
                         minimum(diva_fd),minimum(divb_fd),minimum(divab_fd)])
@@ -247,17 +254,19 @@ function test_SLdivergence()
                         maximum(diva_fd),maximum(divb_fd),maximum(divab_fd)])
         padd = 0.05*(dmax-dmin); dmin -= padd; dmax += padd
 
-        # Volumes
-        # Needed volume is the projected volume to have the semi-Lagrangian divg match the finite diff divg
+        # Volume change relative to the undeformed cell, ΔV/V₁ = V/V₁ - 1, so
+        # the ticks carry the same exponent as the divergence panel.
+        # The FD reference is the pre-image volume that would make the
+        # semi-Lagrangian divergence match the finite-difference one, so its
+        # change is just -dt*div_fd.
         vol1       = dx*dy*dz
-        vol2a_fd   = vol1 .* ( 1.0 .- dts.*diva_fd )
-        vol2b_fd   = vol1 .* ( 1.0 .- dts.*divb_fd )
-        vol2ab_fd  = vol1 .* ( 1.0 .- dts.*divab_fd )
-        vol2apb_fd = vol1 .* ( 2.0 .- dts.*(diva_fd + divb_fd) )
-        vmin = minimum([minimum(vol2a),minimum(vol2b),minimum(vol2a+vol2b.-vol1),minimum(vol2ab),
-                        minimum(vol2a_fd),minimum(vol2b_fd),minimum(vol2ab_fd)])
-        vmax = maximum([maximum(vol2a),maximum(vol2b),maximum(vol2a+vol2b.-vol1),maximum(vol2ab),
-                        maximum(vol2a_fd),maximum(vol2b_fd),maximum(vol2ab_fd)])
+        dvol_a     = vol2a  ./ vol1 .- 1.0
+        dvol_b     = vol2b  ./ vol1 .- 1.0
+        dvol_ab    = vol2ab ./ vol1 .- 1.0
+        dvol_apb   = dvol_a .+ dvol_b
+        dvol_ab_fd = -dts .* divab_fd
+        vmin = minimum([minimum(dvol_apb),minimum(dvol_ab),minimum(dvol_ab_fd)])
+        vmax = maximum([maximum(dvol_apb),maximum(dvol_ab),maximum(dvol_ab_fd)])
         padv = 0.05*(vmax-vmin); vmin -= padv; vmax += padv
 
         # ---- Series styles (matching papers/paper1/common.jl) ----
@@ -271,59 +280,81 @@ function test_SLdivergence()
         fd_ref  = (color=:gray, linewidth=2, linestyle=:dash)
 
         # ---- Figure built once, contents updated each frame ----
-        fig = Figure(size=(1000,1000), figure_padding=16)
+        fig = Figure(size=(1000,600), figure_padding=16)
 
-        # Top row: projected cells (redrawn each frame)
-        axcell = [Axis(fig[1,c], aspect=DataAspect(), xgridvisible=false, ygridvisible=false,
-                       limits=(xmin_c,xmax_c,ymin_c,ymax_c)) for c in 1:3]
+        # Top row: projected cells (redrawn each frame), in their own layout so
+        # the panels' y-decorations below cannot skew the spacing between cells
+        gtop = GridLayout(fig[1,1:6])
+        axcell = [Axis(gtop[1,c], aspect=DataAspect(), xgridvisible=false, ygridvisible=false,limits=(xmin_c,xmax_c,ymin_c,ymax_c),
+                       yticklabelsvisible=false,xticklabelsvisible=false) for c in 1:3]
+        # axcell = [Axis(fig[1,(2c-1):(2c)], aspect=DataAspect(), xgridvisible=false, ygridvisible=false,
+        #                limits=(xmin_c,xmax_c,ymin_c,ymax_c)) for c in 1:3]
 
         # Data panels: axis with an outer-top legend, via a nested layout
-        function panel(r,c,ylims)
-            gl = GridLayout(fig[r,c])
-            ax = Axis(gl[2,1], limits=((0.0,maximum(dts)), ylims))
-            return gl, ax
+        function panel(cols,ylims; ylabel="", ytickformat=Makie.automatic)
+            ax = Axis(fig[2,cols]; xlabel="CFL", ylabel, ytickformat,
+                      limits=((0.0,maximum(cfls)), ylims),ylabelsize = 18, xlabelsize = 18)
+            return ax
         end
-        gl4,ax4 = panel(2,1,(dmin,dmax))
-        gl5,ax5 = panel(2,2,(dmin,dmax))
-        gl6,ax6 = panel(2,3,(dmin,dmax))
-        gl7,ax7 = panel(3,1,(vmin,vmax))
-        gl8,ax8 = panel(3,2,(vmin,vmax))
-        gl9,ax9 = panel(3,3,(vmin,vmax))
+        # function panel(cols,ylims; ylabel="", ytickformat=Makie.automatic)
+        #     gl = GridLayout(fig[2,cols])
+        #     ax = Axis(gl[2,1]; xlabel="CFL", ylabel, ytickformat,
+        #               limits=((0.0,maximum(cfls)), ylims))
+        #     return gl, ax
+        # end
+        ax6 = panel(2:3,(dmin,dmax); ylabel="∇⋅u")
+        # gl5,ax5 = panel(2,2,(dmin,dmax))
+        # gl6,ax6 = panel(2,3,(dmin,dmax))
+        ax9 = panel(4:5,(vmin,vmax); ylabel="ΔV/V₁")
+        # gl8,ax8 = panel(3,2,(vmin,vmax);                ytickformat=voltick)
+        # gl9,ax9 = panel(3,3,(vmin,vmax);                ytickformat=voltick)
 
         # Growing SL series (updated in the record loop)
-        sl_diva   = Observable(Point2f[])
-        sl_divb   = Observable(Point2f[])
+        # sl_diva   = Observable(Point2f[])
+        # sl_divb   = Observable(Point2f[])
         sl_divab  = Observable(Point2f[])
         sl_divapb = Observable(Point2f[])
-        sl_vola   = Observable(Point2f[])
-        sl_volb   = Observable(Point2f[])
+        # sl_vola   = Observable(Point2f[])
+        # sl_volb   = Observable(Point2f[])
         sl_volab  = Observable(Point2f[])
         sl_volapb = Observable(Point2f[])
 
         # Divergence vs time
-        scatterlines!(ax4, sl_diva   ; label="∇⋅A (SL)",       sl_pts... )
-        hlines!(      ax4, [diva_fd[1]]  ; label="∇⋅A (FD)",       fd_ref... )
-        scatterlines!(ax5, sl_divb   ; label="∇⋅B (SL)",       sl_pts... )
-        hlines!(      ax5, [divb_fd[1]]  ; label="∇⋅B (FD)",       fd_ref... )
-        scatterlines!(ax6, sl_divab  ; label="∇⋅(A+B) (SL)",   sl_pts... )
-        scatterlines!(ax6, sl_divapb ; label="∇⋅A + ∇⋅B (SL)", sl_pts2...)
-        hlines!(      ax6, [divab_fd[1]] ; label="∇⋅(A+B) (FD)",   fd_ref... )
+        # scatterlines!(ax4, sl_diva   ; label="∇⋅A (SL)",       sl_pts... )
+        # hlines!(      ax4, [diva_fd[1]]  ; label="∇⋅A (FD)",       fd_ref... )
+        # scatterlines!(ax5, sl_divb   ; label="∇⋅B (SL)",       sl_pts... )
+        # hlines!(      ax5, [divb_fd[1]]  ; label="∇⋅B (FD)",       fd_ref... )
+        scatterlines!(ax6, sl_divab  ; label="∇⋅(F₁+F₂) (SL)",   sl_pts... )
+        scatterlines!(ax6, sl_divapb ; label="∇⋅F₁ + ∇⋅F₂ (SL)", sl_pts2...)
+        hlines!(      ax6, [divab_fd[1]] ; label="∇⋅(F₁+F₂) (FD)",   fd_ref... )
 
-        # Volumes vs time
-        scatterlines!(ax7, sl_vola   ; label="Vol(A)",                   sl_pts... )
-        lines!(       ax7, dts, vol2a_fd  ; label="Vol(A)_fd",                fd_ref... )
-        scatterlines!(ax8, sl_volb   ; label="Vol(B)",                   sl_pts... )
-        lines!(       ax8, dts, vol2b_fd  ; label="Vol(B)_fd",                fd_ref... )
-        scatterlines!(ax9, sl_volapb ; label="(Vol(A) + Vol(B)) - vol1", sl_pts... )
-        scatterlines!(ax9, sl_volab  ; label="Vol(A+B) ",                sl_pts2...)
-        lines!(       ax9, dts, vol2ab_fd ; label="Vol(A+B)_fd",              fd_ref... )
+        # Volume change vs CFL
+        # scatterlines!(ax7, sl_vola   ; label="V(A)/V₁ (SL)",               sl_pts... )
+        # lines!(       ax7, cfls, vol2a_fd_n  ; label="V(A)/V₁ (FD)",           fd_ref... )
+        # scatterlines!(ax8, sl_volb   ; label="V(B)/V₁ (SL)",               sl_pts... )
+        # lines!(       ax8, cfls, vol2b_fd_n  ; label="V(B)/V₁ (FD)",           fd_ref... )        
+        scatterlines!(ax9, sl_volab  ; label="ΔV(F₁+F₂)/V₁ (SL)",           sl_pts...)
+        scatterlines!(ax9, sl_volapb ; label="ΔV(F₁)/V₁ + ΔV(F₂)/V₁ (SL)",  sl_pts2... )
+        lines!(       ax9, cfls, dvol_ab_fd ; label="ΔV(F₁+F₂)/V₁ (FD)",        fd_ref... )
 
-        for (gl,ax) in ((gl4,ax4),(gl5,ax5),(gl6,ax6),(gl7,ax7),(gl8,ax8),(gl9,ax9))
-            Legend(gl[1,1], ax; framevisible=false, orientation=:horizontal, nbanks=2,
-                   labelsize=10, patchsize=(18,10), padding=(0,0,0,0),
-                   tellheight=true, tellwidth=false)
-            rowgap!(gl, 4)
+        # for (gl,ax) in ((gl4,ax4),(gl5,ax5),(gl6,ax6),(gl7,ax7),(gl8,ax8),(gl9,ax9))
+        # for (gl,ax) in ((gl6,ax6),(gl9,ax9))
+        #     Legend(gl[1,1], ax; framevisible=false, orientation=:horizontal, nbanks=2,
+        #            labelsize=10, patchsize=(18,10), padding=(0,0,0,0),
+        #            tellheight=true, tellwidth=false)
+        #     rowgap!(gl, 4)
+        # end
+        for ax in (ax6, ax9)
+            axislegend(ax; position=:lc,
+                       labelsize=13, patchsize=(18,10), padding=(6,6,6,6))
         end
+        # Equal columns: the cell axes above and the panels below share one
+        # geometry, instead of the panels' y-decorations setting column widths
+        foreach(c -> colsize!(fig.layout, c, Relative(1/6)), 1:6)
+
+        # Row 1 height = two column widths, so the DataAspect cells are exactly
+        # square with no leftover vertical space
+        rowsize!(fig.layout, 1, Aspect(1, 2.0))
 
         # ---- Animate ----
         record(fig, "divVsTime_Velocity$case.gif", eachindex(dts); framerate=5) do n
@@ -340,18 +371,18 @@ function test_SLdivergence()
             end
 
             # Growing SL series
-            sl_diva[]   = Point2f.(dts[1:n], diva[1:n])
-            sl_divb[]   = Point2f.(dts[1:n], divb[1:n])
-            sl_divab[]  = Point2f.(dts[1:n], divab[1:n])
-            sl_divapb[] = Point2f.(dts[1:n], diva[1:n].+divb[1:n])
-            sl_vola[]   = Point2f.(dts[1:n], vol2a[1:n])
-            sl_volb[]   = Point2f.(dts[1:n], vol2b[1:n])
-            sl_volab[]  = Point2f.(dts[1:n], vol2ab[1:n])
-            sl_volapb[] = Point2f.(dts[1:n], vol2a[1:n].+vol2b[1:n].-vol1)
+            # sl_diva[]   = Point2f.(cfls[1:n], diva[1:n])
+            # sl_divb[]   = Point2f.(cfls[1:n], divb[1:n])
+            sl_divab[]  = Point2f.(cfls[1:n], divab[1:n])
+            sl_divapb[] = Point2f.(cfls[1:n], diva[1:n].+divb[1:n])
+            # sl_vola[]   = Point2f.(cfls[1:n], vol2a_n[1:n])
+            # sl_volb[]   = Point2f.(cfls[1:n], vol2b_n[1:n])
+            sl_volab[]  = Point2f.(cfls[1:n], dvol_ab[1:n])
+            sl_volapb[] = Point2f.(cfls[1:n], dvol_apb[1:n])
         end
 
         # Save final figure
-        save("divVsTime_Velocity$case.pdf", fig)
+        save("divVsTime_Velocity$case.png", fig)
 
         
     end
