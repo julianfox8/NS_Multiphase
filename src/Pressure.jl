@@ -1379,16 +1379,22 @@ end
 Gauss-Seidel pressure update (red-black)
 """
 function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
-    @unpack dx, dy, dz, imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
+    @unpack dx, dy, dz, Nz, imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
     @unpack comm = par_env
     ω = 1.0
+    use_z = Nz > 1
 
     for color in (0, 1)  # 0: red, 1: black
         for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
             if (i + j + k) % 2 == color
-                diag = -(dt / (denx[i, j, k] * dx^2) + dt / (denx[i+1, j, k] * dx^2) +
-                         dt / (deny[i, j, k] * dy^2) + dt / (deny[i, j+1, k] * dy^2) +
-                         dt / (denz[i, j, k] * dz^2) + dt / (denz[i, j, k+1] * dz^2))
+                axm = dt/(denx[i,  j,  k]*dx^2)
+                axp = dt/(denx[i+1,j,  k]*dx^2)
+                aym = dt/(deny[i,  j,  k]*dy^2)
+                ayp = dt/(deny[i,  j+1,k]*dy^2)
+                azm = use_z ? dt/(denz[i,j,k  ]*dz^2) : 0.0
+                azp = use_z ? dt/(denz[i,j,k+1]*dz^2) : 0.0
+
+                diag = -(axm + axp + aym + ayp + azm + azp)
 
                 Px_m = P[i-1, j, k]
                 Px_p = P[i+1, j, k]
@@ -1397,12 +1403,12 @@ function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
                 Pz_m = P[i, j, k-1]
                 Pz_p = P[i, j, k+1]
 
-                sum_neighbors = (dt / (denx[i, j, k]   * dx^2)) * Px_m +
-                                (dt / (denx[i+1,j,k]   * dx^2)) * Px_p +
-                                (dt / (deny[i,j,k]     * dy^2)) * Py_m +
-                                (dt / (deny[i,j+1,k]   * dy^2)) * Py_p +
-                                (dt / (denz[i,j,k]     * dz^2)) * Pz_m +
-                                (dt / (denz[i,j,k+1]   * dz^2)) * Pz_p
+                sum_neighbors = axm * Px_m +
+                                axp * Px_p +
+                                aym * Py_m +
+                                ayp * Py_p +
+                                azm * Pz_m +
+                                azp * Pz_p
 
                 if isnothing(τ)
                     P_new_val = (RHS[i,j,k] - sum_neighbors) / diag
@@ -1413,7 +1419,7 @@ function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
             end
         end
         # MPI.Barrier(comm)
-        # update_borders!(P,mesh,par_env)
+        update_borders!(P,mesh,par_env)
     end
 end
 
