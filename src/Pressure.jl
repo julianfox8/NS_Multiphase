@@ -87,6 +87,23 @@ function poisson_solve!(P,RHS,res,mg_arrays,lvl,mg_mesh,dt,param,par_env,max_ite
     return nothing
 end
 
+function precon_poisson_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp2,tmp4,tmp6,tmp7,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env;)
+    
+    ov_iter = 0 
+    for n in 1:1000
+
+        ov_iter += 1
+        println("v-cycle preconditioner iteration $ov_iter")
+        iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env;max_iter = 1) 
+        println("AA after v-cycle")
+        iter = res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;max_iter = 10) 
+        if iter == 1
+            println("Converged after $ov_iter iterations of v-cycle + AA")
+            break
+        end
+    end
+    return ov_iter
+end
 # LHS of pressure poisson equation
 function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env;pmesh=nothing)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
