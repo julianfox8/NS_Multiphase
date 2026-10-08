@@ -804,9 +804,37 @@ function par_anderson_accel_con(Fhist,par_env)
     return α
 end
 
-function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,Gn,jacob,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
+function aa_update!(P_loc, Gn_loc, Fn_loc, Fhist, Phist, m, β, par_env)
+    push!(Phist, copy(Gn_loc))
+    push!(Fhist, copy(Fn_loc))
+    if length(Fhist) > m
+        popfirst!(Fhist); popfirst!(Phist)
+    end
+    if length(Fhist) > 1
+        α = par_anderson_accel_con(Fhist, par_env)
+        P_loc .= β .* weighted_sum(Phist, α) .+ (1 - β) .* P_loc
+    else
+        P_loc .= Gn_loc
+    end
+end
+
+function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,jacob,Fhist,Phist,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
+    push!(Phist, copy(Gn_loc))
+    push!(Fhist, copy(Fn_loc))
+    if length(Fhist) > m
+        popfirst!(Fhist); popfirst!(Phist)
+    end
+    if length(Fhist) > 1
+        α = par_anderson_accel_con(Fhist, par_env)
+        P_loc .= β .* weighted_sum(Phist, α) .+ (1 - β) .* P_loc
+    else
+        P_loc .= Gn_loc
+    end
+end
+
+function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,jacob,Fhist,Phist,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
     @unpack Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
-    @unpack tol = param
+    @unpack tol,m,β = param
     @unpack isroot = par_env
 
     if tol_lvl !== nothing
@@ -821,10 +849,9 @@ function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,den
     #     #initialize PVTK for pressure
     #     pvd_pressure,dir  = pVTK_init(param,par_env)
     # end
-    ω = 2/3
-    m=10
-    Fhist = [zeros(length(imin_:imax_),length(jmin_:jmax_),length(kmin_:kmax_)) for _ in 1:m]
-    Phist = [zeros(length(imin_:imax_),length(jmin_:jmax_),length(kmin_:kmax_)) for _ in 1:m]
+    ω = 4/5
+    
+
     hist_idx = 0
     n_hist = 0
 
@@ -870,47 +897,16 @@ function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,den
             AP_loc = AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
             J_loc  = jacob[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
 
-            # J_safe = max.(abs.(J_loc), 1e-12)
-            # Gn_loc = P_loc .- ω * AP_loc ./ J_safe
-            Gn_loc = P_loc .- ω * AP_loc ./ J_loc
+            J_safe = max.(abs.(J_loc), 1e-12)
+            Gn_loc = P_loc .- ω * AP_loc ./ J_safe
+            # Gn_loc = P_loc .- ω * AP_loc ./ J_loc
             Fn_loc = Gn_loc .- P_loc
-        end
-        # Gn = P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- ω * AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]./jacob[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        # Fn = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .- P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-
-        
-        hist_idx = mod(hist_idx,m) + 1
-        if n_hist < m
-            n_hist += 1
+            aa_update!(P_loc, Gn_loc, Fn_loc, Fhist, Phist, m, β, par_env)
         end
 
-        # @views Fhist[hist_idx] .= Fn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]#Fn_loc
-        # @views Phist[hist_idx] .= Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]#Gn_loc
-        @views Fhist[hist_idx] .= Fn_loc
-        @views Phist[hist_idx] .= Gn_loc
-        
-        if n_hist > 1
-        
-            # α = anderson_accel(Fhist[1:n_hist])
-            α = par_anderson_accel_con(Fhist[1:n_hist],par_env)
-        
-            # P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = weighted_sum(Phist,α)
-            Pnew = weighted_sum(Phist[1:n_hist],α)
-            β = 0.5
-            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = β * Pnew + (1-β) * P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
-        else
-            P[imin_:imax_,jmin_:jmax_,kmin_:kmax_] = Gn[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
+        if p_iter % 10 == 0 && isroot
+            println("residual at iter $p_iter = $res_norm")
         end
-        
-        # @printf("Iter = %4i  Res = %12.3g  sum(divg) = %12.3g  \n",p_iter,res_norm,sum_norm)
-        # println("residual at iter $p_iter = $(maximum(abs.(AP)))")
-        # if p_iter % 1000 == 0 && isroot 
-            println("residual at iter $p_iter = $(res_norm)")
-        # end
-        # if iter !== nothing && p_iter > (max_iter-1)
-        #     println("residual at iter $iter = $(maximum(abs.(AP)))")
-        # end
-
         # account for drift
         P .-=parallel_mean_all(P[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
 
@@ -918,8 +914,7 @@ function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,den
     return p_iter
 end
 
-function res_iteration(P, uf, vf, wf, gradx, grady, gradz, band, dt, denx, deny, denz, AP, AP2, Gn, jacob, verts, tets, param, mesh, par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh = nothing,t = nothing)
-
+function res_iteration(P, uf, vf, wf, gradx, grady, gradz, band, dt, denx, deny, denz, AP, AP2, jacob, verts, tets, param, mesh, par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh = nothing,t = nothing)
     @unpack imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
     @unpack tol = param
     @unpack isroot = par_env
@@ -928,7 +923,6 @@ function res_iteration(P, uf, vf, wf, gradx, grady, gradz, band, dt, denx, deny,
         tol = tol_lvl
     end
 
-    fill!(Gn, 0.0)
     fill!(jacob, 0.0)
 
     ω = 2/3
