@@ -2,13 +2,17 @@ using JSON
 
 
 # Solve Poisson equation: δP form
-function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;face_BC! = nothing,pmesh=nothing)
-    @unpack pressure_scheme,mg_lvl = param
+function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,Fhist,Phist,BC!;face_BC! = nothing,pmesh=nothing)
+    @unpack pressure_scheme,mg_lvl,pressurePrecond,pressureSolver = param
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mg_mesh.mesh_lvls[1]
     
     # RHS = nothing
-    if mg_lvl > 1
-        iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env)
+    if pressurePrecond == "multigrid"
+        if pressureSolver == "anderson"
+            @time iter = precon_poisson_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp2,tmp4,Fhist,Phist,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env;)
+        else
+            @time iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env)
+        end
     else    
         if pressure_scheme == "finite-difference"
             # RHS = @view tmp4[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
@@ -23,25 +27,20 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,
         else
             RHS = nothing
         end
-        iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays;pmesh=pmesh)
+        iter = poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays,Fhist,Phist;pmesh=pmesh)
     end
 
     return iter
 end
 
 # Poisson solver for Pressure.jl
-function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays;pmesh=nothing)
+function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,mg_arrays,Fhist,Phist;pmesh=nothing)
     @unpack mg_lvl,pressureSolver,pressurePrecond = param
-
 
     # Point to hypre objects
     jacob = mg_arrays[1].jacob
     b_vec = mg_arrays[1].b_vec
     x_vec = mg_arrays[1].x_vec
-
-    if pressurePrecond == "nl_jacobi"
-        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;max_iter = 50)
-    end
 
     if pressureSolver == "FC_hypre"
         iter = FC_hypre_solver(P,RHS,tmp1,denx,deny,denz,tmp4,jacob,x_vec,b_vec,dt,param,mg_mesh.mesh_lvls[1],par_env,1000)
@@ -53,14 +52,16 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,p
         iter = Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,jacob,b_vec,x_vec,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "hypreSecantLS"
         iter = Secant_jacobian_hypre_linesearch!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,verts,tets,param,mg_mesh.mesh_lvls[1],par_env,jacob,b_vec,x_vec)
-    elseif pressureSolver == "res_iteration_AA_con"
-        iter = res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
+    elseif pressureSolver == "anderson"
+        iter = res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,Fhist,Phist,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "res_iteration_AA_uncon"
         iter = res_iteration_AA_uncon(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "nlsolve_AA"
         iter = nlsolve_pressure_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     elseif pressureSolver == "res_iteration"
-        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
+        iter = res_iteration(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
+    elseif pressureSolver == "nl_gs"
+        iter = nl_gs(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp1,tmp2,tmp3,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;pmesh=pmesh)
     else
         error("Unknown pressure solver $pressureSolver")
     end
@@ -87,19 +88,33 @@ function poisson_solve!(P,RHS,res,mg_arrays,lvl,mg_mesh,dt,param,par_env,max_ite
     return nothing
 end
 
-function precon_poisson_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp2,tmp4,tmp6,tmp7,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env;)
-    
+function precon_poisson_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp2,P_in,Fhist,Phist,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env;)
+    @unpack m,β,tol = param
+    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mg_mesh.mesh_lvls[1]
+
     ov_iter = 0 
     for n in 1:1000
-
         ov_iter += 1
-        println("v-cycle preconditioner iteration $ov_iter")
-        iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env;max_iter = 1) 
-        println("AA after v-cycle")
-        iter = res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;max_iter = 10) 
-        if iter == 1
-            println("Converged after $ov_iter iterations of v-cycle + AA")
-            break
+        @views P_in[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]     # snapshot the input
+
+        iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,
+                        mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env; max_iter = 1)
+
+        G_k = @view P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]       # cycle output (this copies)
+        F_k = @view P_in[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+        F_k = G_k .- F_k
+
+        @views aa_update!(P[imin_:imax_, jmin_:jmax_, kmin_:kmax_],
+                        G_k, F_k, Fhist, Phist, m, β, par_env)
+
+        Neumann!(P, mg_mesh.mesh_lvls[1], par_env)
+        update_borders!(P, mg_mesh.mesh_lvls[1], par_env)
+        A!(tmp2, uf, vf, wf, P, dt, gradx, grady, gradz, band, denx, deny, denz,verts, tets, param, mg_mesh.mesh_lvls[1], par_env)
+        res_norm = parallel_max_all(abs.(tmp2), par_env)
+
+        if res_norm < tol
+            println("converged in $ov_iter")
+            return ov_iter
         end
     end
     return ov_iter
@@ -108,9 +123,6 @@ end
 function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env;pmesh=nothing)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack isroot,irank,nproc = par_env
-    fill!(gradx,0.0)
-    fill!(grady,0.0)
-    fill!(gradz,0.0)
 
     Neumann!(P,mesh,par_env)
     update_borders!(P,mesh,par_env) # (overwrites BCs if periodic)
