@@ -731,15 +731,15 @@ function jacob_single(jacob,LHS1,LHS2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,
                     denz[i,j,k], denz[i,j,k+1])
         delta = scale*ρ_min
 
-        add_perturb!(P,delta,i,j,k,mesh,par_env)
+        add_perturb!(P,delta,i,j,k,mesh,param,par_env)
         A!(i,j,k,LHS1,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env)
-        remove_perturb!(P,delta,i,j,k,mesh,par_env)
-        add_perturb!(P,-delta,i,j,k,mesh,par_env)
+        remove_perturb!(P,delta,i,j,k,mesh,param,par_env)
+        add_perturb!(P,-delta,i,j,k,mesh,param,par_env)
         A!(i,j,k,LHS2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env)
-        remove_perturb!(P,-delta,i,j,k,mesh,par_env)
+        remove_perturb!(P,-delta,i,j,k,mesh,param,par_env)
         jacob[i,j,k] = ((LHS1[i,j,k]
         - LHS2[i,j,k])
-        /̂2delta)
+        /̂(2delta))
     end
     return nothing 
 end
