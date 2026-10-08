@@ -69,20 +69,32 @@ function poisson_solve!(P,RHS,uf,vf,wf,gradx,grady,gradz,band,dt,param,mg_mesh,p
     return iter
 end
 
-# Poisson solver for Multigrid.jl
-function poisson_solve!(P,RHS,res,mg_arrays,lvl,mg_mesh,dt,param,par_env,max_iter;verts=nothing,tets=nothing,iter=nothing,tol_lvl=nothing,converged_flag=nothing)
-    @unpack mg_lvl,pressureSolver = param
-    current_lvl = mg_arrays[lvl]
-    if pressureSolver == "gauss-seidel"
-        iter = gs(P,RHS,res,current_lvl.denx,current_lvl.deny,current_lvl.denz,dt,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,iter,tol_lvl,converged=converged_flag, τ=current_lvl.tmp1)
-    elseif pressureSolver == "res_iteration"
-        res_iteration(P,current_lvl.uf,current_lvl.vf,current_lvl.wf,current_lvl.gradx,current_lvl.grady,current_lvl.gradz,current_lvl.band,dt,current_lvl.denx,current_lvl.deny,current_lvl.denz,current_lvl.AP_f,current_lvl.AP_c,current_lvl.tmp2,current_lvl.tmp3,verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter,τ=current_lvl.tmp1,converged=converged_flag,tol_lvl = tol_lvl)
-    elseif pressureSolver == "res_iteration_AA"
-        res_iteration_AA(P,current_lvl.uf[lvl],current_lvl.vf[lvl],current_lvl.wf[lvl],current_lvl.gradx[lvl],current_lvl.grady[lvl],current_lvl.gradz[lvl],current_lvl.band[lvl],dt,current_lvl.denx[lvl],current_lvl.deny[lvl],current_lvl.denz[lvl],current_lvl.AP_f[lvl],current_lvl.AP_c[lvl],current_lvl.tmp2[lvl],current_lvl.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;iter,max_iter,τ=current_lvl.tmp1[lvl],converged=converged_flag,tol_lvl = tol_lvl)
-    elseif pressureSolver == "nl_gs"
-        nonlin_gs(P,mg_arrays.uf[lvl],mg_arrays.vf[lvl],mg_arrays.wf[lvl],mg_arrays.gradx[lvl],mg_arrays.grady[lvl],mg_arrays.gradz[lvl],mg_arrays.band[lvl],dt,mg_arrays.denx[lvl],mg_arrays.deny[lvl],mg_arrays.denz[lvl],mg_arrays.AP_f[lvl],mg_arrays.tmp2[lvl],mg_arrays.AP_c[lvl],mg_arrays.tmp3[lvl],verts,tets,param,mg_mesh.mesh_lvls[lvl],par_env;max_iter,τ=mg_arrays.tmp1[lvl],iter,converged = converged_flag,tol_lvl = tol_lvl) 
-    else
-        error("Unknown pressure solver $pressureSolver")
+function smooth!(op, arrays,sweeps;iter = nothing, converged_flag = nothing)
+    @unpack smoother = op.param
+
+    if smoother == "nl_jacobi"
+        iter = res_iteration(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,op.verts,op.tets,op.param,op.mesh,op.par_env;iter,max_iter = sweeps,τ=arrays.tau,converged=converged_flag)
+    elseif smoother == "rbgs"
+        iter = gs(arrays.P_h,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=sweeps,converged = converged_flag)
+    elseif smoother == "jacobi"
+        iter = jacobi(arrays.P_h,arrays.P_H,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=sweeps,converged=converged_flag)
+    end
+    return nothing
+end
+
+function coarse_sol!(op, arrays;iter = nothing)
+    @unpack coarse_sol, coarse_tol = op.param
+
+    if coarse_sol == "nl_jacobi"
+        iter = res_iteration(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,op.verts,op.tets,op.param,op.mesh,op.par_env;iter,τ=arrays.tau,tol_lvl = coarse_tol)
+    elseif coarse_sol == "anderson"
+        Fhist = Vector{Array{Float64,3}}()
+        Phist = Vector{Array{Float64,3}}()
+        iter = res_iteration_AA_con(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,Fhist,Phist,op.verts,op.tets,op.param,op.mesh,op.par_env;τ=arrays.tmp1,tol_lvl = coarse_tol)
+    elseif coarse_sol == "rbgs"
+        iter = gs(arrays.P_h,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=100000,tol_lvl = coarse_tol)
+    elseif coarse_sol == "jacobi"
+        iter = jacobi(arrays.P_h,arrays.P_H,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=100000,tol_lvl = coarse_tol)
     end
 
     return nothing
