@@ -1463,6 +1463,7 @@ Gauss-Seidel pressure update (red-black)
 function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
     @unpack dx, dy, dz, Nz, imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
     @unpack comm = par_env
+
     ω = 1.0
     use_z = Nz > 1
 
@@ -1478,19 +1479,9 @@ function rbgs_update!(P, RHS, denx, deny, denz, mesh, dt,par_env; τ=nothing)
 
                 diag = -(axm + axp + aym + ayp + azm + azp)
 
-                Px_m = P[i-1, j, k]
-                Px_p = P[i+1, j, k]
-                Py_m = P[i, j-1, k]
-                Py_p = P[i, j+1, k]
-                Pz_m = P[i, j, k-1]
-                Pz_p = P[i, j, k+1]
-
-                sum_neighbors = axm * Px_m +
-                                axp * Px_p +
-                                aym * Py_m +
-                                ayp * Py_p +
-                                azm * Pz_m +
-                                azp * Pz_p
+                sum_neighbors = axm*P[i-1,j,k] + axp*P[i+1,j,k] +
+                                aym*P[i,j-1,k] + ayp*P[i,j+1,k] +
+                                azm*P[i,j,k-1] + azp*P[i,j,k+1]
 
                 if isnothing(τ)
                     P_new_val = (RHS[i,j,k] - sum_neighbors) / diag
@@ -1514,8 +1505,6 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
     
     if tol_lvl !== nothing
         tol = tol_lvl
-    else
-        nothing
     end
 
     Neumann!(P,mesh,par_env)
@@ -1543,12 +1532,11 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
         # err = parallel_max_all(residual,par_env)
         
         if iter !== nothing && irank == 0 && i > (max_iter-1)
-        # if irank == 0 && i > (max_iter-1)
-            # if iter % 50 == 0
-                println("Iter $iter: max error = $err")
-            # end
+            println("MG lvl iter $iter at $i iterations max error = $err")
         end
+
         if err < tol
+            # println("iterations = $p_iter, max error = $err")
             if converged !== nothing
                 converged[] = true
                 # println("solution converged after $iter iterations")
@@ -1561,47 +1549,39 @@ function gs(P,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Noth
 end
 
 
-function jacobi_update!(P, P_new, RHS, denx, deny, denz, mesh, dt;τ=nothing)
-    @unpack dx,dy,dz,imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
-
-    fill!(P_new,0.0)
+function jacobi_update!(P, P_new, RHS, denx, deny, denz, mesh, dt; τ=nothing, ω=nothing)
+    @unpack dx, dy, dz, Nz, imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
+    use_z = Nz > 1
+    ω = isnothing(ω) ? (use_z ? 6/7 : 4/5) : ω   # optimal damped-Jacobi smoothing weights (3D / 2D)
 
     for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        # Diagonal coefficient
-        diag = -(dt / (denx[i, j, k] * dx^2) + dt / (denx[i+1, j, k] * dx^2) +
-                dt / (deny[i, j, k] * dy^2) + dt / (deny[i, j+1, k] * dy^2) +
-                dt / (denz[i, j, k] * dz^2) + dt / (denz[i, j, k+1] * dz^2))
+        axm = dt/(denx[i,  j,  k]*dx^2)
+        axp = dt/(denx[i+1,j,  k]*dx^2)
+        aym = dt/(deny[i,  j,  k]*dy^2)
+        ayp = dt/(deny[i,  j+1,k]*dy^2)
+        azm = use_z ? dt/(denz[i,j,k  ]*dz^2) : 0.0
+        azp = use_z ? dt/(denz[i,j,k+1]*dz^2) : 0.0
 
-        # Neighbor contributions
-        Px_m = P[i-1, j, k]
-        Px_p = P[i+1, j, k]
-        Py_m = P[i, j-1, k]
-        Py_p = P[i, j+1, k]
-        Pz_m = P[i, j, k-1]
-        Pz_p = P[i, j, k+1]
+        diag = -(axm + axp + aym + ayp + azm + azp)
 
-        sum_neighbors = (dt / (denx[i, j, k]   * dx^2)) * Px_m +
-                        (dt / (denx[i+1,j,k]   * dx^2)) * Px_p +
-                        (dt / (deny[i,j,k]     * dy^2)) * Py_m +
-                        (dt / (deny[i,j+1,k]   * dy^2)) * Py_p +
-                        (dt / (denz[i,j,k]     * dz^2)) * Pz_m +
-                        (dt / (denz[i,j,k+1]   * dz^2)) * Pz_p
-        # Update pressure
-        if isnothing(τ)
-            P_new[i,j,k] = (RHS[i,j,k] - sum_neighbors) / diag
-        else
-            P_new[i,j,k] = ((RHS[i,j,k] + τ[i,j,k]) - sum_neighbors) / diag
-        end
+        sum_neighbors = axm*P[i-1,j,k] + axp*P[i+1,j,k] +
+                        aym*P[i,j-1,k] + ayp*P[i,j+1,k] +
+                        azm*P[i,j,k-1] + azp*P[i,j,k+1]
+
+        rhs = isnothing(τ) ? RHS[i,j,k] : RHS[i,j,k] + τ[i,j,k]
+        P_new[i,j,k] = (1 - ω)*P[i,j,k] + ω*(rhs - sum_neighbors)/diag
     end
 end
 
-function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Nothing, Any} = nothing ,max_iter = 10000,lvl=1,converged::Union{Nothing, Ref{Bool}}=nothing,τ=nothing)
+function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::Union{Nothing, Any} = nothing ,max_iter = 10000,converged::Union{Nothing, Ref{Bool}}=nothing,τ=nothing,tol_lvl = nothing)
     @unpack tol,Nx,Ny,Nz = param
     @unpack imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack dx,dy,dz = mesh
     @unpack comm,nprocx,nprocy,nprocz,nproc,irank,iroot,isroot,irankx,iranky,irankz = par_env
     
-    
+    if tol_lvl !== nothing
+        tol = tol_lvl
+    end
 
     Neumann!(P,mesh,par_env)
     update_borders!(P,mesh,par_env)
@@ -1616,7 +1596,7 @@ function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::
         # update pressure with jacobi and compute
         jacobi_update!(P,P_new, RHS, denx, deny, denz, mesh,dt;τ)
         
-        #update pressure
+        # update pressure
         for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
             P[i,j,k] = P_new[i,j,k]
         end
@@ -1626,17 +1606,12 @@ function jacobi(P,P_new,RHS,residual,denx,deny,denz,dt,param,mesh,par_env;iter::
         Neumann!(P,mesh,par_env)
         update_borders!(P,mesh,par_env)
         
-
         res_comp!(residual,RHS,P,denx,deny,denz,dt,param,mesh,par_env)
 
         # Convergence check (L∞ norm)
         err = parallel_max_all(residual,par_env)
-
-        if i % 500 == 0 #irank == 0 #&& i > (max_iter-1)
-        # if irank == 0 && i > (max_iter-1)
-            # if iter % 50 == 0
-                println("Iter $iter: max error = $err")
-            # end
+        if iter !== nothing && irank == 0 && i > (max_iter-1)
+            println("MG lvl iter $iter at $i iterations max error = $err")
         end
         if err < tol
             if converged !== nothing
