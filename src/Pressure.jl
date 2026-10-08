@@ -983,11 +983,76 @@ function res_iteration(P, uf, vf, wf, gradx, grady, gradz, band, dt, denx, deny,
         if iter !== nothing && p_iter > (max_iter-1)
             println("residual at iter $iter = $(maximum(abs.(AP)))")
         end
+
+        # A!(AP, uf, vf, wf, P,dt, gradx, grady, gradz,band, denx, deny, denz,verts, tets, param, mesh, par_env)
+        # println("AP computed after 1 iteration")
+        # println(AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_])        
+    end
+    return p_iter
+end
+
+
+
+function nl_gs(P, uf, vf, wf, gradx, grady, gradz, band, dt, denx, deny, denz, AP, AP2, jacob, verts, tets, param, mesh, par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh = nothing,t = nothing)
+    @unpack imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
+    @unpack tol = param
+    @unpack isroot = par_env
+
+    if tol_lvl !== nothing
+        tol = tol_lvl
+    end
+
+    fill!(jacob, 0.0)
+
+    ω = 1.0
+    p_iter = 0
+
+    jacob_single(jacob, AP, AP2, uf, vf, wf, P, dt, gradx, grady, gradz, band, denx, deny, denz, verts, tets, param, mesh, par_env)
+
+    while p_iter < max_iter
+        p_iter += 1
+
+        # residual evaluation
+        A!(AP, uf, vf, wf, P,dt, gradx, grady, gradz,band, denx, deny, denz,verts, tets, param, mesh, par_env)
+
+        if τ !== nothing
+            AP[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .-= τ[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
+        end
+
+        res_norm = parallel_max_all(abs.(AP), par_env)
+
+        if res_norm < tol
+                # println("coarse v-cycle converged in $p_iter iterations")
+            if converged !== nothing
+                converged[] = true
+            end
+            return p_iter
+        end
+
+        # Nonlinear gauss-seidel update
+        for color in (0,1)
+            for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
+                if (i + j + k) % 2 == color
+                    Neumann!(P, mesh, par_env); #update_borders!(P, mesh, par_env)
+                    A!(i,j,k,AP,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts,tets,param,mesh,par_env)
+                    τ !== nothing && (AP[i,j,k] -= τ[i,j,k])                       # same sign as res_iteration
+                    P[i,j,k] -= ω * AP[i,j,k] / max(abs(jacob[i,j,k]), 1e-12)
+                end
+            end
+            P .-= parallel_mean_all(P, par_env)
+        end
+
+        if p_iter % 200 == 0 && isroot
+            println("residual at iter $p_iter = $res_norm")
+        end
+
+        if iter !== nothing && p_iter > (max_iter-1)
+            println("residual at iter $iter = $(maximum(abs.(AP)))")
+        end
     end
 
     return p_iter
 end
-
 
 
 function anderson_accel_uncon(ΔF, f_k, par_env; w0 = 1e-2)
