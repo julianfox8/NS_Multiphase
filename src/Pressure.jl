@@ -965,19 +965,12 @@ function res_iteration(P, uf, vf, wf, gradx, grady, gradz, band, dt, denx, deny,
             J_loc   = jacob[imin_:imax_, jmin_:jmax_, kmin_:kmax_]
 
             J_safe = max.(abs.(J_loc), 1e-12)
-            Gn_loc = P_loc .- ω * AP_loc ./ J_safe
-            # Gn_loc = P_loc .- ω .* (AP_loc ./ J_loc)
+            P_loc .-= ω * AP_loc ./ J_safe
+            P .-= parallel_mean_all(P_loc, par_env)
         end
 
-        # overwrite solution (simple relaxation step)
-        @views begin
-            P[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= Gn_loc
-        end
 
-        # optional mean removal (pressure gauge fixing)
-        P .-= parallel_mean_all(P[imin_:imax_, jmin_:jmax_, kmin_:kmax_], par_env)
-
-        # if p_iter % 100 == 0 && isroot
+        # if p_iter % 200 == 0 && isroot
             # println("residual at iter $p_iter = $res_norm")
         # end
         if iter !== nothing && p_iter > (max_iter-1)
