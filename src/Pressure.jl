@@ -96,7 +96,6 @@ function coarse_sol!(op, arrays;iter = nothing)
     elseif coarse_sol == "jacobi"
         iter = jacobi(arrays.P_h,arrays.P_H,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=100000,tol_lvl = coarse_tol)
     end
-
     return nothing
 end
 
@@ -153,12 +152,10 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,te
     # @loop param for kk=kmin_-3:kmax_+3, jj=jmin_-3:jmax_+3, ii=imin_-3:imax_+3
         gradz[ii,jj,kk]=wf[ii,jj,kk] -dt/̂denz[ii,jj,kk]*(P[ii,jj,kk]-P[ii,jj,kk-1])/̂dz
     end
-
-    fill!(LHS,0.0)
+    
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
         LHS[i,j,k] = divg_cell(i,j,k,gradx,grady,gradz,band,dt,verts_arr,tets_arr,param,mesh;pmesh=pmesh)
     end
-
     return nothing
 end
 
@@ -843,20 +840,6 @@ function aa_update!(P_loc, Gn_loc, Fn_loc, Fhist, Phist, m, β, par_env)
 end
 
 function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,jacob,Fhist,Phist,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
-    push!(Phist, copy(Gn_loc))
-    push!(Fhist, copy(Fn_loc))
-    if length(Fhist) > m
-        popfirst!(Fhist); popfirst!(Phist)
-    end
-    if length(Fhist) > 1
-        α = par_anderson_accel_con(Fhist, par_env)
-        P_loc .= β .* weighted_sum(Phist, α) .+ (1 - β) .* P_loc
-    else
-        P_loc .= Gn_loc
-    end
-end
-
-function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,AP,AP2,jacob,Fhist,Phist,verts,tets,param,mesh,par_env;max_iter = 50000,τ::Union{Nothing, Any} = nothing,iter::Union{Nothing, Any}=nothing,converged = nothing,tol_lvl = nothing,pmesh=nothing) 
     @unpack Nx,Ny,Nz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,dx,dy,dz = mesh
     @unpack tol,m,β = param
     @unpack isroot = par_env
@@ -867,7 +850,6 @@ function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,den
         nothing
     end
 
-    fill!(Gn,0.0)
     fill!(jacob,0.0)
     # if iter !== nothing
     #     #initialize PVTK for pressure
