@@ -1,5 +1,43 @@
 using DataFrames, CSV
-# Serial implementation for full approximation scheme (FAS) multigrid method
+
+# Wrapper structs for use in mg_cycler()
+struct SLOp{M,P}
+    lvl::MG_level; mesh::M; param::P; par_env; dt::Float64
+    verts; tets; face_BC!
+end
+
+struct FDOp{M,P}
+    lvl::MG_level; mesh::M; param::P; par_env; dt::Float64; face_BC!
+end
+
+function restrict_operator!(c::SLOp, f::SLOp, VF_f)
+    restrict!(c.lvl.tmplrg, VF_f, c.mesh, f.mesh)
+    Neumann!(c.lvl.tmplrg, c.mesh, c.par_env)
+    # computeBand!(c.lvl.band, c.lvl.tmplrg, c.param, c.mesh, c.par_env)
+    fill!(c.lvl.band,2.0)
+    compute_dens!(c.lvl.denx, c.lvl.deny, c.lvl.denz, c.lvl.tmplrg, c.param, c.mesh)
+    restrict_x_face!(c.lvl.uf, f.lvl.uf, c.mesh)
+    restrict_y_face!(c.lvl.vf, f.lvl.vf, c.mesh)
+    restrict_z_face!(c.lvl.wf, f.lvl.wf, c.mesh)
+    c.face_BC!(c.lvl.uf, c.lvl.vf, c.lvl.wf, c.mesh, c.par_env)
+end
+
+function restrict_operator!(c::FDOp, f::FDOp, VF_f)
+    restrict!(c.lvl.tmplrg, VF_f, c.mesh, f.mesh)
+    Neumann!(c.lvl.tmplrg, c.mesh, c.par_env)
+    compute_dens!(c.lvl.denx, c.lvl.deny, c.lvl.denz, c.lvl.tmplrg, c.param, c.mesh)
+    restrict!(c.lvl.RHS, f.lvl.RHS, c.mesh, f.mesh)
+end
+
+apply!(op::SLOp, r, P) = A!(r, op.lvl.uf, op.lvl.vf, op.lvl.wf, P, op.dt,
+                            op.lvl.gradx, op.lvl.grady, op.lvl.gradz, op.lvl.band,
+                            op.lvl.denx, op.lvl.deny, op.lvl.denz,
+                            op.verts, op.tets, op.param, op.mesh, op.par_env)
+
+apply!(op::FDOp, r, P) = res_comp!(r, op.lvl.RHS, P, op.lvl.denx, op.lvl.deny,
+                                   op.lvl.denz, op.dt, op.param, op.mesh, op.par_env)
+
+
 """
 define the prolongation function (use trilinear interpolation for cell-centered and face-centered quantities)
 """
@@ -179,58 +217,6 @@ function restrict_z_face_harmonic!(coarse_field, fine_field, coarse_mesh)
             1/fine_field[ii,   jj,  kk]   + 1/fine_field[ii+1, jj,   kk] +
             1/fine_field[ii,   jj+1, kk] + 1/fine_field[ii+1, jj+1, kk]
         )
-    end
-end
-
-function fill_ghost_cells!(field, mesh, par_env)
-    @unpack imin_, imax_, jmin_, jmax_, kmin_, kmax_ = mesh
-    @unpack imino_, imaxo_, jmino_, jmaxo_, kmino_, kmaxo_ = mesh
-
-    # x-direction ghost cells
-    for k in kmino_:kmaxo_, j in jmino_:jmaxo_
-        for i in imino_:imin_-1
-            field[i, j, k] = field[imin_, j, k]
-        end
-        for i in imax_+1:imaxo_
-            field[i, j, k] = field[imax_, j, k]
-        end
-    end
-
-    # y-direction ghost cells
-    for k in kmino_:kmaxo_, i in imino_:imaxo_
-        for j in jmino_:jmin_-1
-            field[i, j, k] = field[i, jmin_, k]
-        end
-        for j in jmax_+1:jmaxo_
-            field[i, j, k] = field[i, jmax_, k]
-        end
-    end
-
-    # z-direction ghost cells
-    for j in jmino_:jmaxo_, i in imino_:imaxo_
-        for k in kmino_:kmin_-1
-            field[i, j, k] = field[i, j, kmin_]
-        end
-        for k in kmax_+1:kmaxo_
-            field[i, j, k] = field[i, j, kmax_]
-        end
-    end
-
-    # Optional MPI halo exchange or periodic BC fill
-    update_borders!(field, mesh, par_env)
-end
-
-function interface_update(band,P,coarse_sol,mesh,par_env)
-    @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mesh
-
-    for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
-        # near interface (dont include correction)
-        if abs(band[i,j,k]) <= 1 
-            nothing
-        # away from interface error is reasonable
-        else
-            P[i,j,k] -= coarse_sol[i,j,k]
-        end
     end
 end
 
