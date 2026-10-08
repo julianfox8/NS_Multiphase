@@ -105,7 +105,7 @@ function precon_poisson_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
     return ov_iter
 end
 # LHS of pressure poisson equation
-function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env;pmesh=nothing)
+function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,verts_arr,tets_arr,param,mesh,par_env;pmesh=nothing)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     @unpack isroot,irank,nproc = par_env
     fill!(gradx,0.0)
@@ -132,7 +132,7 @@ function A!(LHS,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,p
 
     fill!(LHS,0.0)
     for k=kmin_:kmax_, j=jmin_:jmax_, i=imin_:imax_
-        LHS[i,j,k] = divg_cell(i,j,k,gradx,grady,gradz,band,dt,p,tets_arr,param,mesh;pmesh=pmesh)
+        LHS[i,j,k] = divg_cell(i,j,k,gradx,grady,gradz,band,dt,verts_arr,tets_arr,param,mesh;pmesh=pmesh)
     end
 
     return nothing
