@@ -12,15 +12,15 @@ struct MG_level
     denx    :: FField
     deny    :: FField
     denz    :: FField
-    AP_f    :: FField
-    AP_c    :: FField
+    AP_R    :: FField
+    AP    :: FField
     RHS     :: FField
     res     :: FField
     P_bar_H :: FField
     P_H     :: FField
-    tmp1    :: FField
-    tmp2    :: FField
-    tmp3    :: FField
+    tau    :: FField
+    corr    :: FField
+    diag    :: FField
     tmplrg  :: FField
     band    :: IField
     jacob   :: HYPRE_IJMatrix
@@ -244,20 +244,20 @@ function mg_initArrays(mg_mesh,param,par_env)
         denx     = OffsetArray{Float64}(undef, imino_:imaxo_+1, jmino_:jmaxo_, kmino_:kmaxo_); fill!(denx,0.0)
         deny     = OffsetArray{Float64}(undef, imino_:imaxo_, jmino_:jmaxo_+1, kmino_:kmaxo_); fill!(deny,0.0)
         denz     = OffsetArray{Float64}(undef, imino_:imaxo_, jmino_:jmaxo_, kmino_:kmaxo_+1); fill!(denz,0.0)
-        AP_f     = OffsetArray{Float64}(undef, size3D); fill!(AP_f,0.0)
-        AP_c     = OffsetArray{Float64}(undef, size3D); fill!(AP_c,0.0)
+        AP_R     = OffsetArray{Float64}(undef, size3D); fill!(AP_R,0.0)
+        AP       = OffsetArray{Float64}(undef, size3D); fill!(AP,0.0)
         RHS      = OffsetArray{Float64}(undef, size3D); fill!(RHS,0.0)
         res      = OffsetArray{Float64}(undef, size3D); fill!(res,0.0)
         P_bar_H  = OffsetArray{Float64}(undef, size3D); fill!(P_bar_H,0.0)
         P_H      = OffsetArray{Float64}(undef, size3D); fill!(P_H,0.0)
-        tmp1     = OffsetArray{Float64}(undef, size3D); fill!(tmp1,0.0)
-        tmp2     = OffsetArray{Float64}(undef, size3D);fill!(tmp2,0.0)
-        tmp3     = OffsetArray{Float64}(undef, size3D); fill!(tmp3,0.0)
-        tmplrg   = OffsetArray{Float64}(undef, imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3); fill!(tmplrg,0.0)
-        band     = OffsetArray{Int16}(undef, size3D); fill!(band,0.0)
+        tau      = OffsetArray{Float64}(undef, size3D); fill!(tau,0.0)
+        corr     = OffsetArray{Float64}(undef, size3D);fill!(corr,0.0)
+        diag     = OffsetArray{Float64}(undef, size3D); fill!(diag,0.0)
+        VF_lvl   = OffsetArray{Float64}(undef, imino_-3:imaxo_+3, jmino_-3:jmaxo_+3, kmino_-3:kmaxo_+3); fill!(VF_lvl,0.0)
+        band     = OffsetArray{Int16}(undef, size3D); fill!(band,0)
 
         # Initialize HYPRE objects 
-        p_min,p_max = prepare_indices(tmp3,par_env,mesh);fill!(tmp3,0.0)
+        p_min,p_max = prepare_indices(P_H,par_env,mesh);fill!(P_H,0.0)
         
         jacob_ref = Ref{HYPRE_IJMatrix}(C_NULL)
         HYPRE_IJMatrixCreate(par_env.comm,p_min,p_max,p_min,p_max,jacob_ref)
@@ -288,16 +288,16 @@ function mg_initArrays(mg_mesh,param,par_env)
             denx,
             deny,
             denz,
-            AP_f,
-            AP_c,
+            AP_R,
+            AP,
             RHS,
             res,
             P_bar_H,
             P_H,
-            tmp1,
-            tmp2,
-            tmp3,
-            tmplrg,
+            tau,
+            corr,
+            diag,
+            VF_lvl,
             band,
             jacob,
             b_vec,
