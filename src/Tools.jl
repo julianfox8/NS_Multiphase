@@ -165,8 +165,9 @@ end
 
 
 
-function initArrays(mesh)
+function initArrays(mesh,param)
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
+    @unpack m = param
 
     # Allocate memory
     u  = OffsetArray{Float64}(undef, imino_:imaxo_,jmino_:jmaxo_,kmino_:kmaxo_); fill!(u ,0.0)
@@ -218,7 +219,11 @@ function initArrays(mesh)
     verts = Array{Float64}(undef, 3, 8)
     vInds = Array{Int32}(undef, 3, 8)
 
-    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds
+    Fhist = Vector{Array{Float64,3}}()
+    Phist = Vector{Array{Float64,3}}()
+
+    
+    return P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds,Fhist,Phist
 
 end
 
