@@ -60,7 +60,17 @@ using Parameters
     pressure_scheme :: String = "semi-lagrangian"
     hypreSolver :: String = "LGMRES"
     pressurePrecond :: String = "none"
-    
+
+    m           :: Int64   = pressureSolver == "anderson" ? 5 : 0
+    β           :: Float64 = pressureSolver == "anderson" ? 0.5 : 0.0
+
+    smoother    :: String  = "nl_jacobi"
+    coarse_sol  :: String  = "nl_jacobi"
+    v1          :: Int64   = 5
+    v2          :: Int64   = 5
+    coarse_tol  :: Float64 = tol * 1e-1
+    mg_iters    :: Int64   = 100
+
     # Set flux-correction flag
     flux_corrections :: Bool = true
 
