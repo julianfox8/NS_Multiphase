@@ -1449,33 +1449,63 @@ end
 """
 Adds pressure pertubation required for Jacobian calculation
 """
-function add_perturb!(P,delta,ii,jj,kk,mesh,par_env)
+function add_perturb!(P,delta,ii,jj,kk,mesh,param,par_env)
     @unpack imin, imax, jmin,jmax,kmin,kmax = mesh
-
+    @unpack Nx,Ny,Nz,xper,yper,zper = param
+    
+    # apply perturbation to ii,jj,kk
     P[ii,jj,kk] += delta
 
-    if ii == imin
-        P[ii-1,jj,kk] = P[ii,jj,kk]
+    # Handle one cell thick scenarios
+    if Nx == 1
+        if ii == imin
+            P[ii-1,jj,kk] = P[ii,jj,kk]
+        end
+
+        if ii == imax
+            P[ii+1,jj,kk] = P[ii,jj,kk]
+        end
     end
 
-    if ii == imax
-        P[ii+1,jj,kk] = P[ii,jj,kk]
+    if Ny == 1
+        if jj == jmin
+            P[ii,jj-1,kk] = P[ii,jj,kk]
+        end
+        
+        if jj == jmax
+            P[ii,jj+1,kk] = P[ii,jj,kk]
+        end
     end
 
-    if jj == jmin
-        P[ii,jj-1,kk] = P[ii,jj,kk]
+    if Nz == 1
+        if kk == kmin
+            P[ii,jj,kk-1] = P[ii,jj,kk]
+        end
+
+        if kk == kmax
+            P[ii,jj,kk+1] = P[ii,jj,kk]
+        end
     end
 
-    if jj == jmax 
-        P[ii,jj+1,kk] = P[ii,jj,kk]
+    if Nx == 1 && Ny == 1
+        P[ii-1,jj-1,kk] = P[ii,jj,kk]
+        P[ii+1,jj-1,kk] = P[ii,jj,kk]
+        P[ii-1,jj+1,kk] = P[ii,jj,kk]
+        P[ii+1,jj+1,kk] = P[ii,jj,kk]
     end
 
-    if kk == kmin
-        P[ii,jj,kk-1] =P[ii,jj,kk]
+    if Nz == 1 && Ny == 1
+        P[ii,jj-1,kk-1] = P[ii,jj,kk]
+        P[ii,jj+1,kk-1] = P[ii,jj,kk]
+        P[ii,jj-1,kk+1] = P[ii,jj,kk]
+        P[ii,jj+1,kk+1] = P[ii,jj,kk]
     end
 
-    if kk == kmax
-        P[ii,jj,kk+1] = P[ii,jj,kk]
+    if Nx == 1 && Nz == 1
+        P[ii-1,jj,kk-1] = P[ii,jj,kk]
+        P[ii+1,jj,kk-1] = P[ii,jj,kk]
+        P[ii-1,jj,kk+1] = P[ii,jj,kk]
+        P[ii+1,jj,kk+1] = P[ii,jj,kk]
     end
     return nothing
 end
@@ -1484,33 +1514,63 @@ end
 """
 Removes pressure pertubation required for Jacobian calculation
 """
-function remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
+function remove_perturb!(P,delta,ii,jj,kk,mesh,param,par_env)
     @unpack imin, imax, jmin,jmax,kmin,kmax = mesh
-
+    @unpack Nx,Ny,Nz,xper,yper,zper = param
+    
+    # apply perturbation to ii,jj,kk
     P[ii,jj,kk] -= delta
 
-    if ii == imin
-        P[ii-1,jj,kk] = P[ii,jj,kk]
+    # Handle one cell thick scenarios
+    if Nx == 1
+        if ii == imin
+            P[ii-1,jj,kk] = P[ii,jj,kk]
+        end
+
+        if ii == imax
+            P[ii+1,jj,kk] = P[ii,jj,kk]
+        end
     end
 
-    if ii == imax
-        P[ii+1,jj,kk] = P[ii,jj,kk]
+    if Ny == 1
+        if jj == jmin
+            P[ii,jj-1,kk] = P[ii,jj,kk]
+        end
+        
+        if jj == jmax
+            P[ii,jj+1,kk] = P[ii,jj,kk]
+        end
     end
 
-    if jj == jmin
-        P[ii,jj-1,kk] = P[ii,jj,kk]
+    if Nz == 1
+        if kk == kmin
+            P[ii,jj,kk-1] = P[ii,jj,kk]
+        end
+
+        if kk == kmax
+            P[ii,jj,kk+1] = P[ii,jj,kk]
+        end
     end
 
-    if jj == jmax 
-        P[ii,jj+1,kk] = P[ii,jj,kk]
+    if Nx == 1 && Ny == 1
+        P[ii-1,jj-1,kk] = P[ii,jj,kk]
+        P[ii+1,jj-1,kk] = P[ii,jj,kk]
+        P[ii-1,jj+1,kk] = P[ii,jj,kk]
+        P[ii+1,jj+1,kk] = P[ii,jj,kk]
     end
 
-    if kk == kmin
-        P[ii,jj,kk-1] =P[ii,jj,kk]
+    if Nz == 1 && Ny == 1
+        P[ii,jj-1,kk-1] = P[ii,jj,kk]
+        P[ii,jj+1,kk-1] = P[ii,jj,kk]
+        P[ii,jj-1,kk+1] = P[ii,jj,kk]
+        P[ii,jj+1,kk+1] = P[ii,jj,kk]
     end
 
-    if kk == kmax
-        P[ii,jj,kk+1] = P[ii,jj,kk]
+    if Nx == 1 && Nz == 1
+        P[ii-1,jj,kk-1] = P[ii,jj,kk]
+        P[ii+1,jj,kk-1] = P[ii,jj,kk]
+        P[ii-1,jj,kk+1] = P[ii,jj,kk]
+        P[ii+1,jj,kk+1] = P[ii,jj,kk]
     end
     return nothing
 end
