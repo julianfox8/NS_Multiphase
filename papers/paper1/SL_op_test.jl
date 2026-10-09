@@ -280,32 +280,30 @@ function test_SLdivergence()
         fd_ref  = (color=:gray, linewidth=2, linestyle=:dash)
 
         # ---- Figure built once, contents updated each frame ----
-        fig = Figure(size=(1000,600), figure_padding=16)
+        fig = Figure(size=(800,700), figure_padding=16)
 
-        # Top row: projected cells (redrawn each frame), in their own layout so
-        # the panels' y-decorations below cannot skew the spacing between cells
-        gtop = GridLayout(fig[1,1:6])
-        axcell = [Axis(gtop[1,c], aspect=DataAspect(), xgridvisible=false, ygridvisible=false,limits=(xmin_c,xmax_c,ymin_c,ymax_c),
-                       yticklabelsvisible=false,xticklabelsvisible=false) for c in 1:3]
+        # Projected cells (redrawn each frame): F₁ and F₂ on top, F₁+F₂ bottom left
+        axcell = [Axis(fig[r,c], aspect=DataAspect(),
+                       xgridvisible=false, ygridvisible=false,
+                       xticklabelsvisible=false, yticklabelsvisible=false,
+                       limits=(xmin_c,xmax_c,ymin_c,ymax_c))
+                  for (r,c) in ((1,1), (1,2), (2,1))]
         # axcell = [Axis(fig[1,(2c-1):(2c)], aspect=DataAspect(), xgridvisible=false, ygridvisible=false,
         #                limits=(xmin_c,xmax_c,ymin_c,ymax_c)) for c in 1:3]
 
-        # Data panels: axis with an outer-top legend, via a nested layout
-        function panel(cols,ylims; ylabel="", ytickformat=Makie.automatic)
-            ax = Axis(fig[2,cols]; xlabel="CFL", ylabel, ytickformat,
-                      limits=((0.0,maximum(cfls)), ylims),ylabelsize = 18, xlabelsize = 18)
-            return ax
-        end
         # function panel(cols,ylims; ylabel="", ytickformat=Makie.automatic)
         #     gl = GridLayout(fig[2,cols])
         #     ax = Axis(gl[2,1]; xlabel="CFL", ylabel, ytickformat,
         #               limits=((0.0,maximum(cfls)), ylims))
         #     return gl, ax
         # end
-        ax6 = panel(2:3,(dmin,dmax); ylabel="∇⋅u")
+        # Divergence vs CFL, bottom right
+        ax6 = Axis(fig[2,2]; xlabel="CFL", ylabel="∇⋅u",
+                   xlabelsize=18, ylabelsize=18,
+                   limits=((0.0,maximum(cfls)), (dmin,dmax)))
         # gl5,ax5 = panel(2,2,(dmin,dmax))
         # gl6,ax6 = panel(2,3,(dmin,dmax))
-        ax9 = panel(4:5,(vmin,vmax); ylabel="ΔV/V₁")
+        # ax9 = panel(4:5,(vmin,vmax); ylabel="ΔV/V₁")
         # gl8,ax8 = panel(3,2,(vmin,vmax);                ytickformat=voltick)
         # gl9,ax9 = panel(3,3,(vmin,vmax);                ytickformat=voltick)
 
@@ -316,8 +314,8 @@ function test_SLdivergence()
         sl_divapb = Observable(Point2f[])
         # sl_vola   = Observable(Point2f[])
         # sl_volb   = Observable(Point2f[])
-        sl_volab  = Observable(Point2f[])
-        sl_volapb = Observable(Point2f[])
+        # sl_volab  = Observable(Point2f[])
+        # sl_volapb = Observable(Point2f[])
 
         # Divergence vs time
         # scatterlines!(ax4, sl_diva   ; label="∇⋅A (SL)",       sl_pts... )
@@ -326,16 +324,16 @@ function test_SLdivergence()
         # hlines!(      ax5, [divb_fd[1]]  ; label="∇⋅B (FD)",       fd_ref... )
         scatterlines!(ax6, sl_divab  ; label="∇⋅(F₁+F₂) (SL)",   sl_pts... )
         scatterlines!(ax6, sl_divapb ; label="∇⋅F₁ + ∇⋅F₂ (SL)", sl_pts2...)
-        hlines!(      ax6, [divab_fd[1]] ; label="∇⋅(F₁+F₂) (FD)",   fd_ref... )
+        # hlines!(      ax6, [divab_fd[1]] ; label="∇⋅(F₁+F₂) (FD)",   fd_ref... )
 
         # Volume change vs CFL
         # scatterlines!(ax7, sl_vola   ; label="V(A)/V₁ (SL)",               sl_pts... )
         # lines!(       ax7, cfls, vol2a_fd_n  ; label="V(A)/V₁ (FD)",           fd_ref... )
         # scatterlines!(ax8, sl_volb   ; label="V(B)/V₁ (SL)",               sl_pts... )
         # lines!(       ax8, cfls, vol2b_fd_n  ; label="V(B)/V₁ (FD)",           fd_ref... )        
-        scatterlines!(ax9, sl_volab  ; label="ΔV(F₁+F₂)/V₁ (SL)",           sl_pts...)
-        scatterlines!(ax9, sl_volapb ; label="ΔV(F₁)/V₁ + ΔV(F₂)/V₁ (SL)",  sl_pts2... )
-        lines!(       ax9, cfls, dvol_ab_fd ; label="ΔV(F₁+F₂)/V₁ (FD)",        fd_ref... )
+        # scatterlines!(ax9, sl_volab  ; label="ΔV(F₁+F₂)/V₁ (SL)",           sl_pts...)
+        # scatterlines!(ax9, sl_volapb ; label="ΔV(F₁)/V₁ + ΔV(F₂)/V₁ (SL)",  sl_pts2... )
+        # lines!(       ax9, cfls, dvol_ab_fd ; label="ΔV(F₁+F₂)/V₁ (FD)",        fd_ref... )
 
         # for (gl,ax) in ((gl4,ax4),(gl5,ax5),(gl6,ax6),(gl7,ax7),(gl8,ax8),(gl9,ax9))
         # for (gl,ax) in ((gl6,ax6),(gl9,ax9))
@@ -344,17 +342,16 @@ function test_SLdivergence()
         #            tellheight=true, tellwidth=false)
         #     rowgap!(gl, 4)
         # end
-        for ax in (ax6, ax9)
-            axislegend(ax; position=:lc,
-                       labelsize=13, patchsize=(18,10), padding=(6,6,6,6))
-        end
+        
+        axislegend(ax6; position=:lc,labelsize=13, patchsize=(18,10), padding=(6,6,6,6))
+        
         # Equal columns: the cell axes above and the panels below share one
         # geometry, instead of the panels' y-decorations setting column widths
-        foreach(c -> colsize!(fig.layout, c, Relative(1/6)), 1:6)
+        # foreach(c -> colsize!(fig.layout, c, Relative(1/6)), 1:6)
 
         # Row 1 height = two column widths, so the DataAspect cells are exactly
         # square with no leftover vertical space
-        rowsize!(fig.layout, 1, Aspect(1, 2.0))
+        # rowsize!(fig.layout, 1, Aspect(1, 2.0))
 
         # ---- Animate ----
         record(fig, "divVsTime_Velocity$case.gif", eachindex(dts); framerate=5) do n
@@ -377,8 +374,8 @@ function test_SLdivergence()
             sl_divapb[] = Point2f.(cfls[1:n], diva[1:n].+divb[1:n])
             # sl_vola[]   = Point2f.(cfls[1:n], vol2a_n[1:n])
             # sl_volb[]   = Point2f.(cfls[1:n], vol2b_n[1:n])
-            sl_volab[]  = Point2f.(cfls[1:n], dvol_ab[1:n])
-            sl_volapb[] = Point2f.(cfls[1:n], dvol_apb[1:n])
+            # sl_volab[]  = Point2f.(cfls[1:n], dvol_ab[1:n])
+            # sl_volapb[] = Point2f.(cfls[1:n], dvol_apb[1:n])
         end
 
         # Save final figure
