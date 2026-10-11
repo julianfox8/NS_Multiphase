@@ -184,8 +184,8 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
     NS.defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
 
     # Compute band around interface
-    # NS.computeBand!(band,VF,param,mesh,par_env)
-    fill!(band,0.0)
+    NS.computeBand!(band,VF,param,mesh,par_env)
+    # fill!(band,0.0)
     
     # Compute interface normal 
     NS.computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
@@ -278,6 +278,8 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
             NS.pmesh2VTK(tpmesh,"transport_preimage",param)
             error("pre-images vtk files created")
         end
+        # Update band
+        NS.computeBand!(band,VF,param,mesh,par_env)
 
         # VTK Output
         NS.VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
