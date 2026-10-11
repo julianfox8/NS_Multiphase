@@ -297,9 +297,10 @@ function test_SLdivergence()
         #               limits=((0.0,maximum(cfls)), ylims))
         #     return gl, ax
         # end
+        cellaspect = (xmax_c - xmin_c) / (ymax_c - ymin_c)
         # Divergence vs CFL, bottom right
-        ax6 = Axis(fig[2,2]; xlabel="CFL", ylabel="∇⋅u",
-                   xlabelsize=18, ylabelsize=18,
+        ax6 = Axis(fig[2,2]; aspect=cellaspect,xlabel="CFL", ylabel="∇⋅u",
+                   xlabelsize=22, ylabelsize=22, xticklabelsize=22, yticklabelsize=22,
                    limits=((0.0,maximum(cfls)), (dmin,dmax)))
         # gl5,ax5 = panel(2,2,(dmin,dmax))
         # gl6,ax6 = panel(2,3,(dmin,dmax))
@@ -343,7 +344,7 @@ function test_SLdivergence()
         #     rowgap!(gl, 4)
         # end
         
-        axislegend(ax6; position=:lc,labelsize=13, patchsize=(18,10), padding=(6,6,6,6))
+        axislegend(ax6; position=:lc,labelsize=18, patchsize=(18,10), padding=(6,6,6,6))
         
         # Equal columns: the cell axes above and the panels below share one
         # geometry, instead of the panels' y-decorations setting column widths
