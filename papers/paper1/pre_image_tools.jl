@@ -352,7 +352,7 @@ function plot_points_on_faces(tri_verts, tri_ids, lambdas, tetsign, ns)
     colors = tetsign === nothing ? :blue : tetsign
 
     scatter!(ax, points_mapped[1,:], points_mapped[2,:], points_mapped[3,:], markersize=8, color=colors)
-    nfaces = 6
+    nfaces = 3
     nfp = ns^2
     offset = 0
 
@@ -364,15 +364,15 @@ function plot_points_on_faces(tri_verts, tri_ids, lambdas, tetsign, ns)
         Y = reshape(face_pts[2,:], ns, ns)
         Z = reshape(face_pts[3,:], ns, ns)
 
-        # # ξ-direction lines
-        # for j in 1:ns
-        #     lines!(ax, X[:,j], Y[:,j], Z[:,j])
-        # end
+        # ξ-direction lines
+        for j in 1:ns
+            lines!(ax, X[:,j], Y[:,j], Z[:,j])
+        end
 
-        # # η-direction lines
-        # for i in 1:ns
-        #     lines!(ax, X[i,:], Y[i,:], Z[i,:])
-        # end
+        # η-direction lines
+        for i in 1:ns
+            lines!(ax, X[i,:], Y[i,:], Z[i,:])
+        end
         surface!(ax,X,Y,Z,color = :lightblue, shading=true,transparency = true)
         offset += nfp
     end
@@ -429,23 +429,38 @@ function plot_sampled_cell(sample_pts, verts, ns; original_verts = nothing, titl
     face_colors = [:lightblue, :blue, :yellow, :orange, :green, :darkgreen]  # one color per face
 
     for f in 1:nfaces
-        face_pts = @view sample_pts[:, offset+1 : offset+nfp]
+        if f == 1 || f == 3 || f == 6
+            face_pts = @view sample_pts[:, offset+1 : offset+nfp]
 
-        X = reshape(face_pts[1,:], ns, ns)
-        Y = reshape(face_pts[2,:], ns, ns)
-        Z = reshape(face_pts[3,:], ns, ns)
+            X = reshape(face_pts[1,:], ns, ns)
+            Y = reshape(face_pts[2,:], ns, ns)
+            Z = reshape(face_pts[3,:], ns, ns)
 
-        # Plot surface of the face
-        # surface!(ax, X, Y, Z, color=face_colors[f], alpha=alpha_list[f])
-        # surface!(ax, X, Y, Z, color = :lightblue, alpha=0.4,transparency=true)
-        surface!(ax, X, Y, Z, alpha=0.4,transparency=true,colormap = :magma)
+            # Plot surface of the face
+            # surface!(ax, X, Y, Z, color=face_colors[f], alpha=alpha_list[f])
+            # surface!(ax, X, Y, Z, color = :lightblue, alpha=0.4,transparency=true,shading = NoShading)
+            # surface!(ax, X, Y, Z, alpha=0.4,transparency=true,colormap = :magma)
+            surface!(ax, X, Y, Z,
+             color = fill(RGBAf(0.7, 0.8, 0.95, 0.4), ns, ns),
+             shading = NoShading,
+             transparency = true)
 
-        # Scatter the points of this face
-        # scatter!(ax, face_pts[1,:], face_pts[2,:], face_pts[3,:], 
-        #          color=face_colors[f], markersize=6)#, label="Face $f points")
-        scatter!(ax, face_pts[1,:], face_pts[2,:], face_pts[3,:], 
-                 color = :black, markersize=6)
-        offset += nfp
+            for j in 1:ns
+                lines!(ax, X[:,j], Y[:,j], Z[:,j], color = :black, linewidth = 1)
+            end
+            for i in 1:ns
+                lines!(ax, X[i,:], Y[i,:], Z[i,:], color = :black, linewidth = 1)
+            end
+            # Scatter the points of this face
+            # scatter!(ax, face_pts[1,:], face_pts[2,:], face_pts[3,:], 
+            #          color=face_colors[f], markersize=6)#, label="Face $f points")
+            scatter!(ax, face_pts[1,:], face_pts[2,:], face_pts[3,:], 
+                    color = :black, markersize=6)
+            offset += nfp
+        else
+            offset += nfp 
+            continue
+        end
     end
 
     # axislegend(ax, position = :rb)

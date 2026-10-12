@@ -42,6 +42,20 @@ const PROJ_ORDER = Dict(
     "RK4"   => "4th",
 )
 
+# Curve styling: colour carries the variant, marker the projection method.
+# Values are the Makie default palette entries these variants already receive.
+const VARIANT_COLOR = Dict(
+    "FD"   => "#0072B2",
+    "SL"   => "#E69F00",
+    "noFC" => "#009E73",
+)
+
+const PROJ_MARKER = Dict(
+    "Euler" => :circle,
+    "Heun"  => :diamond,
+    "RK4"   => :rect,
+)
+
 # ---------------------------------------------------------------------------
 # Individual figures
 # ---------------------------------------------------------------------------
@@ -63,6 +77,7 @@ function plot_advection(case)
         xlabel     = L"Mesh\ Size",
         ylabel     = L"E_{\text{shape}}",
         labels     = VARIANT_LABEL,
+        colors     = VARIANT_COLOR,
         xticks     = sort(unique(df.N)),
         refgroup   = "SL",
         refoffsets = [1.5, 0.7],
@@ -79,6 +94,7 @@ function plot_mms()
         xlabel     = L"Mesh\ Size",
         ylabel     = L"L_2\ error",
         labels     = VARIANT_LABEL,
+        colors     = VARIANT_COLOR,
         xticks     = sort(unique(df.N)),
         refoffsets = [1.25, 0.75],  
         legendpos  = :rt,
@@ -98,8 +114,11 @@ function plot_preimage()
         xlabel    = L"CFL",
         ylabel    = L"E_{\text{pre-image}}",
         labels    = labels,
+        colors    = VARIANT_COLOR,
+        markers   = PROJ_MARKER,
         xticks     = 0.0:0.2:1.2,
         xscale = identity,
+        legendpos= :rb,
         refslopes = [],
         savepath  = joinpath(FIGS, "preimage_error.png"))
 end
