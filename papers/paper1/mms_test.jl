@@ -114,6 +114,67 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
 
         return nothing
     end
+
+
+    """
+    Boundary conditions for velocity
+    """
+    function BC!(u,v,w,mesh,par_env)
+        return nothing
+    end
+
+    """
+    Boundary conditions for face velocity
+    """
+    function face_BC!(uf,vf,wf,mesh,par_env)
+        @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
+        @unpack imin,imax,jmin,jmax,kmin,kmax,x,y,z = mesh
+
+        # Left
+        if irankx == 0
+            i = imin
+            uf[i,:,:] .= 0.0
+            vf[i,:,:] .= 0.0
+            wf[i,:,:] .= 0.0
+        end
+        # Right
+        if irankx == nprocx-1
+            i = imax+1
+            uf[i,:,:] .= 0.0
+            vf[i,:,:] .= 0.0
+            wf[i,:,:] .= 0.0
+        end
+        # Bottom 
+        if iranky == 0 
+            j = jmin
+            uf[:,j,:] .= 0.0
+            vf[:,j,:] .= 0.0
+            wf[:,j,:] .= 0.0
+        end
+        # Top
+        if iranky == nprocy-1
+            j = jmax+1
+            uf[:,j,:] .= 0.0
+            vf[:,j,:] .= 0.0
+            wf[:,j,:] .= 0.0
+        end
+        # Back 
+        if irankz == 0 
+            k = kmin
+            uf[:,:,k] .= 0.0
+            vf[:,:,k] .= 0.0
+            wf[:,:,k] .= 0.0
+        end
+        # Front
+        if irankz == nprocz-1
+            k = kmax+1
+            uf[:,:,k] .= 0.0
+            vf[:,:,k] .= 0.0
+            wf[:,:,k] .= 0.0
+        end
+        return nothing
+    end
+
     # Setup par_env
     par_env = NS.parallel_init(param)
 
@@ -124,7 +185,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
     mesh = mg_mesh.mesh_lvls[1]
 
     # Initialize arrays
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,RHS,tmp2,exact_sol,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds = NS.initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,RHS,tmp2,exact_sol,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds,Fhist,Phist = NS.initArrays(mesh,param)
 
     @unpack x,y,z,dx,dy,dz,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
@@ -151,30 +212,8 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
     nstep = 0
     iter = 0
 
-    # # Call pressure Solver (handles processor boundaries for P)
-    if param.mg_lvl > 1
-        iter = NS.mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,param,par_env) 
-    elseif param.pressure_scheme == "finite-difference"
-        if param.pressureSolver == "FC_hypre"
-            iter = NS.FC_hypre_solver(P,RHS,tmp2,denx,deny,denz,tmp5,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,dt,param,mesh,par_env,20000)
-        elseif param.pressureSolver == "gauss-seidel"
-            iter = NS.gs(P,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
-        elseif param.pressureSolver == "jacobi"
-            iter = NS.jacobi(P,tmp6,RHS,tmp2,denx,deny,denz,dt,param,mg_mesh.mesh_lvls[1],par_env;max_iter=100000)
-        elseif param.pressureSolver == "geometric_mg"
-            iter = NS.mg_geometric!(P, RHS, denx, deny, denz, dt, param, mg_mesh.mesh_lvls[1], par_env)
-        elseif param.pressureSolver == "congugateGradient"
-            iter = NS.cg!(P, RHS, denx, deny, denz,tmp6,dt, param, mg_mesh.mesh_lvls[1], par_env)  
-        end
-    elseif param.pressure_scheme == "semi-lagrangian"
-        if param.pressureSolver == "res_iteration_AA_con"
-            iter = NS.res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
-        elseif param.pressureSolver == "res_iteration_AA_uncon"
-            iter = NS.res_iteration_AA_uncon(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,param,mg_mesh.mesh_lvls[1],par_env;) 
-        elseif param.pressureSolver == "hypreSecant"
-            iter = NS.Secant_jacobian_hypre!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp6,tmp2,tmp7,tmp4,verts,tets,mg_arrays[1].jacob,mg_arrays[1].x_vec,mg_arrays[1].b_vec,param,mg_mesh.mesh_lvls[1],par_env)
-        end
-    end
+    @time iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp9,tmp2,divg,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,Fhist,Phist,BC!;face_BC! = face_BC!)
+
     println("solver: $(param.pressureSolver) converged in $iter iterations")
     # Check solution error
     L2_error = sqrt(sum((exact_sol[imin_:imax_,jmin_:jmax_,kmin_:kmax_]-P[imin_:imax_,jmin_:jmax_,kmin_:kmax_]).^2))/sqrt(sum(exact_sol[imin_:imax_,jmin_:jmax_,kmin_:kmax_].^2))

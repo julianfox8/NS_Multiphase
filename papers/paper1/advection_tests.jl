@@ -68,7 +68,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         hypreSolver = "LGMRES",
         # hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
-        mg_lvl = 3,
+        mg_lvl = 1,
         # Iteration method used in @loop macro
         iter_type = "standard",
         #iter_type = "floop",
@@ -171,7 +171,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
 
         # Left
         if irankx == 0
-            i = imax-1
+            i = imin
             uf[i,:,:] .= 0.0
             vf[i,:,:] .= 0.0
             wf[i,:,:] .= 0.0
@@ -185,7 +185,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         end
         # Bottom 
         if iranky == 0 
-            j = jmin-1
+            j = jmin
             uf[:,j,:] .= 0.0
             vf[:,j,:] .= 0.0
             wf[:,j,:] .= 0.0
@@ -200,7 +200,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         end
         # Back 
         if irankz == 0 
-            k = kmin-1
+            k = kmin
             uf[:,:,k] .= 0.0
             vf[:,:,k] .= 0.0
             wf[:,:,k] .= 0.0
@@ -223,7 +223,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
     mesh = mg_mesh.mesh_lvls[1]
 
     # Initialize arrays
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds = NS.initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds,Fhist,Phist = NS.initArrays(mesh,param)
 
     @unpack x,y,z,dx,dy,dz,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
@@ -308,9 +308,9 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         t += dt
         if param.pressure_scheme == "semi-lagrangian"
             if !pre_image_vis
-                iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;face_BC! = face_BC!)
+                iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,Fhist,Phist,BC!;face_BC! = face_BC!)
             else
-                iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!;pmesh=pmesh)
+                iter = NS.pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,Fhist,Phist,BC!;pmesh=pmesh)
                 NS.pmesh2VTK(pmesh,"pressure_preimage",param)
             end
             # Corrector face velocities
