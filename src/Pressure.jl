@@ -385,14 +385,14 @@ function compute_hypre_jacobian!(dynamic_dP,jacobi_iter,matrix,coeff_index,cols_
                 continue
             else
                 nst += 1
-                add_perturb!(P,delta,ii,jj,kk,mesh,par_env)
+                add_perturb!(P,delta,ii,jj,kk,mesh,param,par_env)
                 cols_[nst] = coeff_index[ii,jj,kk]
                 A!(i,j,k,LHS1,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env)
-                remove_perturb!(P,delta,ii,jj,kk,mesh,par_env)
-                add_perturb!(P,-delta,ii,jj,kk,mesh,par_env)
+                remove_perturb!(P,delta,ii,jj,kk,mesh,param,par_env)
+                add_perturb!(P,-delta,ii,jj,kk,mesh,param,par_env)
                 cols_[nst] = coeff_index[ii,jj,kk]
                 A!(i,j,k,LHS2,uf,vf,wf,P,dt,gradx,grady,gradz,band,denx,deny,denz,p,tets_arr,param,mesh,par_env)
-                remove_perturb!(P,-delta,ii,jj,kk,mesh,par_env)
+                remove_perturb!(P,-delta,ii,jj,kk,mesh,param,par_env)
                 values_[nst] = ((LHS1[i,j,k]
                 - LHS2[i,j,k])
                 /̂2delta)
