@@ -23,7 +23,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
         # Constants
         mu_liq=0.0,       # Dynamic viscosity of liquid (N/m)
         mu_gas = 0.0,   # Dynamic viscosity of gas (N/m)
-        rho_liq= 1.0,     # Density of liquid (kg/m^3)
+        rho_liq= 10000.0,     # Density of liquid (kg/m^3)
         rho_gas = 1.0,  # Density of gas (kg/m^3)
         sigma = 0.0,    # Surface tension coefficient (N/m)
         grav_x = 0.0,   # Gravity  (m/s^2)
@@ -44,7 +44,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
         CFL=1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
-        tol = 1e-5,
+        tol = 1e-7,
 
         # Processors 
         nprocx = 1,
@@ -59,7 +59,10 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
         pressure_scheme = scheme,
         pressureSolver = solver,
 
-        hypreSolver = "GMRES-AMG",
+        # hypreSolver = "BiCGSTAB",
+        # hypreSolver = "LGMRES",
+        # hypreSolver = "GMRES-AMG",
+        hypreSolver = "PCG-AMG",
         mg_lvl = lvl,
         # projection_method = "RK4",
         projection_method = "Heun",
@@ -342,7 +345,7 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
         # savefig("MMS_comparison_$(Nx)x$(Ny).png")
         # println("Saved plot: MMS_comparison_$(Nx)x$(Ny).png")
     end
-    return L2_error,Linf_error
+    return L2_error,Linf_error,iter
 end
 
 # ---------------------------------------------------------------------------
@@ -354,7 +357,8 @@ end
 
 const MMS_VARIANTS = [
     (tag = "FD", scheme = "finite-difference", solver = "FC_hypre",             lvl = 1),
-    (tag = "SL", scheme = "semi-lagrangian",   solver = "res_iteration_AA_con", lvl = 1),
+    (tag = "SL-J", scheme = "semi-lagrangian",   solver = "res_iteration", lvl = 1),
+    (tag = "SL-AA", scheme = "semi-lagrangian",   solver = "anderson", lvl = 1),
 ]
 
 """
@@ -369,13 +373,13 @@ function sweep_mms(; Ns       = [16, 32, 64, 128],
                      outfile  = joinpath(DATA, "mms_errors.csv"))
 
     rows = DataFrame(variant = String[], N = Int[],
-                     L2 = Float64[], Linf = Float64[], time = Float64[])
+                     L2 = Float64[], Linf = Float64[], time = Float64[],iter = Float64[])
 
     for v in variants, n in Ns
         @info "MMS: $(v.tag) N=$n"
         t0 = time()
-        L2, Linf = test_psolve(n, n, v.scheme, v.solver, v.lvl)
-        push!(rows, (v.tag, n, L2, Linf, time() - t0))
+        L2, Linf,iter = test_psolve(n, n, v.scheme, v.solver, v.lvl)
+        push!(rows, (v.tag, n, L2, Linf, time() - t0,iter))
     end
 
     mkpath(DATA)

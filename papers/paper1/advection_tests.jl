@@ -56,8 +56,8 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
 
         pressure_scheme = scheme,
         
-        # pressureSolver = "hypreSecant",
-        pressureSolver = "res_iteration",
+        pressureSolver = "hypreSecant",
+        # pressureSolver = "res_iteration",
 
         # projection_method = "Euler",
         # projection_method = "Midpoint",
@@ -65,9 +65,9 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         # projection_method = "RK4",
 
         flux_corrections = fc,
-        hypreSolver = "LGMRES",
+        # hypreSolver = "LGMRES",
         # hypreSolver = "GMRES-AMG",
-        # hypreSolver = "BiCGSTAB",
+        hypreSolver = "BiCGSTAB",
         mg_lvl = 1,
         # Iteration method used in @loop macro
         iter_type = "standard",
