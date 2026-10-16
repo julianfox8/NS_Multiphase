@@ -78,7 +78,8 @@ function divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh;pmesh=nothing)
         tetsign = cell2tets!(verts,tets,i,j,k,param,mesh;project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,pmesh=pmesh)
         v2 = dx*dy*dz
         v1 = tetsign * tets_vol(tets)
-        divg = (v2-v1) / v2 / dt
+        # divg = (v2-v1) / v2 / dt
+        divg = log(v2/v1)/dt
     else
         # Calculate divergence with finite volume/difference (and SL at edge of band)
         if pressure_scheme == "semi-lagrangian" && abs(band[i-1,j,k]) <= nband
