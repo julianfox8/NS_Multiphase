@@ -53,7 +53,7 @@ function run_solver(param, IC!, BC!)
     # Initialize work arrays for finest level along with subset of arrays for coarser levels
     mesh = mg_mesh.mesh_lvls[1]
     @unpack dx,dy,dz,x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds,Fhist,Phist = initArrays(mesh,param)
     p_min,p_max = prepare_indices(tmp5,par_env,mesh)
     mg_arrays = mg_initArrays(mg_mesh,param,par_env)
 
@@ -80,7 +80,7 @@ function run_solver(param, IC!, BC!)
         update_borders!(u,mesh,par_env)
         update_borders!(v,mesh,par_env)
         update_borders!(w,mesh,par_env)
-        update_VF_borders!(VF,mesh,par_env)
+        update_borders!(VF,mesh,par_env)
         # Create face velocities
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
     end
