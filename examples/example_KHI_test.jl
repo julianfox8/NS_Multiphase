@@ -14,7 +14,7 @@ param = parameters(
     mu_gas = 0.00552, # Dynamic viscosity of gas (N⋅s/m^2)
     rho_liq= 997,  # Density of liquid (kg/m^3)
     rho_gas = 862.3,#1000,  # Density of gas (kg/m^3)
-    sigma = 0.033, # surface tension coefficient (N/m)
+    sigma = 0.0,#0.033, # surface tension coefficient (N/m)
     grav_x = 0.0, # Gravity (m/s^2)
     grav_y = 9.8, # Gravity (m/s^2)
     grav_z = 0.0, # Gravity (m/s^2)
@@ -24,8 +24,8 @@ param = parameters(
     tFinal=100.0,      # Simulation time
 
     # Discretization inputs
-    Nx=300,          # Number of grid cells
-    Ny=60,
+    Nx=200,          # Number of grid cells
+    Ny=40,
     Nz=1,
     stepMax=10000,   # Maximum number of timesteps
     CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -47,6 +47,7 @@ param = parameters(
     # solveNS = false,
 
     pressure_scheme = "semi-lagrangian",
+    # pressureSolver = "anderson",
     pressureSolver = "res_iteration",
     # pressureSolver = "hypreSecant",
 
@@ -56,15 +57,17 @@ param = parameters(
     # pressureSolver = "gauss-seidel",
     # pressurePrecond = "nl_jacobi",
 
+    pressurePrecond = "multigrid",
     hypreSolver = "GMRES-AMG",
-    mg_lvl = 1,
+    # hypreSolver = "BiCGSTAB",
+    mg_lvl = 3,
 
     #instability = "kelvin-helmholtz", # Type of instability to simulate
 
     # Iteration method used in @loop macro
     iter_type = "standard",
     # iter_type = "floop",
-    test_case = "KHI_test",
+    test_case = "KHI_test2",
 ) 
 
 
@@ -156,5 +159,45 @@ function BC!(u,v,w,mesh,par_env)
     return nothing
 end
 
+"""
+Boundary conditions for face velocity
+"""
+function face_BC!(uf,vf,wf,mesh,par_env)
+    @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
+    @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
+
+    # Bottom : no slip
+    if iranky == 0
+        j = jmin
+        vf[:,j,:]   .= 0.0               # normal velocity on wall face
+        vf[:,j-1,:] .= 0.0
+        uf[:,j-1,:] .= -uf[:,jmin,:]     # tangential: zero at wall via reflection
+        wf[:,j-1,:] .= -wf[:,jmin,:]
+    end
+    # Top : no slip
+    if iranky == nprocy-1
+        j = jmax+1
+        vf[:,j,:]   .= 0.0               # normal velocity on wall face
+        uf[:,j,:]   .= -uf[:,jmax,:]
+        wf[:,j,:]   .= -wf[:,jmax,:]
+    end
+    # Back : no slip
+    if irankz == 0
+        k = kmin
+        wf[:,:,k]   .= 0.0
+        wf[:,:,k-1] .= 0.0
+        uf[:,:,k-1] .= -uf[:,:,kmin]
+        vf[:,:,k-1] .= -vf[:,:,kmin]
+    end
+    # Front : no slip
+    if irankz == nprocz-1
+        k = kmax+1
+        wf[:,:,k]   .= 0.0
+        uf[:,:,k]   .= -uf[:,:,kmax]
+        vf[:,:,k]   .= -vf[:,:,kmax]
+    end
+    return nothing
+end
+
 # Simply run solver on 1 processor
-run_solver(param, IC!, BC!)
+run_solver(param, IC!, BC!;faceBC = face_BC!)
