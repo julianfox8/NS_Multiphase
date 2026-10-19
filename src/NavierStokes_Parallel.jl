@@ -35,7 +35,7 @@ include("WriteData.jl")
 include("ReadData.jl")
 include("Multigrid.jl")
 
-function run_solver(param, IC!, BC!)
+function run_solver(param, IC!, BC!;faceBC = nothing)
     @unpack Nx,stepMax,tFinal,solveNS,pressure_scheme,restart,tol,mg_lvl = param
 
     # Create parallel environment
@@ -149,7 +149,7 @@ function run_solver(param, IC!, BC!)
             end
 
             # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,Fhist,Phist,BC!)
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,Fhist,Phist,BC!;face_BC! = faceBC)
 
             # Correct face-centered velocities
             fc_corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
