@@ -6,6 +6,7 @@ Example using inflow/outflow
 # Pkg.activate(".")
 
 using NavierStokes_Parallel
+# using NavierStokes_Parallel
 using Random
 
 
@@ -18,18 +19,20 @@ param = parameters(
     rho_liq= 1000,           # Density
     rho_gas =1.0, 
     sigma = 0.072, #surface tension coefficient
-    gravity = 10,
+    grav_x = 0.0,
+    grav_y = 9.81,
+    grav_z = 0.0, # Gravity (m/s^2)
     Lx=5.0,            # Domain size 
     Ly=5.0,
-    Lz=1/50,
+    Lz=1/100,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputs
-    Nx=5,           # Number of grid cells
-    Ny=5,
+    Nx=32,           # Number of grid cells
+    Ny=32,
     Nz=1,
-    stepMax=15,   # Maximum number of timesteps
+    stepMax=500,   # Maximum number of timesteps
     max_dt = 1e-3,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
@@ -49,17 +52,23 @@ param = parameters(
 
     # Restart  
     # restart = true,
-# 
-    # pressureSolver = "NLsolve",
+    pressure_scheme = "finite-difference",
+    # pressure_scheme = "semi-lagrangian",
+
+
+    # pressureSolver = "anderson",
     # pressureSolver = "Secant",
     # pressureSolver = "sparseSecant",
-    pressureSolver = "hypreSecant",
+    # pressureSolver = "hypreSecant",
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
-    # pressureSolver = "FC_hypre",
+    pressureSolver = "FC_hypre",
     # pressure_scheme = "finite-difference",
+
+    projection_method = "Heun",
+
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble_flux_corrected1"
+    VTK_dir= "VTK_example_rising_bubble"
 
 )
 
@@ -84,7 +93,7 @@ function IC!(P,u,v,w,VF,mesh)
     # fill!(VF,1.0)
     # Volume Fraction
     rad=0.5
-    xo=3.5
+    xo=2.5
     yo=1.5
     zo = 2.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
@@ -98,7 +107,7 @@ end
 """
 Boundary conditions for velocity
 """
-function BC!(u,v,w,t,mesh,par_env)
+function BC!(u,v,w,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
     @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
     @unpack jmin_,jmax_ = mesh
