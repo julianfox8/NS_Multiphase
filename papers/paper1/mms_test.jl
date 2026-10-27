@@ -40,11 +40,11 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
         Ny=Ny,
         Nz=1,
         stepMax=50,   # Maximum number of timesteps
-        max_dt = 2.5e-2,
+        max_dt = 2.5e-3,
         CFL=1,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
         std_out_period = 0.0,
         out_period=1,     # Number of steps between when plots are updated
-        tol = 1e-5,
+        tol = 1e-8,
 
         # Processors 
         nprocx = 1,
@@ -58,7 +58,9 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
 
         pressure_scheme = scheme,
         pressureSolver = solver,
-
+        pressurePrecond = "multigrid",
+        smoother = "nl_gs",
+        coarse_sol = "nl_gs",
         hypreSolver = "GMRES-AMG",
         mg_lvl = lvl,
         # projection_method = "RK4",
@@ -191,6 +193,10 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
     p_min,p_max = NS.prepare_indices(tmp5,par_env,mesh)
     mg_arrays = NS.mg_initArrays(mg_mesh,param,par_env)
 
+    # Create x and y coordinates for plotting
+    x_plot = x[imin_:imax_]
+    y_plot = y[jmin_:jmax_]
+
     # Compute dt
     dt = NS.compute_dt(u,v,w,param,mesh,par_env)
     t = 0.0 :: Float64
@@ -227,9 +233,6 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
     error_slice = (exact_slice - P_slice)
     
 
-    # Create x and y coordinates for plotting
-    x_plot = x[imin_:imax_]
-    y_plot = y[jmin_:jmax_]
 
     # Pass plt = true to visualize a single MMS run
     if plt 

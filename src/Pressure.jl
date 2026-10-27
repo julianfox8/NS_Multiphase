@@ -74,6 +74,8 @@ function smooth!(op, arrays,sweeps;iter = nothing, converged_flag = nothing)
 
     if smoother == "nl_jacobi"
         iter = res_iteration(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,op.verts,op.tets,op.param,op.mesh,op.par_env;iter,max_iter = sweeps,τ=arrays.tau,converged=converged_flag)
+    elseif smoother == "nl_gs"
+        iter = nl_gs(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,op.verts,op.tets,op.param,op.mesh,op.par_env;iter,max_iter = sweeps,τ=arrays.tau,converged=converged_flag)
     elseif smoother == "rbgs"
         iter = gs(arrays.P_h,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=sweeps,converged = converged_flag)
     elseif smoother == "jacobi"
@@ -87,6 +89,8 @@ function coarse_sol!(op, arrays;iter = nothing)
 
     if coarse_sol == "nl_jacobi"
         iter = res_iteration(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,op.verts,op.tets,op.param,op.mesh,op.par_env;iter,τ=arrays.tau,tol_lvl = coarse_tol)
+    elseif coarse_sol == "nl_gs"
+        iter = nl_gs(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,op.verts,op.tets,op.param,op.mesh,op.par_env;iter,τ=arrays.tau,tol_lvl = coarse_tol)
     elseif coarse_sol == "anderson"
         Fhist = Vector{Array{Float64,3}}()
         Phist = Vector{Array{Float64,3}}()
@@ -107,7 +111,7 @@ function precon_poisson_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,de
     for n in 1:1000
         ov_iter += 1
         @views P_in[imin_:imax_, jmin_:jmax_, kmin_:kmax_] .= P[imin_:imax_, jmin_:jmax_, kmin_:kmax_]     # snapshot the input
-
+        
         iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,
                         mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env; max_iter = 1)
 
@@ -931,7 +935,7 @@ function res_iteration(P, uf, vf, wf, gradx, grady, gradz, band, dt, denx, deny,
 
     fill!(jacob, 0.0)
 
-    ω = 2/3
+    ω = 4/5
     p_iter = 0
 
     # initial residual
