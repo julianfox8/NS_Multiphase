@@ -59,10 +59,10 @@ function test_psolve(Nx,Ny,scheme,solver,lvl;plt=false)
         pressure_scheme = scheme,
         pressureSolver = solver,
 
-        # hypreSolver = "BiCGSTAB",
+        hypreSolver = "BiCGSTAB",
         # hypreSolver = "LGMRES",
         # hypreSolver = "GMRES-AMG",
-        hypreSolver = "PCG-AMG",
+        # hypreSolver = "PCG-AMG",
         mg_lvl = lvl,
         # projection_method = "RK4",
         projection_method = "Heun",

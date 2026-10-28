@@ -58,7 +58,7 @@ const PROJ_MARKER = Dict(
 )
 
 const PRESSURE_LABEL = Dict(
-    "FD"    => "GMRES-AMG"    ,
+    "FD"    => "BiCGSTAB"    ,
     "SL-J"  => "NL Jacobi"    ,
     "SL-AA" => "NL Jacobi-AA" ,
 )
