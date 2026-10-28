@@ -298,6 +298,29 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         HYPRE_ParCSRLGMRESDestroy(solver)
         HYPRE_BoomerAMGDestroy(precond)
         return num_iter[]
+    elseif solver_tag == "GMRES"
+    # !GMRES
+    # # # Create solver
+        
+        HYPRE_ParCSRGMRESCreate(par_env.comm, solver_ref)
+        solver = solver_ref[]
+
+        # Set some parameters (See Reference Manual for more parameters)
+        # HYPRE_GMRESSetKDim(solver,30) # restart
+        HYPRE_GMRESSetMaxIter(solver, 10000) # max iterations
+        HYPRE_GMRESSetTol(solver, 1e-8) # conv. tolerance
+        HYPRE_GMRESSetAbsoluteTol(solver,1e-10)
+        # HYPRE_GMRESSetPrintLevel(solver, 2) # print solve info
+        # HYPRE_GMRESSetLogging(solver, 1) # needed to get run info later
+
+        # Now setup and solve!
+        HYPRE_ParCSRGMRESSetup(solver,parcsr_J, par_AP_old, par_P_new)
+        HYPRE_ParCSRGMRESSolve(solver,parcsr_J, par_AP_old, par_P_new)
+        num_iter = Ref{HYPRE_Int}(C_NULL)
+        HYPRE_ParCSRGMRESGetNumIterations(solver, num_iter)
+        HYPRE_ParCSRGMRESDestroy(solver)
+
+        return num_iter[]
     elseif solver_tag == "GMRES-AMG"
     # !GMRES
     # # # Create solver
