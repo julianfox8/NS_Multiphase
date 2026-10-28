@@ -155,7 +155,7 @@ function run_solver(param, IC!, BC!;faceBC = nothing)
             fc_corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
 
             # Correct cell-centered velocities
-            cc_corrector!(u,v,w,us,vs,ws,P,dt,denx,deny,denz,mesh)
+            cc_corrector!(u,v,w,P,dt,denx,deny,denz,mesh)
 
             # Update Processor boundaries
             update_borders!(u,mesh,par_env)

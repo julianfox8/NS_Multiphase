@@ -264,6 +264,11 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     update_borders!(vs,mesh,par_env)
     update_borders!(ws,mesh,par_env)
 
+    # Update cell centered velocity with us, vs, and ws for use 
+    u .= us
+    v .= vs
+    w .= ws
+
     return nothing
 end
 

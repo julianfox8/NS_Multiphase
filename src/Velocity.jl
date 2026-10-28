@@ -1,26 +1,18 @@
-function cc_corrector!(u,v,w,us,vs,ws,P,dt,denx,deny,denz,mesh)
+function cc_corrector!(u,v,w,P,dt,denx,deny,denz,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
-    # Start from predicted velocity (keeps BCs/ghosts set in transport!)
-    u .= us
-    v .= vs
-    w .= ws
-
-    # Cell-centered correction = average of face pressure accelerations
+    # Cell-centered correction that is balanced with surface tension force 
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-        gxm = (P[i,j,k]   - P[i-1,j,k]) / (dx*denx[i,j,k])     
-        gxp = (P[i+1,j,k] - P[i,j,k])   / (dx*denx[i+1,j,k])   
-        u[i,j,k] = us[i,j,k] - 0.5*dt*(gxm + gxp)
+        dp_dx = (P[i+1,j,k]-P[i-1,j,k])/(2dx)
+        u[i,j,k] = u[i,j,k] - dt*dp_dx*2/(denx[i+1,j,k]+denx[i,j,k])
     end
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-        gym = (P[i,j,k]   - P[i,j-1,k]) / (dy*deny[i,j,k])
-        gyp = (P[i,j+1,k] - P[i,j,k])   / (dy*deny[i,j+1,k])
-        v[i,j,k] = vs[i,j,k] - 0.5*dt*(gym + gyp)
+        dp_dy = (P[i,j+1,k]-P[i,j-1,k])/(2dy)
+        v[i,j,k] = v[i,j,k] - dt*dp_dy*2/(deny[i,j+1,k]+deny[i,j,k])
     end
     for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
-        gzm = (P[i,j,k]   - P[i,j,k-1]) / (dz*denz[i,j,k])
-        gzp = (P[i,j,k+1] - P[i,j,k])   / (dz*denz[i,j,k+1])
-        w[i,j,k] = ws[i,j,k] - 0.5*dt*(gzm + gzp)
+        dp_dz = (P[i,j,k+1]-P[i,j,k-1])/(2dz)
+        w[i,j,k] = w[i,j,k] - dt*dp_dz*2/(denz[i,j,k+1]+denz[i,j,k])
     end
 
     return nothing
@@ -29,6 +21,7 @@ end
 function fc_corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imin,imax,jmin,jmax,kmin,kmax = mesh
 
+    # Face-centered correction
     for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
         dp_dx = ( P[i,j,k] - P[i-1,j,k] )/(dx)
         uf[i,j,k] = uf[i,j,k] - dt/denx[i,j,k] * dp_dx
