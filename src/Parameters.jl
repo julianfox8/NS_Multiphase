@@ -73,7 +73,8 @@ using Parameters
 
     # Set flux-correction flag
     flux_corrections :: Bool = true
-
+    cb_corrections :: Bool = true
+    
     # Multigrid solver levels
     mg_lvl :: Int64 = 1
 
