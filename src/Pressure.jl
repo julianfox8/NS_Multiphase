@@ -94,7 +94,7 @@ function coarse_sol!(op, arrays;iter = nothing)
     elseif coarse_sol == "anderson"
         Fhist = Vector{Array{Float64,3}}()
         Phist = Vector{Array{Float64,3}}()
-        iter = res_iteration_AA_con(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,Fhist,Phist,op.verts,op.tets,op.param,op.mesh,op.par_env;τ=arrays.tmp1,tol_lvl = coarse_tol)
+        iter = res_iteration_AA_con(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,Fhist,Phist,op.verts,op.tets,op.param,op.mesh,op.par_env;τ=arrays.tau,tol_lvl = coarse_tol)
     elseif coarse_sol == "rbgs"
         iter = gs(arrays.P_h,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=100000,tol_lvl = coarse_tol)
     elseif coarse_sol == "jacobi"
