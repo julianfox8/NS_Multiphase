@@ -1,6 +1,6 @@
 
 function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,Fvy,Fvz,Fwx,Fwy,Fwz,VFnew,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds;pmesh=nothing)
-    @unpack instability,grav_x,grav_y,grav_z,pressure_scheme,tesselation,VFlo,VFhi,rho_liq,rho_gas,nband,flux_corrections = param
+    @unpack instability,grav_x,grav_y,grav_z,pressure_scheme,tesselation,VFlo,VFhi,rho_liq,rho_gas,nband,flux_corrections,cb_corrections = param
     @unpack irankx,isroot = par_env
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imino_,imaxo_,jmino_,jmaxo_,kmino_,kmaxo_ = mesh
     
@@ -121,6 +121,8 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
             if pressure_scheme == "finite-difference" && flux_corrections 
                 # Add correction tets 
                 tets,inds,ntets = add_correction_tets(ntets,verts,tets,inds,i,j,k,uf,vf,wf,dt,param,mesh;pmesh=pmesh)
+            elseif pressure_scheme == "semi-lagrangian" && cb_corrections
+                tets,inds,ntets = add_cb_correction_tets(verts,tets,inds,i,j,k,uf,vf,wf,dt,param,mesh)
             end
 
             # Compute VF in semi-Lagrangian cell 

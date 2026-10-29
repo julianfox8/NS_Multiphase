@@ -71,13 +71,15 @@ end
 # - Main divergence operator used throughout code
 function divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh;pmesh=nothing)
     @unpack dx,dy,dz,x,y,z = mesh
-    @unpack pressure_scheme,nband = param
+    @unpack pressure_scheme,nband,cb_corrections = param
 
     if pressure_scheme == "semi-lagrangian" && abs(band[i,j,k]) <= nband
         # Calculate divergence with semi-Lagrangian
         tetsign = cell2tets!(verts,tets,i,j,k,param,mesh;project_verts=true,uf=uf,vf=vf,wf=wf,dt=dt,pmesh=pmesh)
         #! add checkerboard correction tets
-        # tets = add_cb_correction_tets(verts,tets,i,j,k,uf,vf,wf,dt,param,mesh)
+        if cb_corrections
+            tets = add_cb_correction_tets(verts,tets,i,j,k,uf,vf,wf,dt,param,mesh)
+        end
         v2 = dx*dy*dz
         v1 = tetsign * tets_vol(tets)
         divg = (v2-v1) / v2 / dt

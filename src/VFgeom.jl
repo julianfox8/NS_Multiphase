@@ -427,6 +427,7 @@ Determine volume of semi-Lagrangian flux on face
 """
 function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
     @unpack x,y,z = mesh
+    @unpack cb_corrections = param
 
     # Form verts on flux volume 
     if dir == 1 # x
@@ -502,8 +503,13 @@ function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
     # Make five tets 
     verts2tets!(tets,verts,param)
 
-     # Compute flux volume 
-     flux_vol = tets_vol(tets) * tetsign
+    # Apply checkerboard corrections
+    if cb_corrections
+        tets = add_face_cb_correction_tets(dir,tetsign,verts,tets,i,j,k,uf,vf,wf,dt,param,mesh)
+    end
+
+    # Compute flux volume 
+    flux_vol = tets_vol(tets) * tetsign
     
      return flux_vol
 end
@@ -666,7 +672,7 @@ end
 """
 Add checkerboard correction tets on to semi-Lagrangian cell
 """
-function add_cb_correction_tets(verts,tets, i, j, k, uf, vf, wf, dt, param, mesh;pmesh=nothing)
+function add_cb_correction_tets(verts,tets, i, j, k, uf, vf, wf, dt, param, mesh)
     @unpack x,xm,y,ym,z,zm,dx,dy,dz = mesh
 
     """ 
@@ -750,19 +756,100 @@ function add_cb_correction_tets(verts,tets, i, j, k, uf, vf, wf, dt, param, mesh
     new_tets = add_correction_tets_z(new_tets,verts,i,j,k  ,param,true); ntets += 2
     new_tets = add_correction_tets_z(new_tets,verts,i,j,k+1,param,false); ntets += 2
 
-
     # Compute indices of new tets 
-    # new_inds = Array{eltype(inds)}(undef, size(new_tets))
-    # new_inds[:,:,1:5] = inds[:,:,1:5] # transfer original indices 
-    # for n = 6:size(new_tets,3)
-    #     for v = 1:4
-    #         pt2index!(@view(new_inds[:,v,n]),@view(new_tets[:,v,n]),i,j,k,mesh)
-    #     end
-    # end
-    return new_tets#, new_inds, ntets
+    new_inds = Array{eltype(inds)}(undef, size(new_tets))
+    new_inds[:,:,1:5] = inds[:,:,1:5] # transfer original indices 
+    for n = 6:size(new_tets,3)
+        for v = 1:4
+            pt2index!(@view(new_inds[:,v,n]),@view(new_tets[:,v,n]),i,j,k,mesh)
+        end
+    end
+    return new_tets, new_inds, ntets
 end
 
+"""
+Add checkerboard correction tets on to semi-Lagrangian cell
+"""
+function add_face_cb_correction_tets(dir,tetsign,verts,tets, i, j, k, uf, vf, wf, dt, param, mesh)
+    @unpack x,xm,y,ym,z,zm,dx,dy,dz = mesh
 
+    """ 
+    Add correction tets on faces 
+        - verts is a 3x8 work array 
+    """
+    function add_cb_correction_tets_x(tetsign,tets,verts,i,j,k,param)
+        # Project pyramidal point
+        pyr_point = [x[i],ym[j],zm[k]]
+        project!(pyr_point,i,j,k,uf,vf,wf,dt,param,mesh)
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        if tetsign > 0.0
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_x(verts[:,5],verts[:,7],verts[:,3],verts[:,1],pyr_point)
+        else
+            newtets[:,:,ntets+1:ntets+2] = correction_tets_x(verts[:,8],verts[:,6],verts[:,2],verts[:,4],pyr_point)
+        end
+        return newtets
+    end
+    function add_cb_correction_tets_y(tets,verts,i,j,k,param)
+        # Project pyramidal point
+        pyr_point = [xm[i],y[j],zm[k]]
+        project!(pyr_point,i,j,k,uf,vf,wf,dt,param,mesh)
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        newtets[:,:,ntets+1:ntets+2] = correction_tets_y(verts[:,2],verts[:,6],verts[:,5],verts[:,1],pyr_point)
+
+        return newtets
+    end
+    function add_cb_correction_tets_z(tets,verts,i,j,k,param)
+        # Project pyramidal point
+        pyr_point = [xm[i],ym[j],z[k]]
+        project!(pyr_point,i,j,k,uf,vf,wf,dt,param,mesh)
+        # Create array with 2 additional tets appended 
+        ntets = size(tets,3)
+        newtets = Array{eltype(tets)}(undef, 3, 4, ntets+2)
+        newtets[:,:,1:ntets] = tets
+        # Construct correction tets
+        newtets[:,:,ntets+1:ntets+2] = correction_tets_z(verts[:,2],verts[:,1],verts[:,3],verts[:,4],pyr_point)
+        return newtets
+    end
+
+    function correction_tets_x(a,b,c,d,e)
+        tets = Array{eltype(tets)}(undef, 3, 4, 2)
+        tets[:,1,1]=a; tets[:,2,1]=b; tets[:,3,1]=d; tets[:,4,1]=e;
+        tets[:,1,2]=b; tets[:,2,2]=c; tets[:,3,2]=d; tets[:,4,2]=e;
+        return tets
+    end
+    function correction_tets_y(a,b,c,d,e)
+        tets = Array{eltype(tets)}(undef, 3, 4, 2)
+        tets[:,1,1]=a; tets[:,2,1]=b; tets[:,3,1]=d; tets[:,4,1]=e;
+        tets[:,1,2]=b; tets[:,2,2]=c; tets[:,3,2]=d; tets[:,4,2]=e;
+        return tets
+    end
+    function correction_tets_z(a,b,c,d,e)
+        tets = Array{eltype(tets)}(undef, 3, 4, 2)
+        tets[:,1,1]=a; tets[:,2,1]=b; tets[:,3,1]=d; tets[:,4,1]=e;
+        tets[:,1,2]=b; tets[:,2,2]=c; tets[:,3,2]=d; tets[:,4,2]=e;
+        return tets
+    end
+
+    # Add 2 tets to correct flux on each face 
+    new_tets = tets[:,:,1:5]
+    if dir == 1
+        new_tets = add_cb_correction_tets_x(tetsign,new_tets,verts,i  ,j,k,param); ntets += 2
+    elseif dir == 2
+        new_tets = add_cb_correction_tets_y(new_tets,verts,i,j  ,k,param); ntets += 2
+    elseif dir == 3
+        new_tets = add_cb_correction_tets_z(new_tets,verts,i,j,k  ,param); ntets += 2
+    end
+
+    return new_tets
+end
 
 """
 Computes volume of tet
