@@ -35,7 +35,7 @@ include("WriteData.jl")
 include("ReadData.jl")
 include("Multigrid.jl")
 
-function run_solver(param, IC!, BC!)
+function run_solver(param, IC!, BC!;faceBC = nothing)
     @unpack Nx,stepMax,tFinal,solveNS,pressure_scheme,restart,tol,mg_lvl = param
 
     # Create parallel environment
@@ -53,7 +53,7 @@ function run_solver(param, IC!, BC!)
     # Initialize work arrays for finest level along with subset of arrays for coarser levels
     mesh = mg_mesh.mesh_lvls[1]
     @unpack dx,dy,dz,x,xm,imin,imax,jmin,jmax,kmin,kmax,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
-    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds = initArrays(mesh)
+    P,u,v,w,VF,nx,ny,nz,D,band,us,vs,ws,uf,vf,wf,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,gradx,grady,gradz,divg,mask,tets,verts,inds,vInds,Fhist,Phist = initArrays(mesh,param)
     p_min,p_max = prepare_indices(tmp5,par_env,mesh)
     mg_arrays = mg_initArrays(mg_mesh,param,par_env)
 
@@ -80,9 +80,12 @@ function run_solver(param, IC!, BC!)
         update_borders!(u,mesh,par_env)
         update_borders!(v,mesh,par_env)
         update_borders!(w,mesh,par_env)
-        update_VF_borders!(VF,mesh,par_env)
+        update_borders!(VF,mesh,par_env)
         # Create face velocities
         interpolateFace!(u,v,w,uf,vf,wf,mesh)
+        us .= u
+        vs .= v
+        ws .= w
     end
     
     # Compute density and viscosity at intial conditions
@@ -137,30 +140,22 @@ function run_solver(param, IC!, BC!)
         if !solveNS
             defineVelocity!(t,u,v,w,uf,vf,wf,param,mesh)
         end
-        
-        # Predictor step (including VF transport)
-        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
-        
-        # Update bands with transported VF
-        computeBand!(band,VF,param,mesh,par_env)
 
-        # Update density and viscosity with transported VF
-        compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
-    
         if solveNS
-  
-            # Create face velocities
-            interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
+
+            if nstep > 1
+                # Create face velocities
+                interpolateFace!(us,vs,ws,uf,vf,wf,mesh)
+            end
 
             # Call pressure Solver (handles processor boundaries for P)
-            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,BC!)
-            # println("Pressure solver iters: ", iter)
+            iter = pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,denz,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,gradx,grady,gradz,verts,tets,mg_arrays,Fhist,Phist,BC!;face_BC! = faceBC)
 
-            # Corrector face velocities
-            corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
+            # Correct face-centered velocities
+            fc_corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
 
-            # Interpolate velocity to cell centers (keeping BCs from predictor)
-            interpolateCenter!(u,v,w,us,vs,ws,uf,vf,wf,mesh)
+            # Correct cell-centered velocities
+            cc_corrector!(u,v,w,P,dt,denx,deny,denz,mesh)
 
             # Update Processor boundaries
             update_borders!(u,mesh,par_env)
@@ -171,6 +166,17 @@ function run_solver(param, IC!, BC!)
 
         # Check divergence
         divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
+        
+        # Predictor step (including VF transport)
+        transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
+        
+        # Update bands with transported VF
+        computeBand!(band,VF,param,mesh,par_env)
+
+        # Update density and viscosity with transported VF
+        compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
+
+
         # error("stop"̉)
         # Output
         std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)

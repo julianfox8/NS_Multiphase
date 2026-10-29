@@ -246,9 +246,9 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         HYPRE_BoomerAMGCreate(precond_ref)
         precond = precond_ref[]
         # HYPRE_BoomerAMGSetPrintLevel(precond, 1) # print amg solution info
-        HYPRE_BoomerAMGSetCoarsenType(precond, 6)
-        HYPRE_BoomerAMGSetOldDefault(precond)
-        HYPRE_BoomerAMGSetRelaxType(precond, 13) # Sym G.S./Jacobi hybrid
+        # HYPRE_BoomerAMGSetCoarsenType(precond, 6)
+        # HYPRE_BoomerAMGSetOldDefault(precond)
+        # HYPRE_BoomerAMGSetRelaxType(precond, 13) # Sym G.S./Jacobi hybrid
         HYPRE_BoomerAMGSetRelaxOrder(precond, 1) # uses C/F relaxation``
         HYPRE_BoomerAMGSetNumSweeps(precond, 1)
         HYPRE_BoomerAMGSetTol(precond, 1e-7) # conv. tolerance zero
@@ -301,6 +301,29 @@ function hyp_solve(solver_ref,precond_ref,parcsr_J, par_AP_old, par_P_new,par_en
         # HYPRE_ParCSRLGMRESGetNumIterations(solver)
         HYPRE_ParCSRLGMRESDestroy(solver)
         HYPRE_BoomerAMGDestroy(precond)
+        return num_iter[]
+    elseif solver_tag == "GMRES"
+    # !GMRES
+    # # # Create solver
+        
+        HYPRE_ParCSRGMRESCreate(par_env.comm, solver_ref)
+        solver = solver_ref[]
+
+        # Set some parameters (See Reference Manual for more parameters)
+        # HYPRE_GMRESSetKDim(solver,30) # restart
+        HYPRE_GMRESSetMaxIter(solver, 10000) # max iterations
+        HYPRE_GMRESSetTol(solver, 1e-8) # conv. tolerance
+        HYPRE_GMRESSetAbsoluteTol(solver,1e-10)
+        # HYPRE_GMRESSetPrintLevel(solver, 2) # print solve info
+        # HYPRE_GMRESSetLogging(solver, 1) # needed to get run info later
+
+        # Now setup and solve!
+        HYPRE_ParCSRGMRESSetup(solver,parcsr_J, par_AP_old, par_P_new)
+        HYPRE_ParCSRGMRESSolve(solver,parcsr_J, par_AP_old, par_P_new)
+        num_iter = Ref{HYPRE_Int}(C_NULL)
+        HYPRE_ParCSRGMRESGetNumIterations(solver, num_iter)
+        HYPRE_ParCSRGMRESDestroy(solver)
+
         return num_iter[]
     elseif solver_tag == "GMRES-AMG"
     # !GMRES
@@ -1392,7 +1415,7 @@ function compute_lap_op!(matrix,coeff_index,cols_,values_,dt,denx,deny,denz,par_
         rows_ = coeff_index[i,j,k]
 
         # assemble into HYPRE (unchanged)
-        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(values_)))
+        HYPRE_IJMatrixSetValues(matrix, nrows, pointer(Int32.([ncols])), pointer(Int32.([rows_])), pointer(Int32.((cols_))), pointer(Float64.(.-values_)))
     end
 end
 
@@ -1414,7 +1437,7 @@ function FC_hypre_solver(P,RHS,res,denx,deny,denz,p_index,jacob,x_vec,b_vec,dt,p
 
     for k in kmin_:kmax_,j in jmin_:jmax_, i in imin_:imax_
         row_ = p_index[i,j,k]
-        HYPRE_IJVectorSetValues(b_vec,1, pointer(Int32.([row_])), pointer(Float64.([RHS[i,j,k]])))
+        HYPRE_IJVectorSetValues(b_vec,1, pointer(Int32.([row_])), pointer(Float64.([-RHS[i,j,k]])))
         HYPRE_IJVectorSetValues(x_vec,1, pointer(Int32.([row_])), pointer(Float64.([0.0])))
     end
 

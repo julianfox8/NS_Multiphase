@@ -25,8 +25,8 @@ param = parameters(
     tFinal=5.0,      # Simulation time
 
     # Discretization inputs
-    Nx=601,          # Number of grid cells
-    Ny=61,
+    Nx=301,          # Number of grid cells
+    Ny=31,
     Nz=1,
     stepMax=100000,   # Maximum number of timesteps
     CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -50,14 +50,14 @@ param = parameters(
     # restart_itr = 3620,
     
 
-    pressure_scheme = "semi-lagrangian",
-    pressureSolver = "res_iteration",
+    # pressure_scheme = "semi-lagrangian",
+    # pressureSolver = "res_iteration",
     # pressureSolver = "hypreSecant",
     # pressurePrecond = "nl_jacobi",
 
-    # pressure_scheme = "finite-difference",
+    pressure_scheme = "finite-difference",
     # pressureSolver = "congugateGradient",
-    # pressureSolver = "FC_hypre",
+    pressureSolver = "FC_hypre",
     # pressureSolver = "gauss-seidel",
 
     hypreSolver = "GMRES-AMG",

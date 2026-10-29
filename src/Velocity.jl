@@ -1,8 +1,27 @@
+function cc_corrector!(u,v,w,P,dt,denx,deny,denz,mesh)
+    @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_ = mesh
 
+    # Cell-centered correction that is balanced with surface tension force 
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        dp_dx = (P[i+1,j,k]-P[i-1,j,k])/(2dx)
+        u[i,j,k] = u[i,j,k] - dt*dp_dx*2/(denx[i+1,j,k]+denx[i,j,k])
+    end
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        dp_dy = (P[i,j+1,k]-P[i,j-1,k])/(2dy)
+        v[i,j,k] = v[i,j,k] - dt*dp_dy*2/(deny[i,j+1,k]+deny[i,j,k])
+    end
+    for k = kmin_:kmax_, j = jmin_:jmax_, i = imin_:imax_
+        dp_dz = (P[i,j,k+1]-P[i,j,k-1])/(2dz)
+        w[i,j,k] = w[i,j,k] - dt*dp_dz*2/(denz[i,j,k+1]+denz[i,j,k])
+    end
 
-function corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
+    return nothing
+end
+
+function fc_corrector!(uf,vf,wf,P,dt,denx,deny,denz,mesh)
     @unpack dx,dy,dz,imin_,imax_,jmin_,jmax_,kmin_,kmax_,imin,imax,jmin,jmax,kmin,kmax = mesh
 
+    # Face-centered correction
     for k = kmin_-1:kmax_+1, j = jmin_-1:jmax_+1, i = imin_-1:imax_+2
         dp_dx = ( P[i,j,k] - P[i-1,j,k] )/(dx)
         uf[i,j,k] = uf[i,j,k] - dt/denx[i,j,k] * dp_dx
@@ -82,7 +101,8 @@ function divg_cell(i,j,k,uf,vf,wf,band,dt,verts,tets,param,mesh;pmesh=nothing)
         end
         v2 = dx*dy*dz
         v1 = tetsign * tets_vol(tets)
-        divg = (v2-v1) / v2 / dt
+        # divg = (v2-v1) / v2 / dt
+        divg = log(v2/v1)/dt
     else
         # Calculate divergence with finite volume/difference (and SL at edge of band)
         if pressure_scheme == "semi-lagrangian" && abs(band[i-1,j,k]) <= nband

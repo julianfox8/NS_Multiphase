@@ -65,7 +65,7 @@ function test_advection(n,scheme,fc,case,tag;tFinal = 1.0,pre_image_vis = false)
         # projection_method = "RK4",
 
         flux_corrections = fc,
-        hypreSolver = "LGMRES",
+        # hypreSolver = "LGMRES",
         # hypreSolver = "GMRES-AMG",
         # hypreSolver = "BiCGSTAB",
         mg_lvl = 3,

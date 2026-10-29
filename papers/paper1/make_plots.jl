@@ -46,7 +46,8 @@ const PROJ_ORDER = Dict(
 # Values are the Makie default palette entries these variants already receive.
 const VARIANT_COLOR = Dict(
     "FD"   => "#0072B2",
-    "SL"   => "#E69F00",
+    "SL-J"   => "#E69F00",
+    "SL-AA"   => "#009E73",
     "noFC" => "#009E73",
 )
 
@@ -54,6 +55,12 @@ const PROJ_MARKER = Dict(
     "Euler" => :circle,
     "Heun"  => :diamond,
     "RK4"   => :rect,
+)
+
+const PRESSURE_LABEL = Dict(
+    "FD"    => "BiCGSTAB"    ,
+    "SL-J"  => "NL Jacobi"    ,
+    "SL-AA" => "NL Jacobi-AA" ,
 )
 
 # ---------------------------------------------------------------------------
@@ -99,6 +106,23 @@ function plot_mms()
         refoffsets = [1.25, 0.75],  
         legendpos  = :rt,
         savepath   = joinpath(FIGS, "mms_convergence.png"))
+end
+
+"Iteration count of various solvers for the variable-density pressure MMS."
+function plot_mms_iter()
+    df = load("mms")
+    df === nothing && return nothing
+
+    convergence_plot(df;
+        x = :N, y = :iter, group = :variant,
+        xlabel     = L"Mesh\ Size",
+        ylabel     = L"Iterations",
+        labels     = PRESSURE_LABEL,
+        colors     = VARIANT_COLOR,
+        xticks     = sort(unique(df.N)),
+        refslopes  = [], 
+        legendpos  = :lt,
+        savepath   = joinpath(FIGS, "mms_iterations.png"))
 end
 
 "Pre-image error vs CFL, one curve per variant × projection order."

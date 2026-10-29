@@ -180,7 +180,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     # Finish updating VF (use VFⁿ⁺¹ for surface tension calculation)
     VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .= VFnew[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
     Neumann!(VF,mesh,par_env)
-    update_VF_borders!(VF,mesh,par_env)
+    update_borders!(VF,mesh,par_env)
 
     # recompute interface normal 
     computeNormal!(nx,ny,nz,VF,param,mesh,par_env)
@@ -265,6 +265,11 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
     update_borders!(us,mesh,par_env)
     update_borders!(vs,mesh,par_env)
     update_borders!(ws,mesh,par_env)
+
+    # Update cell centered velocity with us, vs, and ws for use 
+    u .= us
+    v .= vs
+    w .= ws
 
     return nothing
 end
