@@ -167,6 +167,11 @@ function run_solver(param, IC!, BC!;faceBC = nothing)
         # Check divergence
         divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
         
+        # Output solution after pressure correction
+        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
+        VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
+        MPI.Barrier(comm)
+        
         # Predictor step (including VF transport)
         transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9,tmplrg,Curve,mask,dt,param,mesh,par_env,BC!,sfx,sfy,sfz,denx,deny,denz,viscx,viscy,viscz,t,verts,tets,inds,vInds)
         
@@ -177,11 +182,9 @@ function run_solver(param, IC!, BC!;faceBC = nothing)
         compute_props!(denx,deny,denz,viscx,viscy,viscz,VF,param,mesh)
 
 
-        # error("stop"̉)
+        # error("stop")
         # Output
-        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
-        VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
-        MPI.Barrier(comm)
+
         # error("stop")
     end
 

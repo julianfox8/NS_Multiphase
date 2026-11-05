@@ -55,7 +55,7 @@ using Parameters
     # Navier Stokes solver
     solveNS :: Bool = true 
     # pressureSolver :: String = "ConjugateGradient"
-    pressureSolver :: String = "Secant" 
+    pressureSolver :: String = "res_iteration" 
     tol :: Float64
     pressure_scheme :: String = "semi-lagrangian"
     hypreSolver :: String = "LGMRES"
