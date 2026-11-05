@@ -911,7 +911,7 @@ function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,den
             AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_] .+= τ[imin_:imax_,jmin_:jmax_,kmin_:kmax_]
         end
 
-        res_norm = parallel_max_all(abs.(AP),par_env)
+        res_norm = parallel_max_all(abs.(AP[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
         
         if res_norm < tol
             # reevaluate objective function for pmesh
@@ -937,7 +937,7 @@ function res_iteration_AA_con(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,den
             aa_update!(P_loc, Gn_loc, Fn_loc, Fhist, Phist, m, β, par_env)
         end
 
-        if p_iter % 10 == 0 && isroot
+        if p_iter % 1000 == 0 && isroot
             println("residual at iter $p_iter = $res_norm")
         end
         # account for drift
