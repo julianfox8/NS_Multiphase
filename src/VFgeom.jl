@@ -427,7 +427,7 @@ Determine volume of semi-Lagrangian flux on face
 """
 function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
     @unpack x,y,z = mesh
-    @unpack cb_corrections = param
+    @unpack cb_corrections,pressure_scheme = param
 
     # Form verts on flux volume 
     if dir == 1 # x
@@ -504,7 +504,7 @@ function SLfluxVol(dir,i,j,k,verts,tets,uf,vf,wf,dt,param,mesh)
     verts2tets!(tets,verts,param)
 
     # Apply checkerboard corrections
-    if cb_corrections
+    if pressure_scheme == "semi-lagrangian" && cb_corrections
         tets = add_face_cb_correction_tets(dir,tetsign,verts,tets,i,j,k,uf,vf,wf,dt,param,mesh)
     end
 
@@ -672,7 +672,7 @@ end
 """
 Add checkerboard correction tets on to semi-Lagrangian cell
 """
-function add_cb_correction_tets(verts,tets, i, j, k, uf, vf, wf, dt, param, mesh)
+function add_cb_correction_tets(verts,tets, i, j, k, uf, vf, wf, dt, param, mesh;compute_inds = false,inds = nothing)
     @unpack x,xm,y,ym,z,zm,dx,dy,dz = mesh
 
     """ 
@@ -756,19 +756,23 @@ function add_cb_correction_tets(verts,tets, i, j, k, uf, vf, wf, dt, param, mesh
     new_tets = add_correction_tets_z(new_tets,verts,i,j,k  ,param,true); ntets += 2
     new_tets = add_correction_tets_z(new_tets,verts,i,j,k+1,param,false); ntets += 2
 
-    # Compute indices of new tets 
-    new_inds = Array{eltype(inds)}(undef, size(new_tets))
-    new_inds[:,:,1:5] = inds[:,:,1:5] # transfer original indices 
-    for n = 6:size(new_tets,3)
-        for v = 1:4
-            pt2index!(@view(new_inds[:,v,n]),@view(new_tets[:,v,n]),i,j,k,mesh)
+    if compute_inds
+        # Compute indices of new tets 
+        new_inds = Array{eltype(inds)}(undef, size(new_tets))
+        new_inds[:,:,1:5] = inds[:,:,1:5] # transfer original indices 
+        for n = 6:size(new_tets,3)
+            for v = 1:4
+                pt2index!(@view(new_inds[:,v,n]),@view(new_tets[:,v,n]),i,j,k,mesh)
+            end
         end
+        return new_tets, new_inds, ntets
     end
-    return new_tets, new_inds, ntets
+
+    return new_tets
 end
 
 """
-Add checkerboard correction tets on to semi-Lagrangian cell
+Add checkerboard correction tets on to semi-Lagrangian fluxes
 """
 function add_face_cb_correction_tets(dir,tetsign,verts,tets, i, j, k, uf, vf, wf, dt, param, mesh)
     @unpack x,xm,y,ym,z,zm,dx,dy,dz = mesh

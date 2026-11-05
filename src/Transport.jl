@@ -122,7 +122,7 @@ function transport!(us,vs,ws,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,Fux,Fuy,Fuz,Fvx,F
                 # Add correction tets 
                 tets,inds,ntets = add_correction_tets(ntets,verts,tets,inds,i,j,k,uf,vf,wf,dt,param,mesh;pmesh=pmesh)
             elseif pressure_scheme == "semi-lagrangian" && cb_corrections
-                tets,inds,ntets = add_cb_correction_tets(verts,tets,inds,i,j,k,uf,vf,wf,dt,param,mesh)
+                tets,inds,ntets = add_cb_correction_tets(verts,tets,i,j,k,uf,vf,wf,dt,param,mesh;compute_inds=true,inds=inds)
             end
 
             # Compute VF in semi-Lagrangian cell 
