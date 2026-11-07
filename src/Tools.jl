@@ -894,6 +894,31 @@ function VFkhi(alpha, mesh, A, k, ϕ)
 end
 
 """
+VF values for the single-mode 3D Rayleigh–Taylor interface (He et al. 1999; Lee & Kim 2013)
+  interface: y = yo + amp*(cos(2π(x-xo)/W) + cos(2π(z-zo)/W))
+  heavy fluid (VF = 1) above the interface, light fluid (VF = 0) below
+"""
+function VFrti(xmin,xmax,ymin,ymax,zmin,zmax; yo=2.0, amp=0.05, W=1.0, xo=0.0, zo=0.0)
+    # Cells entirely above or below the interface
+    if ymin >= yo + 2amp
+        return 1.0
+    elseif ymax <= yo - 2amp
+        return 0.0
+    end
+
+    # Subsample in x-z; the fraction of each sub-column above h(x,z) is exact in y
+    nF = 20
+    VF = 0.0
+    for k=1:nF, i=1:nF
+        xh = xmin + (i-0.5)/nF*(xmax-xmin)
+        zh = zmin + (k-0.5)/nF*(zmax-zmin)
+        h  = yo + amp*(cos(2π*(xh-xo)/W) + cos(2π*(zh-zo)/W))
+        VF += clamp((ymax-h)/(ymax-ymin), 0.0, 1.0)
+    end
+    return VF/nF^2
+end
+
+"""
 Exact VF values for 2D circle
 """
 function VFcircle(xmin,xmax,ymin,ymax,rad,xo,yo)
