@@ -261,9 +261,11 @@ function mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays
             push!(row, (iter, r_new, rho))
         end
         r_old = r_new
-    
-        if converged[] || max_iter == i
-            CSV.write("mg_convergence_$(pressure_scheme)_dtlow_2D.csv", row)
+        if isnothing(converged)
+            error("mg_lvl not specified in param")
+        end
+        if converged[] || i == max_iter
+            # CSV.write("mg_convergence_$(pressure_scheme)_dtlow_2D.csv", row)
             for k in kmin_:kmax_, j in jmin_:jmax_, i in imin_:imax_
                 fields.P[i,j,k] = mg_arrays[1].P_h[i,j,k]
             end    
