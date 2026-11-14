@@ -9,9 +9,9 @@ function pressure_solver!(P,uf,vf,wf,dt,band,VF,param,mg_mesh,par_env,denx,deny,
     # RHS = nothing
     if pressurePrecond == "multigrid"
         if pressureSolver == "anderson"
-            @time iter = precon_poisson_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp2,tmp4,Fhist,Phist,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env;)
+            iter = precon_poisson_solve!(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,tmp2,tmp4,Fhist,Phist,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env;)
         else
-            @time iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env)
+            iter = mg_cycler(P,uf,vf,wf,gradx,grady,gradz,band,dt,denx,deny,denz,mg_arrays,mg_mesh,VF,verts,tets,face_BC!,param,par_env)
         end
     else    
         if pressure_scheme == "finite-difference"
@@ -77,7 +77,7 @@ function smooth!(op, arrays,sweeps;iter = nothing, converged_flag = nothing)
     elseif smoother == "nl_gs"
         iter = nl_gs(arrays.P_h,arrays.uf,arrays.vf,arrays.wf,arrays.gradx,arrays.grady,arrays.gradz,arrays.band,op.dt,arrays.denx,arrays.deny,arrays.denz,arrays.AP,arrays.AP_R,arrays.diag,op.verts,op.tets,op.param,op.mesh,op.par_env;iter,max_iter = sweeps,τ=arrays.tau,converged=converged_flag)
     elseif smoother == "rbgs"
-        iter = gs(arrays.P_h,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=sweeps,converged = converged_flag)
+        iter = gs(arrays.P_h,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;iter,max_iter=sweeps,converged = converged_flag)
     elseif smoother == "jacobi"
         iter = jacobi(arrays.P_h,arrays.P_H,arrays.RHS,arrays.res,arrays.denx,arrays.deny,arrays.denz,op.dt,op.param,op.mesh,op.par_env;max_iter=sweeps,converged=converged_flag)
     end
@@ -993,16 +993,16 @@ function res_iteration(P, uf, vf, wf, gradx, grady, gradz, band, dt, denx, deny,
 
             J_safe = max.(abs.(J_loc), 1e-12)
             P_loc .-= ω * AP_loc ./ J_safe
-            P .-= parallel_mean_all(P_loc, par_env)
+            P .-=parallel_mean_all(P_loc[imin_:imax_,jmin_:jmax_,kmin_:kmax_],par_env)
         end
 
 
         # if p_iter % 200 == 0 && isroot
             # println("residual at iter $p_iter = $res_norm")
         # end
-        if iter !== nothing && p_iter > (max_iter-1)
-            println("residual at iter $iter = $(maximum(abs.(AP)))")
-        end
+        # if iter !== nothing && p_iter > (max_iter-1)
+        #     println("residual at iter $iter = $(maximum(abs.(AP)))")
+        # end
 
         # A!(AP, uf, vf, wf, P,dt, gradx, grady, gradz,band, denx, deny, denz,verts, tets, param, mesh, par_env)
         # println("AP computed after 1 iteration")
