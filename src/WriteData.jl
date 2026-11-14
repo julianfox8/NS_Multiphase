@@ -31,9 +31,10 @@ function std_out(h_last,t_last,mass_err,nstep,t,P,VF,u,v,w,divg,VF_init,iter,par
     max_w    = parallel_max(abs.(w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_divg = parallel_max(abs.(divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
     sum_VF = parallel_sum(VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]*dx*dy*dz,par_env)
-    mass_err[1] = parallel_max((mass_err[1], abs(VF_init - sum_VF)), par_env)
+    
 
     if isroot
+        mass_err[1] = max(mass_err[1], abs(VF_init - sum_VF))
         if (now = time()) - t_last[1] > std_out_period
             t_last[1] = now
             h_last[1] += 1
