@@ -15,17 +15,20 @@ function restrict_operator!(c::SLOp, f::SLOp, VF_f)
     Neumann!(c.lvl.tmplrg, c.mesh, c.par_env)
     # computeBand!(c.lvl.band, c.lvl.tmplrg, c.param, c.mesh, c.par_env)
     fill!(c.lvl.band,2.0)
-    compute_dens!(c.lvl.denx, c.lvl.deny, c.lvl.denz, c.lvl.tmplrg, c.param, c.mesh)
+    # compute_dens!(c.lvl.denx, c.lvl.deny, c.lvl.denz, c.lvl.tmplrg, c.param, c.mesh)
     restrict_x_face!(c.lvl.uf, f.lvl.uf, c.mesh)
     restrict_y_face!(c.lvl.vf, f.lvl.vf, c.mesh)
     restrict_z_face!(c.lvl.wf, f.lvl.wf, c.mesh)
     c.face_BC!(c.lvl.uf, c.lvl.vf, c.lvl.wf, c.mesh, c.par_env)
+    update_borders_x!(c.lvl.uf, c.mesh, c.par_env)
+    update_borders_y!(c.lvl.vf, c.mesh, c.par_env)
+    update_borders_z!(c.lvl.wf, c.mesh, c.par_env)
 end
 
 function restrict_operator!(c::FDOp, f::FDOp, VF_f)
     restrict!(c.lvl.tmplrg, VF_f, c.mesh, f.mesh)
     Neumann!(c.lvl.tmplrg, c.mesh, c.par_env)
-    compute_dens!(c.lvl.denx, c.lvl.deny, c.lvl.denz, c.lvl.tmplrg, c.param, c.mesh)
+    # compute_dens!(c.lvl.denx, c.lvl.deny, c.lvl.denz, c.lvl.tmplrg, c.param, c.mesh)
     restrict!(c.lvl.RHS, f.lvl.RHS, c.mesh, f.mesh)
 end
 
@@ -309,6 +312,15 @@ function mg_fas!(lvl, ops, VF, par_env, pvtk_iter;iter = nothing, converged::Uni
     Neumann!(coarse.P_h, mesh_c, par_env)
     restrict_operator!(op_c,op_f,VF_lvl)
 
+    # # Restrict densities
+    restrict_x_face_harmonic!(coarse.denx,fine.denx,mesh_c)
+    restrict_y_face_harmonic!(coarse.deny,fine.deny,mesh_c)
+    restrict_z_face_harmonic!(coarse.denz,fine.denz,mesh_c)
+    update_xface_borders!(coarse.denx,mesh_c,par_env)
+    update_yface_borders!(coarse.deny,mesh_c,par_env)
+    update_zface_borders!(coarse.denz,mesh_c,par_env)
+
+
     # copmpute A(R(P^h)) (A operator applied to restricted approximate solution on finer level)
     fill!(coarse.AP,0.0); apply!(op_c, coarse.AP, coarse.P_h)
 
@@ -406,9 +418,9 @@ function mg_CS!(lvl, ops, VF, par_env, pvtk_iter;iter = nothing, converged::Unio
     Neumann!(coarse.RHS,mesh_c,par_env)
 
     # Restrict densities
-    restrict_x_face!(coarse.denx,fine.denx,mesh_c)
-    restrict_y_face!(coarse.deny,fine.deny,mesh_c)
-    restrict_z_face!(coarse.denz,fine.denz,mesh_c)
+    restrict_x_face_harmonic!(coarse.denx,fine.denx,mesh_c)
+    restrict_y_face_harmonic!(coarse.deny,fine.deny,mesh_c)
+    restrict_z_face_harmonic!(coarse.denz,fine.denz,mesh_c)
     update_xface_borders!(coarse.denx,mesh_c,par_env)
     update_yface_borders!(coarse.deny,mesh_c,par_env)
     update_zface_borders!(coarse.denz,mesh_c,par_env)
