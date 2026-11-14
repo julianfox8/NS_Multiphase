@@ -14,29 +14,29 @@ param = parameters(
     mu_liq= 0.001,       # Dynamic viscosity of liquid (N⋅s/m^2)
     mu_gas = 0.0015, # Dynamic viscosity of gas (N⋅s/m^2)
     rho_liq= 1000,  # Density of liquid (kg/m^3)
-    rho_gas = 783,  # Density of gas (kg/m^3)
-    sigma = 0.04, # surface tension coefficient (N/m)
+    rho_gas = 780,  # Density of gas (kg/m^3)
+    sigma = 0.0,#0.04, # surface tension coefficient (N/m)
     grav_x = 0.706, # Gravity (m/s^2)
     grav_y = 9.785,#9.8, # Gravity (m/s^2)
     grav_z = 0.0, # Gravity (m/s^2)
-    Lx=0.3,            # Domain size
+    Lx=0.2,            # Domain size
     Ly=0.03,
     Lz=1/100,
     tFinal=5.0,      # Simulation time
 
     # Discretization inputs
-    Nx=301,          # Number of grid cells
-    Ny=31,
+    Nx=196,          # Number of grid cells
+    Ny=29,
     Nz=1,
     stepMax=100000,   # Maximum number of timesteps
-    CFL=0.2,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
-    max_dt = 1e-4,
+    CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
+    max_dt = 2e-2,
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
     tol = 1e-8,
 
     # Processors 
-    nprocx = 1,
+    nprocx = 3,
     nprocy = 1,
     nprocz = 1,
 
@@ -49,15 +49,15 @@ param = parameters(
     # restart = true,
     # restart_itr = 3620,
     
-
-    # pressure_scheme = "semi-lagrangian",
+    pressure_scheme = "semi-lagrangian",
     # pressureSolver = "res_iteration",
     # pressureSolver = "hypreSecant",
-    # pressurePrecond = "nl_jacobi",
+    pressureSolver = "anderson",
+    # pressurePrecond = "anderson",
 
-    pressure_scheme = "finite-difference",
+    # pressure_scheme = "finite-difference",
     # pressureSolver = "congugateGradient",
-    pressureSolver = "FC_hypre",
+    # pressureSolver = "FC_hypre",
     # pressureSolver = "gauss-seidel",
 
     hypreSolver = "GMRES-AMG",
@@ -68,7 +68,7 @@ param = parameters(
     # Iteration method used in @loop macro
     iter_type = "standard",
     # iter_type = "floop",
-    test_case = "KHI_test_even",
+    test_case = "KHI_test",
 ) 
 
 
