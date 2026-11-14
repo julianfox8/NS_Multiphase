@@ -19,14 +19,14 @@ param = parameters(
     grav_z = 0.0, # Gravity (m/s^2)
     Lx=0.25,            # Domain size of 8Dx30Dx8D where D is bubble diameter(m)
     Ly=0.25,             
-    Lz=0.25,
+    Lz=0.25/100,
     tFinal=100.0,      # Simulation time
 
     
     # Discretization inputs
-    Nx=64,           # Number of grid cells
-    Ny=64,
-    Nz=64,
+    Nx=48,           # Number of grid cells
+    Ny=48,
+    Nz=1,
     stepMax=20,   # Maximum number of timesteps
     max_dt = 5e-4,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
@@ -42,30 +42,30 @@ param = parameters(
     # Periodicity
     xper = false,
     yper = false,
-    zper = false,
+    zper = true,
 
     # Restart  
     # restart = true,
     # restart_itr = 190,
 
 
-    pressure_scheme = "semi-lagrangian",
+    # pressure_scheme = "semi-lagrangian",
     # pressureSolver = "hypreSecant",
-    pressureSolver = "anderson",
+    # pressureSolver = "anderson",
     # pressureSolver = "res_iteration",
 
     # pressureSolver = "FC_hypre",
-    # pressure_scheme = "finite-difference",
-    # pressureSolver = "rbgs",
+    pressure_scheme = "finite-difference",
+    pressureSolver = "rbgs",
 
-    # pressurePrecond = "multigrid",
-    # v1 = 10,
-    # v2 = 10,
-    # smoother = "rbgs",
-    # coarse_sol = "rbgs",
+    pressurePrecond = "multigrid",
+    v1 = 2,
+    v2 = 2,
+    smoother = "rbgs",
+    coarse_sol = "rbgs",
 
 
-    mg_lvl = 1,
+    mg_lvl = 3,
 
     projection_method = "Heun",
     tesselation = "5_tets",

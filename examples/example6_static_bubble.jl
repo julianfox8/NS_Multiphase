@@ -14,30 +14,30 @@ using Random
 # Define parameters 
 param = parameters(
     # Constants
-    mu_liq=1.0,       # Dynamic viscosity
-    mu_gas = 1e-5,
+    mu_liq=10.0,       # Dynamic viscosity
+    mu_gas = 1.0,
     rho_liq= 1000,           # Density
-    rho_gas =1.0, 
-    sigma = 0.072, #surface tension coefficient
+    rho_gas =100.0, 
+    sigma = 24.5, #surface tension coefficient
     grav_x = 0.0,
-    grav_y = 9.81,
+    grav_y = 0.98,
     grav_z = 0.0, # Gravity (m/s^2)
-    Lx=5.0,            # Domain size 
-    Ly=5.0,
+    Lx=1.0,            # Domain size 
+    Ly=2.0,
     Lz=1/100,
     tFinal=100.0,      # Simulation time
  
     
     # Discretization inputs
-    Nx=32,           # Number of grid cells
-    Ny=32,
+    Nx=160,           # Number of grid cells
+    Ny=160,
     Nz=1,
-    stepMax=500,   # Maximum number of timesteps
-    max_dt = 1e-3,
+    stepMax=7680,   # Maximum number of timesteps
+    max_dt = 4e-4,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-6,
+    tol = 1e-8,
 
     # Processors 
     nprocx = 1,
@@ -52,23 +52,33 @@ param = parameters(
 
     # Restart  
     # restart = true,
-    pressure_scheme = "finite-difference",
-    # pressure_scheme = "semi-lagrangian",
+    # pressure_scheme = "finite-difference",
+    pressure_scheme = "semi-lagrangian",
 
 
     # pressureSolver = "anderson",
     # pressureSolver = "Secant",
     # pressureSolver = "sparseSecant",
     # pressureSolver = "hypreSecant",
+    pressureSolver = "res_iteration",
+
     # pressureSolver = "GaussSeidel",
     # pressureSolver = "ConjugateGradient",
-    pressureSolver = "FC_hypre",
-    # pressure_scheme = "finite-difference",
+    # pressureSolver = "FC_hypre",
+    # pressureSolver = "rbgs",
+
+    pressurePrecond = "multigrid",
+    # v1 = 2,
+    # v2 = 2,
+    # smoother = "rbgs",
+    # coarse_sol = "rbgs",
+
+    mg_lvl = 5,
 
     projection_method = "Heun",
 
     iter_type = "standard",
-    VTK_dir= "VTK_example_rising_bubble"
+    test_case = "bubble_rise_2D",
 
 )
 
@@ -92,10 +102,10 @@ function IC!(P,u,v,w,VF,mesh)
 
     # fill!(VF,1.0)
     # Volume Fraction
-    rad=0.5
-    xo=2.5
-    yo=1.5
-    zo = 2.5
+    rad=0.25
+    xo=0.5
+    yo=0.5
+    zo = 0.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
         # VF[i,j,k]=VFbubble3d(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],rad,xo,yo,zo)
         VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
@@ -161,4 +171,57 @@ function BC!(u,v,w,mesh,par_env)
     return nothing
 end
 
-@time run_solver(param, IC!, BC!)
+"""
+Boundary conditions for face velocity
+"""
+function face_BC!(uf,vf,wf,mesh,par_env)
+    @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
+    @unpack imin,imax,jmin,jmax,kmin,kmax,x,y,z = mesh
+
+    # Left
+    if irankx == 0
+        i = imax-1
+        uf[i,:,:] .= 0.0
+        vf[i,:,:] .= 0.0
+        wf[i,:,:] .= 0.0
+    end
+    # Right
+    if irankx == nprocx-1
+        i = imax+1
+        uf[i,:,:] .= 0.0
+        vf[i,:,:] .= 0.0
+        wf[i,:,:] .= 0.0
+    end
+    # Bottom 
+    if iranky == 0 
+        j = jmin-1
+        uf[:,j,:] .= 0.0
+        vf[:,j,:] .= 0.0
+        wf[:,j,:] .= 0.0
+    end
+    # Top
+    utop=1.0
+    if iranky == nprocy-1
+        j = jmax+1
+        uf[:,j,:] .= 0.0
+        vf[:,j,:] .= 0.0
+        wf[:,j,:] .= 0.0
+    end
+    # Back 
+    if irankz == 0 
+        k = kmin-1
+        uf[:,:,k] .= 0.0
+        vf[:,:,k] .= 0.0
+        wf[:,:,k] .= 0.0
+    end
+    # Front
+    if irankz == nprocz-1
+        k = kmax+1
+        uf[:,:,k] .= 0.0
+        vf[:,:,k] .= 0.0
+        wf[:,:,k] .= 0.0
+    end
+    return nothing
+end
+
+@time run_solver(param, IC!, BC!;faceBC = face_BC!)

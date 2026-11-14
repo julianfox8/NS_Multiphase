@@ -5,52 +5,69 @@ Example using inflow/outflow
 using NavierStokes_Parallel
 using Random
 
-#Domain set up similar to "Numerical simulation of a single rising bubble by VOF with surface compression"
 # Define parameters 
 param = parameters(
-    # Constants
-    mu_liq=0.01,       # Dynamic viscosity
-    mu_gas = 0.0001,
-    rho_liq= 1000,           # Density
-    rho_gas =1.0, 
-    sigma = 0.00072, #surface tension coefficient
-    gravity = 10,
-    Lx=5.0,            # Domain size 
-    Ly=7.5,
-    Lz=1/50,
-    tFinal=100.0,      # Simulation time
- 
-    
-    # Discretization inputs
-    Nx=128,           # Number of grid cells
-    Ny=192,
-    Nz=1,
-    stepMax=1500,   # Maximum number of timesteps
-    max_dt = 1e-3,
+    # Constants  (He et al. 1999 / Lee & Kim 2013, At = 0.5, Re = 1024)
+    rho_liq = 3.0,          # heavy fluid (on top);  At = (3-1)/(3+1) = 0.5
+    rho_gas = 1.0,          # light fluid (bottom)
+    mu_liq  = 3.0/1024,     # equal kinematic viscosity: nu = W*sqrt(gW)/Re = 1/1024
+    mu_gas  = 1.0/1024,
+    sigma   = 0.0,          # surface tension neglected
+    grav_x  = 0.0,
+    grav_y  = 1.0,          # |g| = 1, pointing down (use whatever sign your code needs for -y)
+    grav_z  = 0.0,
+    Lx = 1.0,               # W
+    Ly = 4.0,               # 4W, vertical
+    Lz = 1.0/100,               # W
+    tFinal = 4.0,           # paper figures go to t = 4 (units of sqrt(W/g))
+
+    # Discretization
+    Nx = 64,                # He et al. low-res: 64x64x256; high-res: 128x128x512
+    Ny = 256,
+    Nz = 1,
+    stepMax=20,#1500,   # Maximum number of timesteps
+    max_dt = 1e-2,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-6,
+    tol = 1e-8,
 
     # Processors 
-    nprocx = 4,
-    nprocy = 6,
+    nprocx = 1,
+    nprocy = 1,
     nprocz = 1,
 
     # Periodicity
-    xper = false,
+    xper = true,
     yper = false,
     zper = true,
 
-    # pressureSolver = "NLsolve",
+    pressure_scheme = "finite-difference",
+    # pressure_scheme = "semi-lagrangian",
+
+
+    # pressureSolver = "anderson",
     # pressureSolver = "Secant",
-    # pressureSolver = "sparseSecant",
-    pressureSolver = "hypreSecant",
-    # pressureSolver = "GaussSeidel",
+    # pressureSolver = "res_iteration",
+    # pressureSolver = "hypreSecant",
+    # pressureSolver = "rbgs",
     # pressureSolver = "ConjugateGradient",
-    # pressure_scheme = "finite-difference",
+    pressureSolver = "FC_hypre",
+    
+
+
+    # pressurePrecond = "multigrid",
+    # v1 = 10,
+    # v2 = 10,
+    # smoother = "rbgs",
+    # coarse_sol = "rbgs",
+
+
+    mg_lvl = 1,
+
+    projection_method = "Heun",
     iter_type = "standard",
-    VTK_dir= "VTK_example_static_bubble_room"
+    test_case = "RTI_2D",
 
 )
 
@@ -74,16 +91,8 @@ function IC!(P,u,v,w,VF,mesh)
 
     # fill!(VF,1.0)
     # Volume Fraction
-    rad=0.5
-    xo=2.5
-    yo=2.5
-    zo = 2.5
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        if y[j] > 5.0
-            VF[i,j,k] == 0.0
-        else    
-            VF[i,j,k]=VFbubble2d(x[i],x[i+1],y[j],y[j+1],rad,xo,yo)
-        end
+        VF[i,j,k]=VFrti(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1])
     end
 
     return nothing    
@@ -92,7 +101,7 @@ end
 """
 Boundary conditions for velocity
 """
-function BC!(u,v,w,t,mesh,par_env)
+function BC!(u,v,w,mesh,par_env)
     @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
     @unpack imin,imax,jmin,jmax,kmin,kmax = mesh
     @unpack jmin_,jmax_ = mesh
@@ -146,5 +155,30 @@ function BC!(u,v,w,t,mesh,par_env)
     return nothing
 end
 
+"""
+Boundary conditions for face velocity
+"""
+function face_BC!(uf,vf,wf,mesh,par_env)
+    @unpack irankx, iranky, irankz, nprocx, nprocy, nprocz = par_env
+    @unpack imin,imax,jmin,jmax,kmin,kmax,x,y,z = mesh
+
+    # Bottom 
+    if iranky == 0 
+        j = jmin-1
+        uf[:,j,:] .= 0.0
+        vf[:,j,:] .= 0.0
+        wf[:,j,:] .= 0.0
+    end
+    # Top
+    if iranky == nprocy-1
+        j = jmax+1
+        uf[:,j,:] .= 0.0
+        vf[:,j,:] .= 0.0
+        wf[:,j,:] .= 0.0
+    end
+
+    return nothing
+end 
+
 # Simply run solver on 1 processor
-@time run_solver(param, IC!, BC!)
+@time run_solver(param, IC!, BC!;faceBC = face_BC!)

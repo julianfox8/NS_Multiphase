@@ -22,20 +22,20 @@ param = parameters(
     tFinal = 4.0,           # paper figures go to t = 4 (units of sqrt(W/g))
 
     # Discretization
-    Nx = 24,#64,                # He et al. low-res: 64x64x256; high-res: 128x128x512
-    Ny = 96,#256,
-    Nz = 24,
+    Nx = 64,                # He et al. low-res: 64x64x256; high-res: 128x128x512
+    Ny = 256,
+    Nz = 64,
     stepMax=1500,   # Maximum number of timesteps
     max_dt = 1e-2,
     CFL=0.4,         # Courant-Friedrichs-Lewy (CFL) condition for timestep
     std_out_period = 0.0,
     out_period=1,     # Number of steps between when plots are updated
-    tol = 1e-6,
+    tol = 1e-8,
 
     # Processors 
-    nprocx = 1,
-    nprocy = 1,
-    nprocz = 1,
+    nprocx = 2,
+    nprocy = 4,
+    nprocz = 2,
 
     # Periodicity
     xper = true,
@@ -46,28 +46,28 @@ param = parameters(
     pressure_scheme = "semi-lagrangian",
 
 
-    # pressureSolver = "anderson",
+    pressureSolver = "anderson",
     # pressureSolver = "Secant",
-    pressureSolver = "res_iteration",
+    # pressureSolver = "res_iteration",
     # pressureSolver = "hypreSecant",
     # pressureSolver = "rbgs",
     # pressureSolver = "ConjugateGradient",
     # pressureSolver = "FC_hypre",
-    # pressure_scheme = "finite-difference",
+    
 
 
-    pressurePrecond = "multigrid",
+    # pressurePrecond = "multigrid",
     # v1 = 10,
     # v2 = 10,
     # smoother = "rbgs",
     # coarse_sol = "rbgs",
 
 
-    mg_lvl = 4,
+    # mg_lvl = 4,
 
     projection_method = "Heun",
     iter_type = "standard",
-    VTK_dir= "VTK_example_RTI"
+    test_case = "RTI_3D",
 
 )
 
@@ -92,7 +92,7 @@ function IC!(P,u,v,w,VF,mesh)
     # fill!(VF,1.0)
     # Volume Fraction
     for k = kmino_:kmaxo_, j = jmino_:jmaxo_, i = imino_:imaxo_ 
-        VF[i,j,k]=VFrti(x[i],x[i+1],y[j],y[j+1],z[i],z[i+1])
+        VF[i,j,k]=VFrti(x[i],x[i+1],y[j],y[j+1],z[k],z[k+1])
     end
 
     return nothing    
