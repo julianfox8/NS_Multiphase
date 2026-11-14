@@ -120,8 +120,9 @@ function run_solver(param, IC!, BC!;faceBC = nothing)
     # Output IC
     t_last =[-100.0,]
     h_last =[100]
+    mass_err = [0.0]
 
-    std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,0,param,mesh,par_env)
+    std_out(h_last,t_last,mass_err,nstep,t,P,VF,u,v,w,divg,VF_init,0,param,mesh,par_env)
     !restart && VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
     
     # Loop over time
@@ -168,7 +169,7 @@ function run_solver(param, IC!, BC!;faceBC = nothing)
         divergence!(divg,uf,vf,wf,dt,band,verts,tets,param,mesh,par_env)
         
         # Output solution after pressure correction
-        std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
+        std_out(h_last,t_last,mass_err,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
         VTK(nstep,t,P,u,v,w,uf,vf,wf,VF,nx,ny,nz,D,band,divg,Curve,tmp1,param,mesh,par_env,pvd,pvd_restart,pvd_PLIC,sfx,sfy,sfz,denx,deny,denz,verts,tets)
         MPI.Barrier(comm)
         

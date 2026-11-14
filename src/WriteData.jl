@@ -21,7 +21,7 @@ function csv_init!(param,par_env)
     return nothing
 end
 
-function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
+function std_out(h_last,t_last,mass_err,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,par_env)
     @unpack std_out_period,VTK_dir,instability = param
     @unpack isroot = par_env
     @unpack imin_,imax_,jmin_,jmax_,kmin_,kmax_,dx,dy,dz = mesh
@@ -31,7 +31,7 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,p
     max_w    = parallel_max(abs.(w[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),   par_env)
     max_divg = parallel_max(abs.(divg[imin_:imax_,jmin_:jmax_,kmin_:kmax_]),par_env)
     sum_VF = parallel_sum(VF[imin_:imax_,jmin_:jmax_,kmin_:kmax_]*dx*dy*dz,par_env)
-    
+    mass_err[1] = parallel_max(mass_err[1], abs(VF_init - sum_VF))
 
     if isroot
         if (now = time()) - t_last[1] > std_out_period
@@ -50,7 +50,7 @@ function std_out(h_last,t_last,nstep,t,P,VF,u,v,w,divg,VF_init,iter,param,mesh,p
                 # if instability == "kelvin-helmholtz"
                 #     println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$(VF_init-sum_VF),$iter,$A,$ϕ"))
                 # else    
-                    println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$(VF_init-sum_VF),$iter"))
+                    println(io,("$nstep,$t,$max_u,$max_v,$max_w,$max_divg,$(mass_err[1]),$iter"))
                 # end
             end
             if instability == "kelvin-helmholtz"
